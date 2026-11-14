@@ -79,28 +79,29 @@ On the rover map, drag to pan, use the wheel or pinch to zoom, or use + / − / 
 ## Five-minute walkthrough
 
 1. **Start mission** → choose a spacecraft → enter a call sign and pick a suit → **Launch** (or **Skip animation**).
-2. You arrive through the airlock in node B. Follow the floor guide past the rover to the **Mission Ops** table under the cupola and read the brief. Then go to **Payload** in the rover bay, pick an instrument and **Activate payload**. The instrument appears on the rover, and the relay faults.
-3. Go to **Rover Comms** (node C, rear right) and rotate the receiver segments to match the reference. **Confirm match**.
-4. At **Power Grid** (node A, rear left), raise Communications to at least 4. At 5, each signal leg is 2 minutes faster. Research at 3 or more cuts uncertainty instead. The buses in the floor light up with what you route.
-5. Optional: at **Calibration** (node C, front right), tune gain and offset until both standards turn green. Optional routine tasks: battery balancing, cargo, water, medical. **Mission Ops → Mission status** shows what each choice is doing to the forecast.
+2. You dock at the station. Walk up to **Payload**, just ahead of you. Pick an instrument and **Activate payload**. The relay faults.
+3. Go to **Rover Comms** (rear right) and rotate the receiver segments to match the reference. **Confirm match**.
+4. At **Power Grid** (rear left), raise Communications to at least 4. At 5, each signal leg is 2 minutes faster. Research at 3 or more cuts uncertainty instead.
+5. Optional: at **Calibration** (front right), tune gain and offset until both standards turn green. Optional routine tasks: battery balancing, cargo, water, medical. The **Mission Ops** table under the cupola has the mission brief, and its **Mission status** tab shows what each choice is doing to the forecast.
 6. Back at **Rover Comms**, open the planner. Choose a route and a scan, queue Drive → Scan → Return, read the forecast, and **Transmit sequence**.
 7. Advance the clock with **Next event**, **+5 min** or **Run clock**. Evidence counts only once it reaches Earth.
 8. **Review landing sites**: select a site and **Confirm site**, or defer. Read the report and commission the habitat if your crew passed the medical check. Then **Replay with this crew** or **Return to title**.
 
 ## The station
 
-Three pressurised nodes in a row, joined by open hatches. You can walk behind the freestanding consoles.
+Three pressurised nodes in a row, joined by open hatches. You arrive through the airlock in node B, and the floor guide leads you to the mission brief. You can walk behind the freestanding consoles.
 
 | Node | Rear wall | Front |
 | --- | --- | --- |
 | **A · Utility** | Power Grid, beside the power core. Your ship is docked outside the window. | Hab Systems: water, hydroponics, medical |
-| **B · Command** | The cupola, with the Mission Ops holo-table in front of it | The rover bay (Payload) and the airlock you arrive through |
+| **B · Command** | The cupola, with the Mission Ops holo-table in front of it | The rover bay (Payload) and the airlock |
 | **C · Science & Comms** | Rover Comms. The relay dish is outside the window. | The Calibration bench |
 
 The deck shows mission state, so you can read your choices off the room:
 
 - **Power buses** in the floor run from the Power Grid to Hab Systems (life support), Rover Comms (communications) and the Calibration bench (research). Each glows with the units routed to it, and turns amber while it is below what transmission needs.
 - **Consoles** show live values: the allocation on the Power Grid, the one-way signal delay on Rover Comms, the rover's starting charge in the bay, and lamps for calibration, water and medical.
+- **The rover** carries the instrument you chose at Payload.
 - **Relay fault**: the beacon flashes, the dish hunts for the carrier, and the link display reads NO LINK until you repair it.
 - **Mission Ops** has three tabs: the mission brief, a live mission status (budget, mass, power, battery and time against their limits, then each choice and what it is causing), and the data sources for every number.
 
@@ -154,8 +155,9 @@ If the service is offline, the Co-op panel says so and offers **Retry**. Solo pl
 ## Project layout
 
 - `src/core/`: pure TypeScript rules (data, power, tasks, rover simulation, mission, co-op protocol validation). This code is shared with the server and tests.
-- `src/art/geo.json`: station and Mars geometry, read by both the art generator and the game. `src/game/deck.ts` is its typed view.
-- `src/game/`: Phaser scenes (station and Mars), input, the live station layer (`stationFx.ts`), and deck pathfinding for the floor guide (`nav.ts`).
-- `src/ui/`: title, fleet, crew, launch, task panels, Mission Ops, the station HUD and deck map, rover operations, landing sites, and the report.
+- `src/game/`: Phaser scenes (station and Mars) and input.
+- `src/ui/`: title, fleet, crew, launch, task panels, rover operations, landing sites, and the report.
 - `server/`: the Colyseus `spacer_power` room.
 - `scripts/`: the art generator. `test/` holds the tests.
+- `src/art/geo.json`: station and Mars geometry, read by both the art generator and the game. `src/game/deck.ts` is its typed view; `src/game/stationFx.ts` draws mission state on the deck; `src/game/nav.ts` finds the floor guide's route.
+- `src/ui/ops.ts` is the Mission Ops panel; `src/ui/stationHud.ts` holds the objective, the deck map and the state handed to the deck.

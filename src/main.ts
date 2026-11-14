@@ -1,6 +1,5 @@
 import './style.css'
 import './holo.css'
-import './station.css'
 import { ICONS } from './ui/icons'
 import type Phaser from 'phaser'
 import { SHIPS, SUITS, byId, type ShipId, type SuitId } from './core/data'

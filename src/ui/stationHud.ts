@@ -1,5 +1,6 @@
 // What the station shows about the mission: the objective and where it sends the player, the
 // state the live deck layer draws, and the deck map in the HUD.
+import '../station.css'
 import { SUITS, byId } from '../core/data'
 import type { Mission } from '../core/mission'
 import { powerBlock, signalLeg, type Power } from '../core/power'
