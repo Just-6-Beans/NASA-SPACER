@@ -8,6 +8,7 @@ import * as T from '../core/tasks'
 import type { TaskId } from '../core/tasks'
 import { sound } from '../audio'
 import { $, $$, el, esc } from './dom'
+import { TERMINALS } from '../game/deck'
 import { opsTabs } from './ops'
 
 export interface PanelCtx {
@@ -51,14 +52,15 @@ export function openPanel(id: string, ctx: PanelCtx, tabId?: string) {
   const m = ctx.m
   const tabs = tabsFor(id, ctx)
   const meta: Record<string, [string, string]> = {
-    ops: ['Mission Ops', 'Node B · Under the cupola'],
-    power: ['Power Grid', 'Node A · Rear left · Station power'],
-    calibration: ['Calibration', 'Node C · Front right · Instrument bench'],
-    comms: ['Rover Comms', 'Node C · Rear right · Mars relay'],
-    hab: ['Hab Systems', 'Node A · Front left · Life support & medical'],
-    payload: ['Payload', 'Node B · Rover bay'],
+    ops: ['Mission Ops', 'US Lab · Holo table'],
+    power: ['Power Grid', 'Node 1 · Station power'],
+    calibration: ['Calibration', 'US Lab · Instrument bench'],
+    comms: ['Rover Comms', 'Comms module · Mars relay'],
+    hab: ['Hab Systems', 'Node 3 · Life support & medical'],
+    payload: ['Payload', 'US Lab · Rover bay'],
   }
-  const [title, loc] = meta[id]
+  // greenhouse terminals have no panel yet: see notes/greenhouse-station.md
+  const [title, loc] = meta[id] ?? [TERMINALS.find(t => t.id === id)?.name ?? 'Greenhouse', 'Greenhouse module']
   closePanel()
   const root = el(`<div class="overlay" role="dialog" aria-modal="true" aria-label="${title}">
     <div class="panel">
@@ -100,7 +102,7 @@ function tabsFor(id: string, ctx: PanelCtx): Tab[] {
     case 'hab': return [{ id: 'water', label: 'Water purification', task: 'water', render: (b, r) => sequenceTab(b, r, ctx, 'water') }, { id: 'medical', label: 'Crew medical', task: 'medical', render: (b, r) => sequenceTab(b, r, ctx, 'medical') }]
     case 'payload': return [{ id: 'inst', label: 'Rover instrument', render: (b, r) => payloadTab(b, r, ctx) }, { id: 'cargo', label: 'Cargo reconciliation', task: 'cargo', render: (b, r) => cargoTab(b, r, ctx) }]
   }
-  return []
+  return [{ id: 'soon', label: 'Not wired yet', render: b => { b.innerHTML = '<p class="lead">The greenhouse module is built and its simulation is in the code (src/core/greenhouse.ts), but this terminal is not connected to it yet.</p><div class="feedback warn">Work in progress. What is left is listed in notes/greenhouse-station.md.</div>' } }]
 }
 
 // ------------------------------------------------------------------ Payload

@@ -2,7 +2,9 @@ import Phaser from 'phaser'
 import geo from '../art/geo.json'
 import { SHIPS, SUITS, type SuitId } from '../core/data'
 import type { CrewMember, Facing, Pose } from '../core/protocol'
-import { DECK, LIVE, PROPS, REACH, SOLIDS, SPAWN, TERMINALS, WINDOWS, type Terminal, type TerminalId } from './deck'
+import { CROP_IDS } from '../core/crops'
+import { DECK, EXTERIOR, LINKS, LIVE, MODULES, PROPS, SOLIDS, SPAWN, TERMINALS, inGreenhouse, reachOf, type Terminal, type TerminalId } from './deck'
+import { CROP_FRAME, GreenhouseLive, type GreenhouseView } from './greenhouseFx'
 import { held, input } from './input'
 import { StationLive, type StationView } from './stationFx'
 
@@ -14,14 +16,20 @@ export const dpr = () => Math.min(window.devicePixelRatio || 1, 2.5)
 
 export { TERMINALS, type Terminal, type TerminalId } from './deck'
 export type { StationView } from './stationFx'
+export type { GreenhouseView } from './greenhouseFx'
+/** Walking and jogging speed in deck pixels per second. */
+const WALK = 218, JOG = 353
 
 // ------------------------------------------------------------------ Boot
 class BootScene extends Phaser.Scene {
   constructor() { super('boot') }
   preload() {
     for (const s of SUITS) this.load.svg(`suit-${s.id}`, asset(`suit-${s.id}.svg`), { scale: SUIT_RES })
-    this.load.svg('deck', asset('deck.svg'), { scale: DECK_RES })
-    this.load.svg('earthview', asset('earth.svg'), { scale: 0.75 })
+    for (const m of MODULES) this.load.svg(`mod-${m.id}`, asset(`mod-${m.id}.svg`), { scale: DECK_RES })
+    for (const l of LINKS) this.load.svg(`link-${l.id}`, asset(`link-${l.id}.svg`), { scale: DECK_RES })
+    for (const e of ['earth-day', 'earth-night', 'stars', 'truss', 'gh-boom']) this.load.svg(`ext-${e}`, asset(`ext-${e}.svg`), { scale: 1 })
+    this.load.svg('ext-gh-wing', asset('ext-gh-wing.svg'), { scale: DECK_RES })
+    for (const c of CROP_IDS) this.load.svg(`crop-${c}`, asset(`crop-${c}.svg`), { scale: CROP_FRAME.res })
     for (const p of [...PROPS.map(q => q.id), 'inst-ir', 'inst-gpr']) this.load.svg(`prop-${p}`, asset(`prop-${p}.svg`), { scale: DECK_RES })
     for (const s of SHIPS) this.load.svg(`ship-${s.id}`, asset(`ship-${s.id}.svg`), { scale: 0.6 })
     for (const e of ['boom', 'dish']) this.load.svg(`ext-${e}`, asset(`ext-${e}.svg`), { scale: DECK_RES })
@@ -36,6 +44,12 @@ class BootScene extends Phaser.Scene {
         for (let col = 0; col < 5; col++) tex.add(`${d}${col}`, 0, col * 64 * SUIT_RES, row * 96 * SUIT_RES, 64 * SUIT_RES, 96 * SUIT_RES)
         this.anims.create({ key: `${s.id}-walk-${d}`, frames: [1, 2, 3, 4].map(i => ({ key: `suit-${s.id}`, frame: `${d}${i}` })), frameRate: 8, repeat: -1 })
       })
+    }
+    for (const c of CROP_IDS) {
+      const tex = this.textures.get(`crop-${c}`)
+      for (let row = 0; row < CROP_FRAME.rows; row++) for (let col = 0; col < CROP_FRAME.cols; col++) {
+        tex.add(`${col}-${row}`, 0, col * CROP_FRAME.w * CROP_FRAME.res, row * CROP_FRAME.h * CROP_FRAME.res, CROP_FRAME.w * CROP_FRAME.res, CROP_FRAME.ground * CROP_FRAME.res)
+      }
     }
     const g = this.make.graphics({}, false)
     g.fillStyle(0xffffff, 1).fillCircle(8, 8, 8)
@@ -76,7 +90,7 @@ class Avatar {
     if (moving) {
       const key = `${this.suit}-walk-${facing}`
       if (this.sprite.anims.currentAnim?.key !== key || !this.sprite.anims.isPlaying) this.sprite.play(key, true)
-      this.sprite.anims.timeScale = jog ? 1.6 : 1
+      this.sprite.anims.timeScale = jog ? 2.3 : 1.5
     } else {
       this.sprite.stop()
       this.sprite.setFrame(`${facing}0`)
@@ -92,15 +106,16 @@ export class StationScene extends Phaser.Scene {
   private body0!: Phaser.Physics.Arcade.Body
   private me!: Avatar
   private remotes = new Map<string, { av: Avatar; tx: number; ty: number }>()
-  private exterior!: Phaser.GameObjects.Graphics
+  private starsTile!: Phaser.GameObjects.TileSprite
   private exteriorFx!: Phaser.GameObjects.Graphics
-  private earthImg!: Phaser.GameObjects.Image
+  private earthDay!: Phaser.GameObjects.Image
   private lightFx!: Phaser.GameObjects.Graphics
   private rings!: Phaser.GameObjects.Graphics
   private debugG!: Phaser.GameObjects.Graphics
-  private stars: { x: number; y: number; r: number; s: number; a: number }[] = []
   private live: StationLive | null = null
   private view: StationView | null = null
+  private ghLive: GreenhouseLive | null = null
+  private ghView: GreenhouseView | null = null
   private load0: Phaser.GameObjects.Image[] = []
   private vel = new Phaser.Math.Vector2()
   private stepTimer = 0
@@ -126,18 +141,27 @@ export class StationScene extends Phaser.Scene {
     const W = DECK.width, H = DECK.height
     this.startedAt = performance.now()
     this.physics.world.setBounds(0, 0, W, H)
-    // exterior layer (seen only through the window cut-outs)
-    for (let i = 0; i < 260; i++) this.stars.push({ x: Math.random() * W, y: Math.random() * DECK.wallY, r: Math.random() ** 3 * 1.6 + 0.4, s: 4 + Math.random() * 10, a: 0.4 + Math.random() * 0.6 })
-    this.exterior = this.add.graphics().setDepth(-30)
-    this.earthImg = this.add.image(0, 0, 'earthview').setOrigin(0).setDepth(-29)
-    this.exteriorFx = this.add.graphics().setDepth(-28)
-    this.add.image(0, 0, 'deck').setOrigin(0).setScale(1 / DECK_RES).setDepth(-10)
+    // outside the hull: stars, the Earth below, the truss with its arrays. Seen around the modules
+    // and through their windows.
+    const { earth, truss, ghArray } = EXTERIOR
+    void earth
+    this.starsTile = this.add.tileSprite(0, 0, W, H, 'ext-stars').setOrigin(0).setDepth(-40)
+    this.add.image(0, 0, 'ext-earth-night').setOrigin(0).setDisplaySize(W, H).setDepth(-36)
+    this.earthDay = this.add.image(0, 0, 'ext-earth-day').setOrigin(0).setDisplaySize(W, H).setDepth(-35).setTint(0xc4d2e2)
+    this.exteriorFx = this.add.graphics().setDepth(-34)
+    this.add.image(truss.art[0], truss.art[1], 'ext-truss').setOrigin(0).setDepth(-30)
+    this.add.image(ghArray.art[0], ghArray.art[1], 'ext-gh-boom').setOrigin(0).setDepth(-30)
+    // the modules, then the passages painted over the walls they go through
+    for (const m of MODULES) this.add.image(m.x - DECK.bleed, m.y - DECK.bleed, `mod-${m.id}`).setOrigin(0).setScale(1 / DECK_RES).setDepth(-10)
+    for (const l of LINKS) this.add.image(l.art[0], l.art[1], `link-${l.id}`).setOrigin(0).setScale(1 / DECK_RES).setDepth(-9.9)
     this.lightFx = this.add.graphics().setDepth(-9)
     this.rings = this.add.graphics().setDepth(-8)
     // freestanding props sort against the crew by the depth recorded in geo.json
     for (const p of PROPS) this.add.image(p.at[0], p.at[1], `prop-${p.id}`).setOrigin(0).setScale(1 / DECK_RES).setDepth(p.depth)
     this.live = new StationLive(this, SHIPS.map(sh => sh.id), dpr() * 2.5)
     if (this.view) this.live.setView(this.view)
+    this.ghLive = new GreenhouseLive(this, dpr() * 2.5)
+    if (this.ghView) this.ghLive.setView(this.ghView)
     this.add.text(LIVE.exteriorLabel[0], LIVE.exteriorLabel[1], 'EXTERIOR · 30× PLAYBACK', { fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: '#9fd8e8', resolution: dpr() * 2 }).setDepth(-5).setAlpha(0.8)
 
     // collision
@@ -161,7 +185,7 @@ export class StationScene extends Phaser.Scene {
       hit.on('pointerdown', () => {
         if (input.blocked) return
         const d = Phaser.Math.Distance.Between(this.feet.x, this.feet.y, t.at[0], t.at[1])
-        if (d <= REACH * 1.9) this.onOpen(t.id)
+        if (d <= reachOf(t) * 1.9) this.onOpen(t.id)
         else this.onBlocked(`Walk closer to ${t.name} to use it.`)
       })
     }
@@ -204,6 +228,14 @@ export class StationScene extends Phaser.Scene {
     this.view = v
     this.live?.setView(v)
   }
+
+  /** Greenhouse state for the racks, lights and lamps. Safe to call before the scene has been created. */
+  setGreenhouse(v: GreenhouseView) {
+    this.ghView = v
+    this.ghLive?.setView(v)
+  }
+  /** True while the astronaut stands on the greenhouse floor. */
+  get inGreenhouse() { return !!this.feet && inGreenhouse(this.feet.x, this.feet.y) }
 
   respawn(x = SPAWN[0], y = SPAWN[1]) {
     this.body0.reset(x, y)
@@ -263,7 +295,7 @@ export class StationScene extends Phaser.Scene {
     if (input.blocked) { ix = 0; iy = 0 }
     const len = Math.hypot(ix, iy)
     const jog = held.jog && len > 0
-    const speed = jog ? 235 : 145
+    const speed = jog ? JOG : WALK
     const tx = len ? (ix / len) * speed : 0
     const ty = len ? (iy / len) * speed : 0
     const k = 1 - Math.exp(-dt * (len ? 11 : 16))
@@ -281,7 +313,7 @@ export class StationScene extends Phaser.Scene {
     this.me.place(this.feet.x, this.feet.y)
     if (moving) {
       this.stepTimer -= dt
-      if (this.stepTimer <= 0) { this.onStep(); this.stepTimer = jog ? 0.24 : 0.34 }
+      if (this.stepTimer <= 0) { this.onStep(); this.stepTimer = jog ? 0.17 : 0.24 }
     } else this.stepTimer = 0.05
 
     // remote interpolation
@@ -293,10 +325,10 @@ export class StationScene extends Phaser.Scene {
     }
 
     // nearest terminal
-    let best: Terminal | null = null, bd = REACH
+    let best: Terminal | null = null, bd = Infinity
     for (const t of TERMINALS) {
       const d = Phaser.Math.Distance.Between(this.feet.x, this.feet.y, t.at[0], t.at[1])
-      if (d < bd) { bd = d; best = t }
+      if (d < reachOf(t) && d < bd) { bd = d; best = t }
     }
     if (best !== this.near) { this.near = best; this.onNear(best); this.drawCallout(best) }
     if (this.callout.visible) this.callout.y = this.callout.getData('baseY') + Math.sin(performance.now() / 400) * 2
@@ -305,9 +337,11 @@ export class StationScene extends Phaser.Scene {
     for (const t of TERMINALS) {
       const on = t === this.near
       this.rings.lineStyle(on ? 3 : 1.5, on ? 0x6ef2c6 : 0x6ef2c6, on ? 0.6 + pulse * 0.4 : 0.18)
-      this.rings.strokeEllipse(t.at[0], t.at[1], on ? 70 : 54, on ? 22 : 16)
+      const k = reachOf(t) / 78
+      this.rings.strokeEllipse(t.at[0], t.at[1], (on ? 70 : 54) * k, (on ? 22 : 16) * k)
     }
     this.live?.update(performance.now(), this.feet, this.near)
+    this.ghLive?.update(performance.now(), this.near)
 
     // pose broadcast at ~15 Hz, only when changed (plus a slow heartbeat)
     this.poseTimer += dt
@@ -344,50 +378,33 @@ export class StationScene extends Phaser.Scene {
   get exteriorPhase() { return (((performance.now() - this.startedAt) / 1000 + 8) % 184) / 184 }
 
   private drawExterior() {
-    const g = this.exterior
     const ph = this.exteriorPhase
     const day = ph < 0.62
     const tDay = day ? Math.min(1, Math.sin((ph / 0.62) * Math.PI) * 3) : 0
-    g.clear()
-    g.fillStyle(Phaser.Display.Color.GetColor(4 + tDay * 8, 7 + tDay * 14, 16 + tDay * 30), 1).fillRect(0, 0, DECK.width, DECK.wallY)
     const now = performance.now() / 1000
-    for (const s of this.stars) {
-      const x = (((s.x - now * s.s) % DECK.width) + DECK.width) % DECK.width
-      g.fillStyle(0xffffff, s.a * (1 - tDay * 0.6)).fillCircle(x, s.y, s.r)
-    }
-    // Earth (bundled texture) drifting below the windows; the limb sits at about y=58.
-    const W = 1500, scale = W / this.earthImg.width
-    this.earthImg.setScale(scale).setPosition(-170 + Math.sin(ph * Math.PI * 2) * 150 - ((now * 1.5) % 40), 58 - 0.708 * this.earthImg.height * scale)
+    // stars drift slowly and fade a little in daylight; the lit Earth fades out over its night side
+    this.starsTile.tilePositionX = now * 5
+    this.starsTile.setAlpha(1 - tDay * 0.4)
+    this.earthDay.setAlpha(tDay)
+    // sunrise and sunset: a glare on the limb, upper right of the Earth
     const fx = this.exteriorFx
     fx.clear()
-    // night side: darken the planet, add city lights
-    const night = 1 - tDay
-    if (night > 0.02) {
-      fx.fillStyle(0x020611, 0.82 * night).fillRect(0, 50, DECK.width, DECK.wallY - 44)
-      for (let i = 0; i < 46; i++) {
-        const bx = ((i * 97 - now * 6) % 1300 + 1300) % 1300 - 70
-        fx.fillStyle(0xffd27a, 0.6 * night).fillCircle(bx, 74 + (i * 13) % 50, 1.3)
-      }
-    }
-    // sunrise / sunset glare along the limb
     const edge = Math.min(Math.abs(ph - 0.0), Math.abs(ph - 1), Math.abs(ph - 0.62))
     if (edge < 0.05) {
-      const a = 1 - edge / 0.05
-      const sx = ph > 0.3 && ph < 0.8 ? 1000 : 160
-      fx.fillStyle(0xffb066, 0.35 * a).fillEllipse(sx, 60, 520, 40)
-      fx.fillStyle(0xffc27a, 0.5 * a).fillCircle(sx, 58, 50)
-      fx.fillStyle(0xfff3d6, 0.95 * a).fillCircle(sx, 58, 13)
+      const a = 1 - edge / 0.05, { cx, cy, r } = EXTERIOR.earth, ang = -0.86
+      const sx = cx + Math.cos(ang) * r, sy = cy + Math.sin(ang) * r
+      fx.fillStyle(0xffb066, 0.3 * a).fillEllipse(sx, sy, 520, 90)
+      fx.fillStyle(0xffc27a, 0.5 * a).fillCircle(sx, sy, 54)
+      fx.fillStyle(0xfff3d6, 0.95 * a).fillCircle(sx, sy, 14)
     }
-    // interior light: warm shafts by day, cool dim at night
+    // interior light: a cool dim on the night side
     const lf = this.lightFx
     lf.clear()
-    if (tDay > 0.05) {
-      lf.fillStyle(0xfff0d0, 0.05 * tDay)
-      for (const [x, , w] of WINDOWS) lf.fillPoints([{ x, y: DECK.wallY }, { x: x + w, y: DECK.wallY }, { x: x + w + 80, y: 520 }, { x: x + 80, y: 520 }] as Phaser.Types.Math.Vector2Like[], true)
-    } else {
-      lf.fillStyle(0x0a1838, 0.16).fillRect(0, 0, DECK.width, DECK.height)
-    }
+    if (tDay < 0.05) lf.fillStyle(0x0a1838, 0.14).fillRect(0, 0, DECK.width, DECK.height)
   }
+
+  /** True while the station is on the sunlit side of the orbit shown outside. */
+  get sunlit() { return this.exteriorPhase < 0.62 }
 
   private drawDebug() {
     const g = this.debugG
@@ -397,7 +414,7 @@ export class StationScene extends Phaser.Scene {
     g.lineStyle(1, 0x6ef2c6, 0.9)
     g.strokeRect(this.body0.x, this.body0.y, this.body0.width, this.body0.height)
     g.lineStyle(1, 0xffb347, 0.5)
-    for (const t of TERMINALS) g.strokeCircle(t.at[0], t.at[1], REACH)
+    for (const t of TERMINALS) g.strokeCircle(t.at[0], t.at[1], reachOf(t))
   }
 }
 

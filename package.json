@@ -13,6 +13,7 @@
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "server": "tsx server/index.ts",
     "test": "tsx --test test/*.test.ts",
+    "geo": "node scripts/build-geo.mjs",
     "art": "node scripts/gen-art.mjs",
     "data": "node scripts/fetch-nasa-data.mjs && node scripts/build-ops-dates.mjs",
     "data:ops": "node scripts/build-ops-dates.mjs",

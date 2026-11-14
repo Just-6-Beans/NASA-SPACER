@@ -17,26 +17,6 @@
   "swim": "https://science.nasa.gov/photojournal/swim-map-shows-subsurface-water-ice-on-mars",
   "note": "The SWIM map covers roughly the equator to 60° N between about 172° E and 299° E, so neither Jezero nor Gale is on it. No ice score is given."
  },
- "videos": [
-  {
-   "rover": "perseverance",
-   "file": "nasa/video/how-perseverance-drives.mp4",
-   "title": "How Perseverance Drives on Mars",
-   "date": "2022-04-11",
-   "credit": "NASA/JPL-Caltech",
-   "page": "https://images.nasa.gov/details/JPL-20220405-M2020f-0001-How%20Perseverance%20Drives%20on%20Mars-1080cc",
-   "source": "http://images-assets.nasa.gov/video/JPL-20220405-M2020f-0001-How%20Perseverance%20Drives%20on%20Mars-1080cc/JPL-20220405-M2020f-0001-How%20Perseverance%20Drives%20on%20Mars-1080cc~mobile.mp4"
-  },
-  {
-   "rover": "curiosity",
-   "file": "nasa/video/curiosity-challenging-climb.mp4",
-   "title": "Curiosity Rover’s Most Challenging Climb Yet (Mars Report - August 2023)",
-   "date": "2023-08-03",
-   "credit": "NASA/JPL-Caltech",
-   "page": "https://images.nasa.gov/details/JPL-20230803-MARSf-0001-Mars%20Report%20Curiosity%20Challenging%20Climb%20August%202023",
-   "source": "http://images-assets.nasa.gov/video/JPL-20230803-MARSf-0001-Mars%20Report%20Curiosity%20Challenging%20Climb%20August%202023/JPL-20230803-MARSf-0001-Mars%20Report%20Curiosity%20Challenging%20Climb%20August%202023~mobile.mp4"
-  }
- ],
  "driveFilms": [
   {
    "rover": "perseverance",

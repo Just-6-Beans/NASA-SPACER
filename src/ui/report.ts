@@ -3,7 +3,7 @@
 import { INSTRUMENTS, SUITS, byId } from '../core/data'
 import { TASK_INFO, type Mission } from '../core/mission'
 import { mmrtgNowW } from '../core/rovers'
-import { DRIVE_FILMS, MISSION_SOLS, RADIATION, ROUGHNESS_SOURCE, SOL_HOURS, TESTS, VIDEOS, WEATHER_SOURCE, photoPlaces, region } from '../core/survey'
+import { DRIVE_FILMS, MISSION_SOLS, RADIATION, ROUGHNESS_SOURCE, SOL_HOURS, TESTS, WEATHER_SOURCE, photoPlaces, region } from '../core/survey'
 import type { TaskId } from '../core/tasks'
 import { lightTimeSource } from '../data/opsDates'
 import { $, el, esc } from './dom'
@@ -25,7 +25,6 @@ export function reportScreen(m: Mission, ctx: PanelCtx, onReplay: () => void, on
     const verdict = !B ? 'No base decision' : !B.approved ? 'No base built · crew remains in orbit' : `Base built at ${B.name}${m.completed.has('habitat') ? ' · habitat commissioned' : ''}`
     const causes = m.causes()
     const reports = rv ? m.reports() : []
-    const video = rv ? VIDEOS.find(x => x.rover === rv.id) : null
     const film = rv ? DRIVE_FILMS.find(x => x.rover === rv.id) : null
     inner.innerHTML = `<div class="sim">Mission report · real NASA data, our game model on top</div><h1>${esc(m.profile.callSign)} · ${ship.name}</h1>
       <div class="verdict-big ${good ? 'good' : 'mid'}">${esc(verdict)}${B?.approved ? ` · ${B.score}/100 ${starsHtml(B.stars)}` : ''}</div>
@@ -34,7 +33,7 @@ export function reportScreen(m: Mission, ctx: PanelCtx, onReplay: () => void, on
         <div class="rbox" style="grid-column:1/-1"><h3>What decided the outcome</h3><ul>${causes.map(c => `<li style="color:${c.good ? 'var(--mint)' : 'var(--warn)'}">${c.good ? '＋' : '−'} ${esc(c.text)}</li>`).join('') || '<li>The rover never left the station\'s control room.</li>'}</ul></div>
         <div class="rbox"><h3>Crew & spacecraft</h3><div class="kv"><span>Call sign</span><b>${esc(m.profile.callSign)}</b><span>Suit</span><b style="color:${suit.light}">${suit.name}</b><span>Ship</span><b>${ship.name} · ${ship.role}</b><span>Instrument</span><b>${inst ? `${inst.name} (${inst.code})` : 'none'}</b></div></div>
         <div class="rbox"><h3>Preparation</h3><ul>${(['relay', 'calibration', ...routine] as TaskId[]).map(t => `<li>${m.completed.has(t) ? '✓' : '○'} ${TASK_INFO[t].name}${m.completed.has(t) ? ` — <span style="color:#b9ae95">${TASK_INFO[t].reward}</span>` : ' — not done'}</li>`).join('')}</ul></div>
-        <div class="rbox"><h3>Rover & crater</h3><div class="kv"><span>Rover</span><b>${rv ? esc(rv.name) : '—'}</b><span>Crater</span><b>${m.region ? esc(region(m.region).name) : '—'}</b>${rv ? `<span>MMRTG now</span><b>${mmrtgNowW(rv)} W</b><span>Battery</span><b>${esc(rv.batteryText)}</b><span>Charge left</span><b>${m.batteryWh} Wh</b><span>Driven</span><b>${m.drives.reduce((a, x) => a + x.distM, 0)} m, ${m.drives.reduce((a, x) => a + x.climbM, 0)} m of climb</b><span>Mars days used</span><b>${Math.round((m.hoursUsed / SOL_HOURS) * 10) / 10} of ${MISSION_SOLS}</b><span>Recharges</span><b>${m.recharges}</b><span>Photo spots found</span><b>${m.photos.length} of ${photoPlaces(rv).length} (+${m.photoBonus} score)</b>` : ''}</div></div>
+        <div class="rbox"><h3>Rover & crater</h3><div class="kv"><span>Rover</span><b>${rv ? esc(rv.name) : '—'}</b><span>Crater</span><b>${m.region ? esc(region(m.region).name) : '—'}</b>${rv ? `<span>MMRTG now</span><b>${mmrtgNowW(rv)} W</b><span>Battery</span><b>${esc(rv.batteryText)}</b><span>Charge left</span><b>${m.batteryWh} Wh</b><span>Driven</span><b>${m.drives.reduce((a, x) => a + x.distM, 0)} m, ${m.drives.reduce((a, x) => a + x.climbM, 0)} m of climb</b><span>Mars days used</span><b>${Math.round((m.hoursUsed / SOL_HOURS) * 10) / 10} of ${MISSION_SOLS}</b><span>Recharges</span><b>${m.recharges}</b><span>Photo spots saved</span><b>${m.photos.length} of ${photoPlaces(rv).length} (+${m.photoBonus} score)</b>` : ''}</div></div>
         <div class="rbox"><h3>Supplies</h3><div class="kv"><span>Budget</span><b>${ship.budget} cr</b><span>Instrument</span><b>${inst ? `−${inst.cost} cr` : '0'}</b><span>Cargo reward</span><b>${m.completed.has('cargo') ? '+5 cr' : '0'}</b><span>Remaining</span><b>${m.funds} cr</b></div></div>
         <div class="rbox" style="grid-column:1/-1"><h3>Spots visited</h3>${reports.length ? `<ul>${reports.map(r => `<li><b>${r.spot.label}</b>${B?.approved && B.id === r.spot.id ? ' 🏗' : ''}: ${esc(r.verdict.title)} · ${r.score}/100<br/><span style="color:#b9ae95">${r.ground.source === 'rover' ? `Real ${esc(rv!.name)} stop, sol ${r.ground.sol}` : 'Orbit data (MOLA)'} · tests: ${m.testsFor(r.spot).map(t => TESTS[t].name.toLowerCase()).join(', ') || 'none'}</span></li>`).join('')}</ul>` : '<p style="margin:0">No rover was chosen.</p>'}</div>
         <div class="rbox" style="grid-column:1/-1"><h3>Base site measurements (tap a bar for its source)</h3>${B?.bars.length ? barsHtml(B.bars) : '<p style="margin:0">No base was built.</p>'}</div>
@@ -48,9 +47,8 @@ export function reportScreen(m: Mission, ctx: PanelCtx, onReplay: () => void, on
           <li><b>Terrain roughness:</b> ${esc(ROUGHNESS_SOURCE.provider)}, saved ${esc(ROUGHNESS_SOURCE.retrieved)}.</li>
           <li><b>Signal delay:</b> ${m.signalMin} min one way. Light time ${d.lightMin} min: ${esc(lightTimeSource(d))}. The relay hand-off is our model.</li>
           ${film ? `<li><b>Drive film:</b> “${esc(film.title)}”, ${esc(film.credit)}. ${esc(film.note)} <a href="${esc(film.page)}" target="_blank" rel="noopener">NASA page ↗</a></li>` : ''}
-          ${video ? `<li><b>Video:</b> “${esc(video.title)}”, ${esc(video.credit)}. <a href="${esc(video.page)}" target="_blank" rel="noopener">NASA page ↗</a></li>` : ''}
           ${rv ? rv.sources.map(x => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.label)} ↗</a></li>`).join('') : ''}
-          <li>Our model, not NASA data: the battery each test and photo uses, the 30 W base load, how long a recharge takes, the ${MISSION_SOLS}-day limit, the photo bonus, the bar scores, the rock-sample bar, the 10° base limit and the stars. The fuzz and labels over the drive film are added by the game.</li></ul></div>
+          <li>Our model, not NASA data: the battery each test uses, the 30 W base load, how long a recharge takes, the ${MISSION_SOLS}-day limit, the photo bonus, the bar scores, the rock-sample bar, the 10° base limit and the stars. The fuzz and labels over the drive film are added by the game.</li></ul></div>
         <div class="rbox" style="grid-column:1/-1"><h3>Habitat commissioning</h3><div id="hab"></div></div>
         <div class="rbox" style="grid-column:1/-1"><h3>Mission log</h3><div class="logl">${m.log.map(e => `<div><span style="color:#5fd8f0">${esc(e.at)}</span> ${esc(e.text)}</div>`).join('')}</div></div>
       </div>

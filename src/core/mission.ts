@@ -5,7 +5,7 @@ import { CARGO_REWARD, INSTRUMENTS, SHIPS, byId, type InstrumentId, type ShipId,
 import { DEFAULT_POWER, powerBlock, researchFilter, signalLeg, validPower, type Power } from './power'
 import { ROVERS, type RoverId, type RoverSpec } from './rovers'
 import {
-  DRIVE_PHOTO_WH, MAX_BASE_TILT, MAX_WAYPOINTS, MISSION_SOLS, PHOTO_RANGE_M, REGIONS, SOL_HOURS, TESTS, dist, distToPath, driveWhPerM, groundAt, inMap, photoBonus, photoPlaces,
+  MAX_BASE_TILT, MAX_WAYPOINTS, MISSION_SOLS, REGIONS, SOL_HOURS, TESTS, dist, driveWhPerM, groundAt, inMap, photoBonus, placesInRange,
   rechargeHours, rechargeW, region, reserveWh, simulateDrive, siteScore, spotBars, starsFor, testWh, verdict,
   type Bar, type DriveResult, type Ground, type Pt, type RegionId, type TestId, type Verdict,
 } from './survey'
@@ -69,7 +69,10 @@ export class Mission {
   /** Mission time used by driving and recharging, in hours. The mission lasts MISSION_SOLS Mars days. */
   hoursUsed = 0
   recharges = 0
-  /** Real photo places the rover has photographed (ids from photoPlaces). */
+  /**
+   * Real photo places in the album (ids from photoPlaces). The rover's cameras save them by
+   * themselves whenever it drives or parks within range of one; each adds to the base score.
+   */
   photos: number[] = []
   /** A recharge in progress. While it runs, the battery and the Mars days follow real time. */
   charging: Charging | null = null
@@ -203,6 +206,8 @@ export class Mission {
     this.batteryWh = Math.round((rv.batteryWh * this.ship.battery) / 100)
     this.pos = { x: 0, y: 0 }
     this.spots = [{ id: 0, label: 'A', p: { x: 0, y: 0 }, tests: [], arrivedWh: this.batteryWh, stranded: false }]
+    // Parked beside a real photo spot, the rover saves its photo straight away.
+    this.photos = placesInRange(rv, this.pos).map(p => p.id)
     this.note(`Rover chosen: ${rv.name}, ${region(id).name}. It starts where the real rover is (sol ${rv.area.centre.sol}) with ${this.batteryWh} Wh.`)
     return null
   }
@@ -301,32 +306,8 @@ export class Mission {
   }
 
   // ---- Photos on the way ---------------------------------------------------
-  /** Why the rover cannot photograph a real photo place right now, or null if it can. */
-  photoBlock(placeId: number): string | null {
-    const rv = this.rover
-    if (!rv) return 'Choose a rover first.'
-    if (this.base) return 'The base is already decided.'
-    const place = photoPlaces(rv).find(p => p.id === placeId)
-    if (!place) return 'Unknown photo place.'
-    if (this.photos.includes(placeId)) return 'Already in your album.'
-    if (this.charging) return 'The rover is recharging. Stop the recharge first.'
-    // In reach if the last drive passed it or the rover is parked beside it.
-    const last = this.drives[this.drives.length - 1]
-    const path = last ? [last.start, ...last.legs.map(l => l.to)] : [this.pos]
-    if (Math.min(distToPath(place, path), dist(place, this.pos)) > PHOTO_RANGE_M) return `Too far: the rover must pass within ${PHOTO_RANGE_M} m of the camera mark.`
-    if (DRIVE_PHOTO_WH > this.spareWh) return `Needs ${DRIVE_PHOTO_WH} Wh, but only ${this.spareWh} Wh is left above the safe-mode line.`
-    return null
-  }
-  /** Photographs a real photo place: its real NASA photos join the album and add to the base score. */
-  takePhoto(placeId: number): string | null {
-    const block = this.photoBlock(placeId)
-    if (block) return block
-    this.batteryWh -= DRIVE_PHOTO_WH
-    this.photos = [...this.photos, placeId]
-    const place = photoPlaces(this.rover!).find(p => p.id === placeId)!
-    this.note(`Photo taken where the real ${this.rover!.name} stood on sol ${place.sol} (${DRIVE_PHOTO_WH} Wh). Album: ${this.photos.length} place${this.photos.length > 1 ? 's' : ''}.`, 'rover')
-    return null
-  }
+  // Nothing to press: deploy() adds every real photo spot the drive passes, and choosing the rover
+  // adds the one it starts beside. Each spot counts once.
   get photoBonus() { return photoBonus(this.photos.length) }
 
   addWaypoint(p: Pt): string | null {
@@ -352,7 +333,7 @@ export class Mission {
   /** What the planned drive would do, from the same calculation the deployment runs. */
   forecast(): DriveResult | null {
     const rv = this.rover
-    return rv && this.waypoints.length ? simulateDrive(rv, this.pos, this.waypoints, this.batteryWh, this.balanced) : null
+    return rv && this.waypoints.length ? simulateDrive(rv, this.pos, this.waypoints, this.batteryWh, this.balanced, this.photos) : null
   }
 
   deployBlock(): string | null {
@@ -377,12 +358,13 @@ export class Mission {
     const block = this.deployBlock()
     if (block) return block
     const rv = this.rover!
-    const d = simulateDrive(rv, this.pos, this.waypoints, this.batteryWh, this.balanced)
+    const d = simulateDrive(rv, this.pos, this.waypoints, this.batteryWh, this.balanced, this.photos)
     this.note(`Deployment ${this.drives.length + 1}: ${this.waypoints.length} point${this.waypoints.length > 1 ? 's' : ''}, ${d.distM} m, ${d.climbM} m of climb.`, 'rover')
     this.drives.push(d)
     this.pos = d.end
     this.batteryWh = d.endWh
     this.hoursUsed += d.hours
+    this.photos = [...this.photos, ...d.photos.map(p => p.place)]
     this.waypoints = []
     this.stranded = d.safeMode
     let spot = this.spotHere
@@ -392,6 +374,7 @@ export class Mission {
     }
     if (d.safeMode) this.note(`Safe mode: the battery reached ${Math.round((reserveWh(rv) / rv.batteryWh) * 100)} % after ${d.distM} m. The rover stopped at spot ${spot.label}.`, 'alert')
     else this.note(`Arrived at spot ${spot.label} using ${d.usedWh} Wh over ${d.hours} h of driving.`, 'rover')
+    if (d.photos.length) this.note(`${d.photos.length} real photo spot${d.photos.length > 1 ? 's' : ''} passed on the way: saved to the album (${this.photos.length} in all).`, 'rover')
     return null
   }
 
@@ -464,8 +447,8 @@ export class Mission {
     if (this.stranded) out.push({ good: false, text: 'A drive was longer than the battery allowed, so the rover ended in safe mode.' })
     if (this.recharges) out.push({ good: !this.timeUp, text: `Recharged ${this.recharges} time${this.recharges > 1 ? 's' : ''}. Driving and recharging used ${Math.round((this.hoursUsed / SOL_HOURS) * 10) / 10} of the ${MISSION_SOLS} Mars days.` })
     if (this.timeUp) out.push({ good: false, text: `The ${MISSION_SOLS} Mars days ran out, so the base had to be chosen from the spots already visited.` })
-    if (this.photos.length) out.push({ good: true, text: `${this.photos.length} real photo place${this.photos.length > 1 ? 's' : ''} found on the way: +${this.photoBonus} to the base score.` })
-    else if (this.drives.length) out.push({ good: false, text: 'No photo places were photographed on the way, so there was no photo bonus.' })
+    if (this.photos.length) out.push({ good: true, text: `${this.photos.length} real photo place${this.photos.length > 1 ? 's' : ''} passed or parked at: +${this.photoBonus} to the base score.` })
+    else if (this.drives.length) out.push({ good: false, text: 'The rover passed no real photo places, so there was no photo bonus.' })
     const b = this.base
     if (b?.approved) {
       const spot = this.spots.find(s => s.id === b.id)!

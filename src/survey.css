@@ -3,7 +3,7 @@
    Every rule is scoped to the rover screen (.rover) so it cannot restyle the title, the station
    or the panels; the bars, stars and source list are also allowed in the mission report.
    Loaded by src/ui/roverView.ts. */
-.rover { --gold: #ffd23f; --soft: #c9dbe8; background: radial-gradient(ellipse at 30% 20%, #241812, #05070d 75%); grid-template-columns: minmax(0, 1fr) clamp(380px, 34vw, 540px); font-size: 16px; }
+.rover { --gold: #ffd23f; --soft: #c9dbe8; background: radial-gradient(ellipse at 30% 20%, #241812, #05070d 75%); grid-template-columns: minmax(0, 1fr) clamp(360px, 30vw, 470px); font-size: 16px; }
 
 /* ---------------- left: viewer */
 .rover .viewer { position: relative; overflow-y: auto; padding: 18px 22px 30px; min-width: 0; }
@@ -15,7 +15,7 @@
 .rover .vhead p { margin: 4px 0 0; color: var(--soft); font-size: 15.5px; line-height: 1.5; max-width: 70ch; }
 
 /* map + camera */
-.rover .mapgrid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 22px; align-items: start; }
+.rover .mapgrid { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(320px, 1fr); gap: 22px; align-items: start; }
 .rover .mapbox { min-width: 0; }
 .rover .maptop { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 12px; }
 .rover .maphint { flex: 1 1 100%; font-size: 18px; font-weight: 700; padding: 10px 16px; border-radius: 12px; background: rgba(255,179,71,.12); border: 1px solid rgba(255,179,71,.5); color: #ffe2b0; }
@@ -77,11 +77,9 @@
 .rover .cam-screen { border-radius: 10px; overflow: hidden; background: #000; }
 .rover .media { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; }
 .rover .cam-screen video.media { object-fit: contain; }
-.rover .media.wide { aspect-ratio: 16 / 9; object-fit: contain; border-radius: 10px; }
 .rover .cam-cap { font-size: 15.5px; line-height: 1.45; margin: 12px 0 4px; color: var(--ivory); }
 .rover .cam-credit { font-size: 13px; color: var(--ivory-dim); margin: 0 0 10px; line-height: 1.5; }
 .rover .cam-credit a, .rover .partcard a, .rover .xsrcs a, .report .xsrcs a, .rover .vhead a { color: var(--cyan); }
-.rover .learngrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
 /* The "signal from Mars" look over the drive film: grain, scan lines, a slow bright band, and labels. */
 .rover .fxwrap { position: relative; overflow: hidden; }
 .rover .fxwrap .media { transition: transform .08s, filter .08s; }
@@ -96,17 +94,11 @@
 .rover .ch-tl { left: 0; top: 0; } .rover .ch-tr { right: 0; top: 0; } .rover .ch-bl { left: 0; bottom: 0; } .rover .ch-br { right: 0; bottom: 0; }
 .rover .fx-flash { position: absolute; inset: 0; z-index: 3; background: #fff; opacity: 0; pointer-events: none; }
 .rover .fx-flash.go { animation: camflash .45s ease-out; }
+.rover .cam-stamp { position: absolute; left: 10px; bottom: 10px; z-index: 2; font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; padding: 3px 9px; border-radius: 5px; background: rgba(4,16,28,.82); color: var(--gold); border: 1px solid rgba(255,210,63,.5); }
+.rover .tag.still { background: rgba(255,210,63,.12); color: var(--gold); border-color: rgba(255,210,63,.5); }
+.rover .photoline { margin-top: 10px; }
 @keyframes camflash { 0% { opacity: .95; } 100% { opacity: 0; } }
-/* Camera button and the strip of real photos found so far. */
-.rover .shoot { width: 100%; display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 10px 14px; border-radius: 12px; border: 2px solid #3a4655; background: #0a1420; color: #8fa2b3; text-align: left; }
-.rover .shoot-i { font-size: 30px; line-height: 1; filter: grayscale(1); opacity: .6; }
-.rover .shoot-t b { display: block; font-family: var(--display); font-size: 23px; letter-spacing: .04em; text-transform: uppercase; }
-.rover .shoot-t small { display: block; font-size: 14px; line-height: 1.3; }
-.rover .shoot:disabled { cursor: default; }
-.rover .shoot.ready { border-color: var(--gold); background: #2a2206; color: var(--ivory); cursor: pointer; animation: shootpulse 1s ease-in-out infinite; }
-.rover .shoot.ready .shoot-i { filter: none; opacity: 1; }
-.rover .shoot.ready small { color: var(--gold); font-weight: 700; }
-@keyframes shootpulse { 50% { box-shadow: 0 0 0 6px rgba(255,210,63,.3); } }
+/* The strip of real photos the rover has saved so far. */
 .rover .album-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 14px 0 8px; }
 .rover .album-h b { font-family: var(--display); font-size: 19px; letter-spacing: .04em; text-transform: uppercase; }
 .rover .album-h span { font-size: 13.5px; color: var(--soft); white-space: nowrap; }
@@ -206,9 +198,6 @@
 .rover .chip-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
 .rover .chip-tab { border: 1px solid var(--line); background: #081a2c; color: var(--soft); border-radius: 999px; padding: 6px 14px; font-size: 15px; }
 .rover .chip-tab[aria-pressed=true] { border-color: var(--cyan); color: var(--ivory); background: #0f3550; }
-.rover .linklist { display: flex; flex-wrap: wrap; gap: 10px; }
-.rover .linklist a { text-decoration: none; }
-.rover iframe.eyes { width: 100%; height: min(70vh, 640px); border: 1px solid var(--line); border-radius: 14px; background: #000; }
 
 /* ---------------- right: side panel */
 .rover .side { padding: 20px 22px 32px; font-size: 16px; }
@@ -360,10 +349,6 @@
   .rover .rvname h3 { font-size: 30px; }
   .rover .rvbtns .btn { font-size: 16px; padding: 11px 8px; }
   .rover .daychip { font-size: 15px; padding: 1px 8px; }
-  .rover .shoot { padding: 7px 10px; gap: 9px; margin-top: 9px; }
-  .rover .shoot-i { font-size: 24px; }
-  .rover .shoot-t b { font-size: 19px; }
-  .rover .shoot-t small { font-size: 13px; }
   .rover .camhud { font-size: 10px; }
   .rover .camhud span { padding: 5px 7px; }
   .rover .cam { padding: 10px; }
@@ -377,4 +362,4 @@
   .rover .mapview { width: min(100%, calc(62vh - 140px)); }
   .rover .status { grid-template-columns: 1fr; }
 }
-@media (prefers-reduced-motion: reduce) { .rover .hot .ring, .rover .rec.on, .rover .tag.live i, .rover .sbar.pop, .report .sbar.pop, .rover .sbar.pop .track i, .report .sbar.pop .track i, .rover .bigstars .stars i.on, .report .bigstars .stars i.on, .rover .fx-bar, .rover .shoot.ready, .rover .mcam.hot .mring, .rover .chargesky, .rover .fx-flash.go { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rover .hot .ring, .rover .rec.on, .rover .tag.live i, .rover .sbar.pop, .report .sbar.pop, .rover .sbar.pop .track i, .report .sbar.pop .track i, .rover .bigstars .stars i.on, .report .bigstars .stars i.on, .rover .fx-bar, .rover .mcam.hot .mring, .rover .chargesky, .rover .fx-flash.go { animation: none; } }

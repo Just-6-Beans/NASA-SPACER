@@ -3,7 +3,7 @@ import { SUITS, type SuitId } from './data'
 import type { Power } from './power'
 
 export const ROOM_NAME = 'spacer_power'
-export const WORLD = { width: 1160, height: 670, spawnX: 580, spawnY: 582 }
+export const WORLD = { width: 2100, height: 1800, spawnX: 1820, spawnY: 400 }
 export type Facing = 'down' | 'up' | 'side'
 export const FACINGS: Facing[] = ['down', 'up', 'side']
 

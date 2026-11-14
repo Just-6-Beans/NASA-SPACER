@@ -37,6 +37,26 @@ function nearestOpen(c: number, r: number): [number, number] | null {
   return null
 }
 
+/** Everywhere the astronaut can walk to from a deck position. Returns a test for one position. */
+export function reachableFrom(from: Pt): (x: number, y: number) => boolean {
+  const seen = new Uint8Array(COLS * ROWS)
+  const start = nearestOpen(...cellOf(from[0], from[1]))
+  if (start) {
+    const queue = new Int32Array(COLS * ROWS)
+    let head = 0, tail = 0
+    queue[tail++] = start[1] * COLS + start[0]
+    seen[queue[0]] = 1
+    while (head < tail) {
+      const i = queue[head++], c = i % COLS, r = (i - c) / COLS
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nc = c + dc, nr = r + dr, ni = nr * COLS + nc
+        if (open(nc, nr) && !seen[ni]) { seen[ni] = 1; queue[tail++] = ni }
+      }
+    }
+  }
+  return (x, y) => { const [c, r] = cellOf(x, y); return c >= 0 && r >= 0 && c < COLS && r < ROWS && !!seen[r * COLS + c] }
+}
+
 /** Straight-line walk between two points with no solid in the way. */
 export function clearLine(a: Pt, b: Pt) {
   const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 4)

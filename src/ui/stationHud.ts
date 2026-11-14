@@ -5,7 +5,7 @@ import { SUITS, byId } from '../core/data'
 import type { Mission } from '../core/mission'
 import { fastRelay, powerBlock, type Power } from '../core/power'
 import { MISSION_SOLS, spendPct } from '../core/survey'
-import { DECK, MODULES, SOLIDS, TERMINALS, moduleAt, terminal, type TerminalId } from '../game/deck'
+import { DECK, LINKS, MODULES, SOLIDS, TERMINALS, moduleAt, terminal, type TerminalId } from '../game/deck'
 import type { StationView } from '../game/stationFx'
 import { el } from './dom'
 
@@ -20,18 +20,18 @@ export interface Objective { text: string; target: TerminalId | null; urgent: bo
 export function objectiveFor(m: Mission, briefed: boolean): Objective {
   const at = (target: TerminalId, text: string, urgent = false): Objective => ({ text, target, urgent })
   // The brief comes first, but a player who walks past it and starts work is not sent back.
-  if (!briefed && !m.instrumentDraft && !m.payloadActive) return at('ops', 'Read the mission brief at the Mission Ops table (centre, under the cupola).')
-  if (!m.payloadActive) return at('payload', m.instrumentDraft ? 'Activate the payload at the Payload terminal in the rover bay.' : 'Choose a rover instrument at the Payload terminal in the rover bay (centre).')
-  if (m.relayFault) return at('comms', 'EMERGENCY: repair the relay at Rover Comms (node C, rear right).', true)
+  if (!briefed && !m.instrumentDraft && !m.payloadActive) return at('ops', 'Read the mission brief at the Mission Ops table in the US Lab (down the hatch, then left).')
+  if (!m.payloadActive) return at('payload', m.instrumentDraft ? 'Activate the payload at the Payload terminal in the rover bay (US Lab).' : 'Choose a rover instrument at the Payload terminal in the rover bay (US Lab).')
+  if (m.relayFault) return at('comms', 'EMERGENCY: repair the relay at Rover Comms (Comms module, below Node 2).', true)
   if (m.base) return { text: 'Mission decided. Review the report.', target: null, urgent: false }
   const pb = powerBlock(m.power)
   const rv = m.rover
-  if (!rv) return pb ? at('power', `Route power at the Power Grid (node A, rear left): ${pb}`) : at('comms', 'Open Rover Comms (node C, rear right) and choose your rover.')
-  if (pb) return at('power', `Route power at the Power Grid (node A, rear left): ${pb}`)
+  if (!rv) return pb ? at('power', `Route power at the Power Grid (Node 1): ${pb}`) : at('comms', 'Open Rover Comms (Comms module, below Node 2) and choose your rover.')
+  if (pb) return at('power', `Route power at the Power Grid (Node 1): ${pb}`)
   if (m.charging) return at('comms', `${rv.name} is recharging (${spendPct(rv, m.batteryWh)}%). Do station tasks meanwhile, or watch the timer at Rover Comms.`)
   if (m.timeUp) return at('comms', `The ${MISSION_SOLS} Mars days are over. Choose the base at Rover Comms.`)
   if (m.stranded || !m.canDrive) return at('comms', `${rv.name} is low on battery. Recharge it or choose the base at Rover Comms.`)
-  if (!m.calibrated && !m.drives.length) return at('comms', 'Optional: calibrate at the Calibration bench (node C, front right). Then drive your rover at Rover Comms.')
+  if (!m.calibrated && !m.drives.length) return at('comms', 'Optional: calibrate at the Calibration bench (US Lab). Then drive your rover at Rover Comms.')
   return at('comms', `Plan ${rv.name}'s drive on the map at Rover Comms (day ${m.sol} of ${MISSION_SOLS}).`)
 }
 
@@ -69,19 +69,17 @@ export interface DeckMap {
   update(me: { x: number; y: number }, o: Objective, crew: { x: number; y: number }[]): void
 }
 
-/** A small plan of the three nodes: where you are, where your crewmate is, where to go next. */
+/** A small plan of the station: where you are, where your crewmate is, where to go next. */
 export function deckMap(m: Mission): DeckMap {
-  const top = DECK.wallY - 30
   const suit = byId(SUITS, m.profile.suit)
   const isTerminal = (id: string) => TERMINALS.some(t => t.id === id)
-  const root = el(`<div class="deckmap" aria-hidden="true"><svg viewBox="0 ${top} ${DECK.width} ${DECK.height - top}">
-    <rect x="2" y="${top + 2}" width="${DECK.width - 4}" height="${DECK.height - top - 4}" rx="26" class="hull"/>
-    ${MODULES.map(n => `<rect x="${n.x}" y="${DECK.wallY}" width="${n.w}" height="${DECK.frontY - DECK.wallY}" fill="${n.tint}" fill-opacity=".13"/>
-      <text x="${n.x + n.w / 2}" y="${DECK.frontY - 16}" text-anchor="middle" fill="${n.tint}">${n.id}</text>`).join('')}
-    ${SOLIDS.filter(s => !s.id.startsWith('wall')).map(s => `<rect x="${s.rect[0]}" y="${s.rect[1]}" width="${s.rect[2]}" height="${s.rect[3]}" rx="6" class="${isTerminal(s.id) ? 'station' : 'block'}"/>`).join('')}
+  const root = el(`<div class="deckmap" aria-hidden="true"><svg viewBox="20 70 ${DECK.width - 40} ${DECK.height - 90}">
+    ${LINKS.map(l => `<rect x="${l.rect[0] - (l.kind === 'tunnel' ? 14 : 0)}" y="${l.rect[1] - (l.kind === 'hatch' ? 14 : 0)}" width="${l.rect[2] + (l.kind === 'tunnel' ? 28 : 0)}" height="${l.rect[3] + (l.kind === 'hatch' ? 28 : 0)}" class="link"/>`).join('')}
+    ${MODULES.map(n => `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="44" class="hull"/><rect x="${n.floor[0]}" y="${n.floor[1]}" width="${n.floor[2]}" height="${n.floor[3]}" rx="18" fill="${n.tint}" fill-opacity=".16"/>`).join('')}
+    ${SOLIDS.filter(s => isTerminal(s.id)).map(s => `<rect x="${s.rect[0]}" y="${s.rect[1]}" width="${s.rect[2]}" height="${s.rect[3]}" rx="8" class="station"/>`).join('')}
     <g id="mm-crew"></g>
-    <circle id="mm-ring" r="26" class="ring"/><circle id="mm-goal" r="15" class="goal"/>
-    <circle id="mm-me" r="17" fill="${suit.light}" stroke="#05121c" stroke-width="5"/>
+    <circle id="mm-ring" r="46" class="ring"/><circle id="mm-goal" r="27" class="goal"/>
+    <circle id="mm-me" r="30" fill="${suit.light}" stroke="#05121c" stroke-width="9"/>
   </svg><div class="deckmap-cap"><span id="mm-node"></span><span id="mm-next"></span></div></div>`)
   const q = (id: string) => root.querySelector(`#${id}`) as SVGElement
   const me = q('mm-me'), goal = q('mm-goal'), ring = q('mm-ring'), crewG = q('mm-crew')
@@ -93,7 +91,7 @@ export function deckMap(m: Mission): DeckMap {
       me.setAttribute('cx', String(Math.round(pos.x)))
       me.setAttribute('cy', String(Math.round(pos.y)))
       const t = o.target ? terminal(o.target) : null
-      const here = moduleAt(pos.x)
+      const here = moduleAt(pos.x, pos.y)
       const sig = `${o.target}|${o.urgent}|${crew.map(c => `${Math.round(c.x)},${Math.round(c.y)}`).join(';')}|${here.id}`
       if (sig === last) return
       last = sig
@@ -102,8 +100,8 @@ export function deckMap(m: Mission): DeckMap {
         if (t) { c.setAttribute('cx', String(t.at[0])); c.setAttribute('cy', String(t.at[1])) }
         c.classList.toggle('urgent', o.urgent)
       }
-      crewG.innerHTML = crew.map(c => `<circle cx="${Math.round(c.x)}" cy="${Math.round(c.y)}" r="15" class="mate"/>`).join('')
-      node.textContent = `Node ${here.id}`
+      crewG.innerHTML = crew.map(c => `<circle cx="${Math.round(c.x)}" cy="${Math.round(c.y)}" r="27" class="mate"/>`).join('')
+      node.textContent = here.name
       next.textContent = t ? `→ ${t.name}` : ''
       next.classList.toggle('urgent', o.urgent)
     },

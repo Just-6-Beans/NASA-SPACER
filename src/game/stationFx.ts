@@ -4,12 +4,12 @@
 import Phaser from 'phaser'
 import type { InstrumentId, ShipId } from '../core/data'
 import type { Power } from '../core/power'
-import { BUSES, CONDUITS, DECK, LIVE, MODULES, prop, solid, terminal, type Bus, type Pt, type Terminal, type TerminalId } from './deck'
+import { BUSES, CONDUITS, DECK, LIVE, MODULES, moduleById, prop, solid, terminal, type Bus, type Pt, type Terminal, type TerminalId } from './deck'
 import { findPath, pathLength, pointAlong } from './nav'
 
 /** What the deck needs to know about the mission. Built by the app from the Mission object. */
 export interface StationView {
-  /** The docked ship, seen through the node A window. */
+  /** The docked ship, seen behind the docking port and through its window. */
   ship: ShipId
   power: Power
   /** Units each bus needs before the plan can be transmitted. */
@@ -78,7 +78,9 @@ export class StationLive {
     for (const id of ships) {
       const img = scene.add.image(0, 0, `ship-${id}`).setOrigin(0).setDepth(-27).setVisible(false)
       img.setDisplaySize(SHIP_W, (SHIP_W * img.height) / img.width)
-      img.setPosition(218 - NAME_PLATE[id] * (SHIP_W / 900), -40)
+      // the name plate sits in the docking port window; the nose and tail show past the module
+      const [wx, wy, ww, wh] = LIVE.shipWindow
+      img.setPosition(wx + ww / 2 - NAME_PLATE[id] * (SHIP_W / 900), wy + wh / 2 - 105)
       this.ships.set(id, img)
     }
     const [hubX, hubY] = LIVE.relayHub
@@ -140,9 +142,9 @@ export class StationLive {
     this.drawSky(v, t, blink)
     this.wash.clear()
     if (v.relayFault) {
-      const c = MODULES[MODULES.length - 1]
-      this.wash.fillStyle(0xff2a1a, 0.03 + 0.04 * blink).fillRect(0, 0, DECK.width, DECK.height)
-      this.wash.fillStyle(0xff2a1a, 0.05 * blink).fillRect(c.x, 0, c.w + 40, DECK.height)
+      const c = moduleById('comms')
+      this.wash.fillStyle(0xff2a1a, 0.02 + 0.03 * blink).fillRect(0, 0, DECK.width, DECK.height)
+      this.wash.fillStyle(0xff2a1a, 0.06 * blink).fillRect(c.x, c.y, c.w, c.h)
     }
     this.drawMarker(v, t, near)
   }
@@ -156,8 +158,8 @@ export class StationLive {
     const ready = BUSES.every(b => this.busOk(v, b)) && !v.relayFault
     for (const m of MODULES) {
       const ok = m.bus ? this.busOk(v, m.bus) : ready
-      if (m.bus || ready) g.fillStyle(ok ? (m.bus ? BUS_COLOR[m.bus] : MINT) : AMBER, ok ? 0.9 : 0.55 + 0.4 * breathe).fillRect(m.x + 26, 10, m.w - 52, 3)
-      if (m.bus && !ok) g.fillStyle(0x0a0f16, 0.14).fillRect(m.x, DECK.wallY, m.w, DECK.frontY - DECK.wallY)
+      if (m.bus || ready) g.fillStyle(ok ? (m.bus ? BUS_COLOR[m.bus] : MINT) : AMBER, ok ? 0.9 : 0.55 + 0.4 * breathe).fillRect(m.x + 30, m.y + 10, m.w - 60, 2.4)
+      if (m.bus && !ok) g.fillStyle(0x03070c, 0.2).fillRect(m.floor[0], m.floor[1], m.floor[2], m.floor[3])
     }
     // power buses: brightness and pulse density follow the units routed to each
     for (const bus of BUSES) {

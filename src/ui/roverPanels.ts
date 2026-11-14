@@ -1,17 +1,17 @@
 // Left-hand viewer on the rover screen. Before a rover is chosen it is the "choose your rover"
-// page (a real selfie of each, pros and cons, and a look at its parts). After that it has four
-// tabs: the map with the rover's camera and photo album, the album, the "what each part does"
-// picture, and a Learn tab with NASA's films and links.
+// page (a real selfie of each, pros and cons, and a look at its parts). After that it has three
+// tabs: the map with the rover's camera and photo album, the album, and the "what each part
+// does" picture.
 import type { Mission } from '../core/mission'
 import { ROVERS, type Anchor, type Part, type Photo, type RoverId, type RoverSpec } from '../core/rovers'
 import {
-  DRIVE_FILMS, DRIVE_PHOTO_WH, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, PHOTO_RANGE_M, STOP_RANGE_M, VIDEOS, costPct, dist, nearestNewPlace, photoPlaces, region, roverTraits,
-  type ActionKind, type PhotoPlace, type Pt,
+  DRIVE_FILMS, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, PHOTO_RANGE_M, STOP_RANGE_M, dist, photoPlaces, placeNear, region, roverTraits,
+  type ActionKind, type Pt,
 } from '../core/survey'
 import { $, $$, el, esc, reducedMotion } from './dom'
 import { MAP_PX, MAX_ZOOM, RAMP, background, mapSvg, newView, pointAt, readout, scaleBar, setZoom, terrain, viewBox, type MapMode, type MapOpts, type MapView } from './mapView'
 
-export type ViewTab = 'map' | 'photos' | 'parts' | 'learn'
+export type ViewTab = 'map' | 'photos' | 'parts'
 
 export interface ViewerHooks {
   /** The player may tap the map to place points. */
@@ -25,8 +25,8 @@ export interface ViewerHooks {
   pickSpot: (id: number) => void
   chooseRover: (id: RoverId) => void
   back: () => void
-  /** The camera button under the rover camera. */
-  shoot: () => void
+  /** Photo spots the drive being played will pass but has not reached yet: not shown as found until it gets there. */
+  pending: number[]
 }
 
 export interface ViewerState {
@@ -39,7 +39,6 @@ export interface ViewerState {
   /** Spot whose details are showing in the side panel. */
   focus: number | null
   live: { status: 'idle' | 'loading' | 'ok' | 'error'; items: LivePhoto[]; error: string }
-  eyesLoaded: boolean
   /** Before a rover is chosen: the rover whose parts are open, and the one waiting for a "yes". */
   peek: RoverId | null
   pick: RoverId | null
@@ -47,11 +46,11 @@ export interface ViewerState {
   view: MapView
   /** A drag just moved the map, so the click that ends it must not place a point. */
   dragged: boolean
-  /** Where the drive film carries on from, in seconds, so each drive shows a different part. */
+  /** Where the drive film carries on from (seconds of a video, frame of a GIF), so each drive shows a different part. */
   filmAt: number
 }
 export const newViewer = (): ViewerState => ({
-  tab: 'map', part: null, highlight: [], highlightJob: null, feedIdx: 0, focus: null, live: { status: 'idle', items: [], error: '' }, eyesLoaded: false,
+  tab: 'map', part: null, highlight: [], highlightJob: null, feedIdx: 0, focus: null, live: { status: 'idle', items: [], error: '' },
   peek: null, pick: null, view: newView(), dragged: false, filmAt: 0,
 })
 
@@ -102,86 +101,81 @@ export function nearPhotos(rv: RoverSpec, pos: Pt, places: number): Photo[] {
   return [...photoPlaces(rv)].sort((a, b) => dist(a, pos) - dist(b, pos)).slice(0, places).flatMap(p => p.photos)
 }
 
-/** Identifies what the camera screen is showing, so it is only redrawn when that changes (a playing film is left alone). */
-function feedKey(rv: RoverSpec, v: ViewerState, pos: Pt, driving: boolean) {
-  if (driving) return 'film'
-  const list = nearPhotos(rv, pos, 2)
-  return `photo:${list[v.feedIdx % list.length].imageId}`
+/** The last picture of the most recent drive, kept with the mission so it is still there after a trip to the station. */
+const lastFrame = (m: Mission) => (m.drafts.roverCam as { url: string } | undefined)?.url ?? null
+
+type Parked = { kind: 'here' | 'near'; photo: Photo; more: boolean; distM: number } | { kind: 'frame'; url: string }
+/**
+ * What the camera shows while the rover is parked. At a real photo spot: the photo NASA's rover
+ * took there. Anywhere else: the last picture of the drive that brought it here. Only when there
+ * is neither (a film this browser cannot freeze) does it fall back to the nearest real photo.
+ */
+function parked(m: Mission, rv: RoverSpec, v: ViewerState, pos: Pt): Parked {
+  const here = placeNear(rv, pos)
+  if (here) { const list = here.place.photos; return { kind: 'here', photo: list[v.feedIdx % list.length], more: list.length > 1, distM: here.distM } }
+  const url = lastFrame(m)
+  if (url) return { kind: 'frame', url }
+  const list = nearPhotos(rv, pos, 1)
+  const photo = list[v.feedIdx % list.length]
+  return { kind: 'near', photo, more: list.length > 1, distM: dist(photo, pos) }
 }
 
-/** The camera picture: a real drive film behind a "signal from Mars" look while driving, else a real photo taken nearby. */
+/** Identifies what the camera screen is showing, so it is only redrawn when that changes (a playing film is left alone). */
+function feedKey(m: Mission, rv: RoverSpec, v: ViewerState, pos: Pt, driving: boolean) {
+  if (driving) return 'film'
+  const p = parked(m, rv, v, pos)
+  return p.kind === 'frame' ? `frame:${p.url.length}:${p.url.slice(-24)}` : `photo:${p.photo.imageId}`
+}
+
+/** The camera picture: a real drive film behind a "signal from Mars" look while driving; parked, a real photo or the last picture of the drive. */
 function screenHtml(m: Mission, rv: RoverSpec, v: ViewerState, pos: Pt, driving: boolean) {
   const film = DRIVE_FILMS.find(x => x.rover === rv.id)
   if (driving && film) {
+    // A video plays itself. A GIF is decoded and drawn on a canvas by the game, so it can be stopped on a picture.
     const media = film.kind === 'video'
       ? `<video class="media" id="film" src="${src(film.file)}" autoplay muted loop playsinline></video>`
-      : `<img class="media" src="${src(film.file)}" alt="${esc(film.title)}"/>`
+      : `<canvas class="media" id="filmc" width="256" height="256" data-src="${src(film.file)}" role="img" aria-label="${esc(film.title)}"></canvas>`
     return `<div class="fxwrap live">${media}<canvas class="fx-noise" width="160" height="120"></canvas><i class="fx-lines"></i><i class="fx-bar"></i>
       <div class="camhud" aria-hidden="true"><span class="ch-tl"><i class="rec on"></i>ROVER CAM</span><span class="ch-tr">SIGNAL DELAY ${m.signalMin} MIN</span><span class="ch-bl" id="hud-d">0 m</span><span class="ch-br">DAY ${m.sol}</span></div>
       <i class="fx-flash" id="fx-flash"></i></div>`
   }
-  const list = nearPhotos(rv, pos, 2)
-  const p = list[v.feedIdx % list.length]
-  return `<div class="fxwrap"><img class="media" src="${src(p.file)}" alt="${esc(p.cameraName)} raw image from ${esc(rv.name)}, sol ${p.sol}"/><i class="fx-flash" id="fx-flash"></i></div>`
+  const p = parked(m, rv, v, pos)
+  if (p.kind === 'frame') return `<div class="fxwrap"><img class="media" src="${p.url}" alt="The last picture from the rover's camera on this drive"/><i class="fx-lines"></i><span class="cam-stamp">Last picture of the drive</span><i class="fx-flash" id="fx-flash"></i></div>`
+  return `<div class="fxwrap"><img class="media" src="${src(p.photo.file)}" alt="${esc(p.photo.cameraName)} raw image from ${esc(rv.name)}, sol ${p.photo.sol}"/><i class="fx-flash" id="fx-flash"></i></div>`
 }
 
-function capHtml(rv: RoverSpec, v: ViewerState, pos: Pt, driving: boolean) {
+function capHtml(m: Mission, rv: RoverSpec, v: ViewerState, pos: Pt, driving: boolean) {
   const film = DRIVE_FILMS.find(x => x.rover === rv.id)
   if (driving && film) return `<p class="cam-cap">${esc(film.note)}</p>
     <p class="cam-credit">A real drive, not your exact path. The fuzz and the labels are added by the game · ${esc(film.credit)} · <a href="${esc(film.page)}" target="_blank" rel="noopener">NASA page ↗</a></p>`
-  const list = nearPhotos(rv, pos, 2)
-  const p = list[v.feedIdx % list.length]
-  const d = Math.round(dist(p, pos))
-  return `<p class="cam-cap">${d < 20 ? `${esc(rv.name)} took this right here` : `${esc(rv.name)} took this ${d} m from here`}, on sol ${p.sol}, with its ${esc(p.cameraName.replace(/ \(left\)/i, ''))}.</p>
-    <p class="cam-credit">${esc(p.credit)} · raw, unprocessed</p>
-    ${list.length > 1 ? '<button class="btn small" data-feednext>Next photo ›</button>' : ''}`
+  const p = parked(m, rv, v, pos)
+  if (p.kind === 'frame') return `<p class="cam-cap">The last picture from the drive. The real ${esc(rv.name)} took no photo within ${PHOTO_RANGE_M} m of this spot, so the camera keeps what it saw last.</p>
+    <p class="cam-credit">A picture from the real drive film, which was not filmed at this spot${film ? ` · ${esc(film.credit)}` : ''}</p>`
+  const d = Math.round(p.distM)
+  return `<p class="cam-cap">${d < 20 ? `${esc(rv.name)} took this right here` : `${esc(rv.name)} took this ${d} m from here`}, on sol ${p.photo.sol}, with its ${esc(p.photo.cameraName.replace(/ \(left\)/i, ''))}.${p.kind === 'near' ? ' It is the nearest real photo: this browser could not keep the last picture of the drive.' : ''}</p>
+    <p class="cam-credit">${esc(p.photo.credit)} · raw, unprocessed</p>
+    ${p.more ? '<button class="btn small" data-feednext>Next photo ›</button>' : ''}`
 }
 
-const tagHtml = (driving: boolean) => driving ? '<span class="tag live"><i></i>Real drive film</span>' : '<span class="tag">Real photo</span>'
-
-/** What the camera button can do at a position: the photo spot in range, if any, and what to tell the player. */
-export function shootState(m: Mission, rv: RoverSpec, pos: Pt): { place: PhotoPlace | null; ready: boolean; note: string } {
-  if (m.charging) return { place: null, ready: false, note: 'The camera is off while the rover recharges' }
-  const near = nearestNewPlace(rv, pos, m.photos)
-  if (!near) return { place: null, ready: false, note: 'You found every photo spot!' }
-  if (near.distM > PHOTO_RANGE_M) return { place: null, ready: false, note: `Nearest photo spot: ${Math.max(10, Math.round(near.distM / 10) * 10)} m away` }
-  const cost = costPct(rv, DRIVE_PHOTO_WH)
-  if (m.spareWh < DRIVE_PHOTO_WH) return { place: near.place, ready: false, note: `Photo spot here, but it needs ${cost}% battery` }
-  return { place: near.place, ready: true, note: `Photo spot in range! Uses ${cost}% battery` }
+function tagHtml(m: Mission, rv: RoverSpec, v: ViewerState, pos: Pt, driving: boolean) {
+  if (driving) return '<span class="tag live"><i></i>Real drive film</span>'
+  return parked(m, rv, v, pos).kind === 'frame' ? '<span class="tag still">Last picture</span>' : '<span class="tag">Real photo</span>'
 }
 
-function albumStripHtml(m: Mission, rv: RoverSpec) {
+/** Photo places to show as found: the album, minus those the drive being played has not reached yet. */
+const shownPhotos = (m: Mission, h: ViewerHooks) => m.photos.filter(id => !h.pending.includes(id))
+
+/** The strip of real photos saved so far. The rover saves them by itself; there is nothing to press. */
+function albumStripHtml(m: Mission, rv: RoverSpec, h: ViewerHooks) {
   const places = photoPlaces(rv)
-  const found = m.photos.map(id => places.find(p => p.id === id)!)
-  const capped = m.photoBonus >= PHOTO_BONUS_MAX
-  return `<div class="album-h"><b>📷 My photos</b><span>${found.length} of ${places.length} spots${m.photoBonus ? ` · <em>+${m.photoBonus} score${capped ? ' (max)' : ''}</em>` : ''}</span></div>
+  const found = shownPhotos(m, h).map(id => places.find(p => p.id === id)!)
+  const bonus = Math.min(PHOTO_BONUS_MAX, found.length * PHOTO_BONUS_EACH)
+  return `<div class="album-h"><b>📷 My photos</b><span>${found.length} of ${places.length} spots${bonus ? ` · <em>+${bonus} score${bonus >= PHOTO_BONUS_MAX ? ' (max)' : ''}</em>` : ''}</span></div>
     <div class="album">${found.map(pl => `<button class="thumb" data-album="${pl.id}" aria-label="Open your photo from sol ${pl.sol}" title="Open this photo"><img src="${src(pl.photos[0].file)}" alt=""/></button>`).join('')}${found.length < places.length ? '<span class="thumb empty" title="More photo spots are waiting on the map">?</span>' : ''}</div>
-    ${found.length ? '' : `<p class="album-tip">Drive past a camera mark on the map and tap <b>Take photo</b>. Each real photo you find adds +${PHOTO_BONUS_EACH} to your score.</p>`}`
+    <p class="album-tip">The rover saves a real NASA photo by itself when it drives through the ring of a camera mark or parks inside one. Each spot adds +${PHOTO_BONUS_EACH} to your score.</p>`
 }
 
-/** The camera button and the strip of photos found so far. */
-function toolsHtml(m: Mission, rv: RoverSpec, pos: Pt) {
-  if (m.base) return albumStripHtml(m, rv)
-  const st = shootState(m, rv, pos)
-  return `<button class="shoot ${st.ready ? 'ready' : ''}" id="shoot" ${st.ready ? '' : 'disabled'} data-state="${esc(st.note)}"><span class="shoot-i">📸</span><span class="shoot-t"><b>Take photo</b><small id="shoot-note">${esc(st.note)}</small></span></button>
-    ${albumStripHtml(m, rv)}`
-}
-
-/** Called while the rover drives: lights the camera button (and the camera mark on the map) when a photo spot comes into range. */
-export function updateShoot(root: HTMLElement, m: Mission, rv: RoverSpec, pos: Pt) {
-  const st = shootState(m, rv, pos)
-  const btn = $<HTMLButtonElement>('#shoot', root)
-  if (btn && btn.dataset.state !== st.note) {
-    btn.dataset.state = st.note
-    btn.disabled = !st.ready
-    btn.classList.toggle('ready', st.ready)
-    $('#shoot-note', btn).textContent = st.note
-  }
-  const id = st.place ? String(st.place.id) : ''
-  root.querySelectorAll('.mcam').forEach(g => g.classList.toggle('hot', g.getAttribute('data-place') === id))
-}
-
-/** A white flash on the camera screen when a photo is taken. */
+/** A white flash on the camera screen when a photo is saved. */
 let flashTimer = 0
 export function flash(root: HTMLElement) {
   const f = $('#fx-flash', root)
@@ -192,6 +186,50 @@ export function flash(root: HTMLElement) {
   // Take the class off again by timer, so the screen can never stay white if the animation does not run.
   clearTimeout(flashTimer)
   flashTimer = window.setTimeout(() => f.classList.remove('go'), 480)
+}
+
+// A GIF drive film, decoded once into its pictures so the game can play it and stop on any of them.
+interface GifDecoder { tracks: { ready: Promise<void>; selectedTrack: { frameCount: number } | null }; decode(o: { frameIndex: number }): Promise<{ image: CanvasImageSource & { close(): void } }> }
+const gifCache = new Map<string, Promise<ImageBitmap[] | null>>()
+function gifFrames(url: string): Promise<ImageBitmap[] | null> {
+  let p = gifCache.get(url)
+  if (!p) {
+    p = (async () => {
+      const Decoder = (globalThis as unknown as { ImageDecoder?: new (init: { data: ReadableStream<Uint8Array>; type: string }) => GifDecoder }).ImageDecoder
+      if (!Decoder) return null
+      try {
+        const res = await fetch(url)
+        if (!res.ok || !res.body) return null
+        const dec = new Decoder({ data: res.body, type: 'image/gif' })
+        await dec.tracks.ready
+        const n = dec.tracks.selectedTrack?.frameCount ?? 0
+        const out: ImageBitmap[] = []
+        for (let i = 0; i < n; i++) { const { image } = await dec.decode({ frameIndex: i }); out.push(await createImageBitmap(image)); image.close() }
+        return out
+      } catch { return null }
+    })()
+    gifCache.set(url, p)
+  }
+  return p
+}
+
+/** The picture the drive film is showing right now, as a JPEG the game can keep. Null if it cannot be read. */
+export function captureFrame(root: HTMLElement): string | null {
+  try {
+    const video = $<HTMLVideoElement>('#film', root)
+    const gif = $<HTMLCanvasElement>('#filmc', root)
+    const c = document.createElement('canvas')
+    if (video && video.videoWidth && video.readyState >= 2) {
+      c.width = 640
+      c.height = Math.round((640 * video.videoHeight) / video.videoWidth)
+      c.getContext('2d')!.drawImage(video, 0, 0, c.width, c.height)
+    } else if (gif && gif.dataset.ready === '1') {
+      c.width = gif.width * 2
+      c.height = gif.height * 2
+      c.getContext('2d')!.drawImage(gif, 0, 0, c.width, c.height)
+    } else return null
+    return c.toDataURL('image/jpeg', 0.82)
+  } catch { return null }
 }
 
 // The "signal from Mars" look: moving grain over the film, with a short stronger burst now and then.
@@ -227,7 +265,7 @@ function startFx(screen: HTMLElement) {
 }
 
 // ---------------------------------------------------------------- Map
-const mapHint = (h: ViewerHooks) => h.driving ? '🚙 The rover is driving. Tap 📸 Take photo when it passes a camera mark!' : h.planning ? '👆 Tap the map to place points for the rover' : 'Tap a lettered spot to see its result'
+const mapHint = (h: ViewerHooks) => h.driving ? '🚙 The rover is driving. It saves a real photo by itself when it passes a camera mark.' : h.planning ? '👆 Tap the map to place points for the rover' : 'Tap a lettered spot to see its result'
 
 function mapUiHtml(rv: RoverSpec, view: MapView) {
   const sb = scaleBar(rv, view)
@@ -238,8 +276,8 @@ function mapUiHtml(rv: RoverSpec, view: MapView) {
 }
 
 const mapOpts = (m: Mission, rv: RoverSpec, v: ViewerState, h: ViewerHooks): MapOpts => ({
-  planning: h.planning, anim: h.anim, reports: m.reports(), focus: v.focus, view: v.view, found: m.photos,
-  inRange: m.base ? null : shootState(m, rv, h.pos).place?.id ?? null,
+  planning: h.planning, anim: h.anim, reports: m.reports(), focus: v.focus, view: v.view, found: shownPhotos(m, h),
+  inRange: m.base ? null : placeNear(rv, h.pos)?.place.id ?? null,
 })
 
 /** Moves the picture and the drawing on top of it to match the zoom and position. */
@@ -260,7 +298,7 @@ function syncMapUi(root: HTMLElement, rv: RoverSpec, v: ViewerState) {
   const zl = $('#zlabel', root)
   if (zl) zl.textContent = `${v.view.k % 1 ? v.view.k.toFixed(1) : v.view.k}×`
   const mc = $('#mapcredit', root)
-  if (mc) mc.textContent = `${v.view.k > 1 ? '✋ Drag the map to look around · ' : ''}${v.view.mode === 'sat' ? `Real photo from orbit · ${rv.satellite.credit}` : 'Heights from the MOLA laser altimeter · NASA'}`
+  if (mc) mc.textContent = `${v.view.k > 1 ? '✋ Hold the right mouse button and drag to move the map · ' : ''}${v.view.mode === 'sat' ? `Real photo from orbit · ${rv.satellite.credit}` : 'Heights from the MOLA laser altimeter · NASA'}`
   $$('[data-mode]', root).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === v.view.mode)))
   applyView(root, v.view)
 }
@@ -284,7 +322,7 @@ function mapHtml(m: Mission, rv: RoverSpec, v: ViewerState, h: ViewerHooks) {
         <div class="legend">
           <span><i class="dot" style="background:#ff6a2b"></i>your rover</span>
           <span><i class="dot" style="background:#fff"></i>where the real ${esc(rv.name)} parked</span>
-          <span><i class="cam-ic"></i>real photo spot (drive inside its ring)</span>
+          <span><i class="cam-ic"></i>real photo spot (saved when the rover drives through its ring)</span>
           <span><i class="dot" style="background:#5ff2c5"></i>good</span><span><i class="dot" style="background:#ffb347"></i>risky</span><span><i class="dot" style="background:#ff5a4a"></i>bad</span><span><i class="dot" style="background:#b8c4cf"></i>not checked</span>
         </div>
         <details class="about"><summary>ⓘ About this map</summary>
@@ -295,10 +333,10 @@ function mapHtml(m: Mission, rv: RoverSpec, v: ViewerState, h: ViewerHooks) {
           <p class="cam-credit">${esc(sat.provider)}, saved ${esc(sat.retrieved)} · <a href="${esc(sat.page)}" target="_blank" rel="noopener">NASA's map ↗</a><br/>${esc(rv.area.mola.provider)}<br/>${esc(rv.area.provider)}, saved ${esc(rv.area.retrieved)}.</p></details>
       </div>
       <div id="feed" class="cam">
-        <div class="cam-h"><b>Rover camera</b><span id="feed-tag">${tagHtml(h.driving)}</span></div>
-        <div class="cam-screen" id="feed-screen" data-key="${feedKey(rv, v, h.pos, h.driving)}">${screenHtml(m, rv, v, h.pos, h.driving)}</div>
-        <div id="feed-tools">${toolsHtml(m, rv, h.pos)}</div>
-        <div id="feed-cap">${capHtml(rv, v, h.pos, h.driving)}</div>
+        <div class="cam-h"><b>Rover camera</b><span id="feed-tag">${tagHtml(m, rv, v, h.pos, h.driving)}</span></div>
+        <div class="cam-screen" id="feed-screen" data-key="${feedKey(m, rv, v, h.pos, h.driving)}">${screenHtml(m, rv, v, h.pos, h.driving)}</div>
+        <div id="feed-cap">${capHtml(m, rv, v, h.pos, h.driving)}</div>
+        <div id="feed-album">${albumStripHtml(m, rv, h)}</div>
       </div>
     </div>`
 }
@@ -309,10 +347,10 @@ function photosHtml(m: Mission, rv: RoverSpec, v: ViewerState) {
   const places = photoPlaces(rv)
   const found = m.photos.map(id => places.find(p => p.id === id)!)
   const missing = places.length - found.length
-  return `<div class="vhead"><b>My photo album</b><p>Real photos from the spots your rover photographed: <b>${found.length} of ${places.length}</b> found${m.photoBonus ? `, <b>+${m.photoBonus}</b> to your score` : ''}. Each spot adds +${PHOTO_BONUS_EACH}, up to +${PHOTO_BONUS_MAX}. They are raw: not cleaned up or colour-corrected.</p></div>
+  return `<div class="vhead"><b>My photo album</b><p>Real photos from the spots your rover passed or parked at. It saves them by itself: <b>${found.length} of ${places.length}</b> found${m.photoBonus ? `, <b>+${m.photoBonus}</b> to your score` : ''}. Each spot adds +${PHOTO_BONUS_EACH}, up to +${PHOTO_BONUS_MAX}. They are raw: not cleaned up or colour-corrected.</p></div>
     <div class="photo-grid">${found.flatMap(pl => pl.photos.map(p => `<figure class="photo"><button class="pbtn" data-album="${pl.id}" data-photo="${esc(p.imageId)}" aria-label="Open this photo"><img src="${src(p.file)}" alt="${esc(p.cameraName)} raw image, ${esc(rv.name)} sol ${p.sol}" loading="lazy"/></button>
       <figcaption><b>${esc(p.cameraName)}</b> · sol ${p.sol} · ${esc(p.takenUtc.slice(0, 10))}<br/><span>${esc(p.credit)}</span></figcaption></figure>`)).join('')}
-      ${Array.from({ length: Math.min(missing, found.length ? 2 : 4) }, () => '<figure class="photo locked"><div class="lockbox"><span>📷</span><b>Not found yet</b><small>Drive past a camera mark on the map</small></div></figure>').join('')}</div>
+      ${Array.from({ length: Math.min(missing, found.length ? 2 : 4) }, () => '<figure class="photo locked"><div class="lockbox"><span>📷</span><b>Not found yet</b><small>Drive through a camera ring on the map</small></div></figure>').join('')}</div>
     ${missing ? `<p class="cam-credit">${missing} photo spot${missing > 1 ? 's are' : ' is'} still waiting on the map.</p>` : '<p class="cam-credit">You found every photo spot on this map!</p>'}
     <p class="cam-credit">${esc(rv.area.provider)}, saved ${esc(rv.area.retrieved)}. <a href="${esc(rv.area.gallery)}" target="_blank" rel="noopener">NASA's raw image gallery ↗</a></p>
     <div class="vhead" style="margin-top:22px"><b>Newest from NASA</b><p>Load the most recent photos straight from NASA (needs internet). They are for looking, not for score. The rest of the game works offline.</p></div>
@@ -418,49 +456,23 @@ export function partCardHtml(rv: RoverSpec, v: ViewerState) {
       : '<div class="partcard empty">Tap a dot on the rover to see what that part does.</div>'}`
 }
 
-// ---------------------------------------------------------------- Learn: NASA's films and links
-function learnHtml(rv: RoverSpec, v: ViewerState) {
-  const video = VIDEOS.find(x => x.rover === rv.id)
-  const film = DRIVE_FILMS.find(x => x.rover === rv.id)
-  const s = rv.selfie
-  const links = rv.id === 'curiosity'
-    ? [['Where is Curiosity now? (live map)', 'https://science.nasa.gov/mission/msl-curiosity/location-map/'], ['Curiosity science instruments', 'https://science.nasa.gov/mission/msl-curiosity/science-instruments/'], ['Curiosity mission page', rv.home]]
-    : [['Where is Perseverance now? (live map)', 'https://science.nasa.gov/mission/mars-2020-perseverance/location-map/'], ['Perseverance rover components', 'https://science.nasa.gov/mission/mars-2020-perseverance/rover-components/'], ['NASA Eyes: the 2021 landing replay', 'https://eyes.nasa.gov/apps/mars2020/'], ['Perseverance mission page', rv.home]]
-  return `<div class="vhead"><b>Learn about ${esc(rv.name)}</b><p>Real NASA films, photos and pages. The films are saved in the game, so they play offline.</p></div>
-    <div class="learngrid">
-      ${video ? `<div class="cam"><div class="cam-h"><b>NASA video</b><span class="tag">${esc(video.date.slice(0, 4))}</span></div>
-        <video class="media wide" controls playsinline preload="metadata" src="${src(video.file)}"></video>
-        <p class="cam-cap">${esc(video.title)}</p><p class="cam-credit">${esc(video.credit)} · <a href="${esc(video.page)}" target="_blank" rel="noopener">NASA page ↗</a></p></div>` : ''}
-      ${film ? `<div class="cam"><div class="cam-h"><b>A real drive</b><span class="tag">${esc(film.date.slice(0, 4))}</span></div>
-        ${film.kind === 'video' ? `<video class="media wide" controls playsinline preload="metadata" src="${src(film.file)}"></video>` : `<img class="media wide" src="${src(film.file)}" alt="${esc(film.title)}"/>`}
-        <p class="cam-cap">${esc(film.note)}</p><p class="cam-credit">${esc(film.credit)} · <a href="${esc(film.page)}" target="_blank" rel="noopener">NASA page ↗</a></p></div>` : ''}
-      <div class="cam"><div class="cam-h"><b>A real selfie</b><span class="tag">${esc(s.date.slice(0, 4))}</span></div>
-        <img class="media wide" src="${src(s.file)}" alt="Real selfie of the ${esc(rv.name)} rover on Mars"/>
-        <p class="cam-cap">${esc(s.note)}</p><p class="cam-credit">“${esc(s.title)}”, ${esc(s.credit)} · <a href="${esc(s.page)}" target="_blank" rel="noopener">NASA page ↗</a></p></div>
-    </div>
-    <div class="vhead" style="margin-top:22px"><b>NASA pages</b><p>These open in a new tab and need internet.</p></div>
-    <div class="linklist">${links.map(([label, url]) => `<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">${esc(label)} ↗</a>`).join('')}</div>
-    ${rv.id === 'curiosity' ? `<div class="vhead" style="margin-top:22px"><b>Experience Curiosity in 3D</b><p>NASA's own 3D app: drive Curiosity, move its arm and mast, and read about each part. Its scene is from 2014–15, not today's position. Needs internet.</p></div>
-      ${v.eyesLoaded ? `<iframe class="eyes" src="${esc(rv.eyes)}" title="Experience Curiosity, NASA Eyes" allow="fullscreen; xr-spatial-tracking" allowfullscreen></iframe>` : `<div class="linklist"><button class="btn primary" id="eyes-load">Load the 3D app here</button><a class="btn" href="${esc(rv.eyes)}" target="_blank" rel="noopener">Open it in a new tab ↗</a></div>`}` : ''}`
-}
-
 // ---------------------------------------------------------------- Viewer shell
 export function renderViewer(root: HTMLElement, m: Mission, v: ViewerState, rerender: () => void, h: ViewerHooks) {
   const rv = m.rover
   const redrawFeed = () => {
     const screen = $('#feed-screen', root)
     if (!screen || !rv) return
-    const key = feedKey(rv, v, h.pos, h.driving)
+    const key = feedKey(m, rv, v, h.pos, h.driving)
     if (screen.dataset.key !== key) {
       const old = $<HTMLVideoElement>('#film', screen)
       if (old) v.filmAt = old.currentTime
       screen.dataset.key = key
       screen.innerHTML = screenHtml(m, rv, v, h.pos, h.driving)
-      $('#feed-tag', root).innerHTML = tagHtml(h.driving)
-      $('#feed-cap', root).innerHTML = capHtml(rv, v, h.pos, h.driving)
+      $('#feed-tag', root).innerHTML = tagHtml(m, rv, v, h.pos, h.driving)
+      $('#feed-cap', root).innerHTML = capHtml(m, rv, v, h.pos, h.driving)
       startFilm(screen, v)
     }
-    $('#feed-tools', root).innerHTML = toolsHtml(m, rv, h.pos)
+    $('#feed-album', root).innerHTML = albumStripHtml(m, rv, h)
   }
   // One delegated handler: the map is redrawn often, so per-element listeners would be lost.
   const onPick = (t: Element, e: { clientX: number; clientY: number }) => {
@@ -473,7 +485,6 @@ export function renderViewer(root: HTMLElement, m: Mission, v: ViewerState, rere
     const peek = t.closest('[data-peek]')
     if (peek) { v.peek = peek.getAttribute('data-peek') as RoverId; v.pick = null; v.part = null; v.highlight = []; v.highlightJob = null; root.scrollTop = 0; rerender(); return true }
     if (t.closest('[data-unpeek]')) { v.peek = null; v.part = null; rerender(); return true }
-    if (t.closest('#shoot')) { h.shoot(); return true }
     const thumb = t.closest('[data-album]')
     if (thumb && rv) { openAlbum(m, rv, Number(thumb.getAttribute('data-album')), thumb.getAttribute('data-photo') ?? undefined); return true }
     const mode = t.closest('[data-mode]')
@@ -523,9 +534,9 @@ export function renderViewer(root: HTMLElement, m: Mission, v: ViewerState, rere
     return
   }
   root.dataset.view = view
-  const tabs: [ViewTab, string][] = [['map', 'Map'], ['photos', 'My photos'], ['parts', 'Rover parts'], ['learn', 'Learn']]
+  const tabs: [ViewTab, string][] = [['map', 'Map'], ['photos', 'My photos'], ['parts', 'Rover parts']]
   root.innerHTML = `<div class="vtabs" role="tablist">${tabs.map(([id, label]) => `<button role="tab" class="tab" data-vtab="${id}" aria-selected="${v.tab === id}">${label}</button>`).join('')}</div>
-    <div class="vbody">${v.tab === 'map' ? mapHtml(m, rv, v, h) : v.tab === 'photos' ? photosHtml(m, rv, v) : v.tab === 'parts' ? partsHtml(rv, v) : learnHtml(rv, v)}</div>`
+    <div class="vbody">${v.tab === 'map' ? mapHtml(m, rv, v, h) : v.tab === 'photos' ? photosHtml(m, rv, v) : partsHtml(rv, v)}</div>`
   $$('[data-vtab]', root).forEach(b => b.addEventListener('click', () => { v.tab = b.dataset.vtab as ViewTab; rerender() }))
   if (v.tab === 'map') {
     $('#maplayer', root).append(background(rv, v.view.mode))
@@ -533,7 +544,6 @@ export function renderViewer(root: HTMLElement, m: Mission, v: ViewerState, rere
     bindDrag(root, v)
     startFilm($('#feed-screen', root), v)
   }
-  $('#eyes-load', root)?.addEventListener('click', () => { v.eyesLoaded = true; rerender() })
   $('#live', root)?.addEventListener('click', async () => {
     v.live = { status: 'loading', items: v.live.items, error: '' }
     rerender()
@@ -543,21 +553,58 @@ export function renderViewer(root: HTMLElement, m: Mission, v: ViewerState, rere
   })
 }
 
-/** Starts the fuzz over a newly shown drive film and lets the film carry on from where the last drive stopped. */
+/**
+ * Starts a newly shown drive film and the fuzz over it. The film carries on from where the last
+ * drive stopped. A video plays itself; a GIF is drawn picture by picture, so it can be frozen.
+ */
+let filmTimer = 0
 function startFilm(screen: HTMLElement, v: ViewerState) {
   startFx(screen)
+  clearInterval(filmTimer)
   const film = $<HTMLVideoElement>('#film', screen)
-  if (!film) return
-  film.playbackRate = 0.8
-  film.addEventListener('loadedmetadata', () => { if (film.duration) film.currentTime = v.filmAt % film.duration }, { once: true })
+  if (film) {
+    film.playbackRate = 0.8
+    film.addEventListener('loadedmetadata', () => { if (film.duration) film.currentTime = v.filmAt % film.duration }, { once: true })
+    return
+  }
+  const c = $<HTMLCanvasElement>('#filmc', screen)
+  if (!c) return
+  const url = c.dataset.src!
+  void gifFrames(url).then(frames => {
+    if (!c.isConnected) return
+    if (!frames?.length) {
+      // This browser cannot take the film apart: show it as the plain moving picture it is.
+      const img = document.createElement('img')
+      img.className = 'media'
+      img.src = url
+      img.alt = c.getAttribute('aria-label') ?? ''
+      c.replaceWith(img)
+      return
+    }
+    c.width = frames[0].width
+    c.height = frames[0].height
+    const ctx = c.getContext('2d')!
+    let i = Math.floor(v.filmAt) % frames.length
+    const draw = () => {
+      if (!c.isConnected) { clearInterval(filmTimer); return }
+      ctx.drawImage(frames[i % frames.length], 0, 0)
+      c.dataset.ready = '1'
+      v.filmAt = i
+      i++
+    }
+    draw()
+    filmTimer = window.setInterval(draw, 450)
+  })
 }
 
-/** When zoomed in, dragging moves the map. A drag does not place a point. */
+/** When zoomed in, dragging moves the map: with the right mouse button, or with the left button or a finger. A drag does not place a point. */
 function bindDrag(root: HTMLElement, v: ViewerState) {
   const mv = $('#mapview', root)
   let drag: { id: number; x: number; y: number; cx: number; cy: number; moved: boolean } | null = null
+  // The right button is for dragging here, so its menu stays closed over the map.
+  mv.oncontextmenu = e => e.preventDefault()
   mv.onpointerdown = e => {
-    if (v.view.k <= 1 || e.button !== 0) return
+    if (v.view.k <= 1 || (e.button !== 0 && e.button !== 2)) return
     const vb = viewBox(v.view)
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, cx: vb.x + vb.size / 2, cy: vb.y + vb.size / 2, moved: false }
   }
@@ -567,7 +614,7 @@ function bindDrag(root: HTMLElement, v: ViewerState) {
     if (!drag.moved) {
       if (Math.hypot(dx, dy) < 6) return
       drag.moved = true
-      mv.setPointerCapture(drag.id)
+      try { mv.setPointerCapture(drag.id) } catch { /* the pointer is already gone: the drag still works while it stays over the map */ }
       mv.classList.add('dragging')
     }
     const b = mv.getBoundingClientRect(), size = MAP_PX / v.view.k

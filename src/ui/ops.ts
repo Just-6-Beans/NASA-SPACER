@@ -50,13 +50,13 @@ function briefTab(body: HTMLElement, ctx: PanelCtx) {
         <span>Time</span><b>${MISSION_SOLS} Mars days</b></div></div>
     </div>
     <div class="brief-box"><h3>What counts as success</h3>
-      <p>A <b>base built on a good place</b> with the <b>habitat commissioned</b>. A good place is level ground (${MAX_BASE_TILT}° or less) with a site score of ${GOOD_SCORE} or more out of 100. The score is the average of six checks: level ground, smooth terrain, sunlight, warmth, low radiation and a rock sample. A check nobody measured counts as 0. Real photo spots found on the way add up to +${PHOTO_BONUS_MAX}. The habitat also needs a crew medical clearance from Hab Systems.</p>
+      <p>A <b>base built on a good place</b> with the <b>habitat commissioned</b>. A good place is level ground (${MAX_BASE_TILT}° or less) with a site score of ${GOOD_SCORE} or more out of 100. The score is the average of six checks: level ground, smooth terrain, sunlight, warmth, low radiation and a rock sample. A check nobody measured counts as 0. Real photo spots the rover passes add up to +${PHOTO_BONUS_MAX}. The habitat also needs a crew medical clearance from Hab Systems.</p>
       <p>You can build on any spot the rover stopped at, good or bad, and the report says why it scored as it did. Staying in orbit keeps the crew safe. It is a valid call, but the mission is not complete.</p></div>
     <div class="prov">
       <div>${REAL}<b>The rover and its ground.</b> Where each rover is parked, the tilt it measured at every stop, its photos, its battery and power source, and the picture of the ground from orbit. NASA/JPL-Caltech.</div>
       <div>${REAL}<b>Weather and radiation.</b> Curiosity's REMS and RAD instruments at Gale Crater.</div>
       <div>${REAL}<b>Signal delay.</b> The Earth to Mars light time on ${d.label}. ${esc(SOURCES.lightTime.name)}.</div>
-      <div>${MODEL}Everything else: what each test and photo costs, recharge times, the ${MISSION_SOLS}-day limit, the scores, the relay hand-off, budgets and station power.</div>
+      <div>${MODEL}Everything else: what each test costs, recharge times, the ${MISSION_SOLS}-day limit, the scores, the relay hand-off, budgets and station power.</div>
     </div>
     <div class="actions"><button class="btn primary" id="begin">Begin mission</button><button class="btn" id="tostatus">See mission status</button></div>`
   $('#begin', body).addEventListener('click', () => ctx.close())
@@ -156,7 +156,7 @@ function sourceRows(m: Mission): Row[] {
       origin: `${rv.satellite.provider} · saved ${formatDate(rv.satellite.retrieved)}`, limit: `About ${rv.satellite.metresPerPixel} m of ground for each dot of the picture.` },
     { kind: 'real', what: 'Map heights', note: 'The height map, and the climb that makes a drive cost more battery.', origin: rv.area.mola.provider, limit: rv.area.mola.note },
     { kind: 'real', what: 'Rover photos, selfies and drive films',
-      note: `${m.rover ? `${rv.area.photos.length} raw photos from ${photoPlaces(rv).length} places on the map` : 'Raw photos from 16 places on each map'}, a real selfie, and a film made from the rover's own camera during a real drive.`,
+      note: `${m.rover ? `${rv.area.photos.length} raw photos from ${photoPlaces(rv).length} places on the map` : 'Raw photos from 16 places on each map'}, a real selfie on the choice screen, and a film made from the rover's own camera during a real drive.`,
       origin: `${rv.area.credit}`, limit: 'The drive film is a real drive, but not the path you chose. Raw photos are not cleaned up or colour-corrected.' },
     { kind: 'real', what: 'Sunlight and warmth', note: 'Sunrise, sunset and air temperature on the newest sols Curiosity reported.',
       origin: `${WEATHER_SOURCE.provider} · ${WEATHER_SOURCE.location} · saved ${formatDate(WEATHER_SOURCE.retrieved)}`, limit: WEATHER_SOURCE.note },
@@ -170,7 +170,7 @@ function sourceRows(m: Mission): Row[] {
     { kind: 'model', what: 'Recharge time', note: `The power source's output today minus ${BASE_LOAD_W} W the rover always uses. The game plays one Mars hour each second.`, origin: 'Built on the NASA power figures' },
     { kind: 'model', what: 'Weather and radiation at Jezero', note: 'Perseverance has no radiation detector and its weather feed is patchy, so Jezero borrows Curiosity\'s readings from Gale.', origin: 'Built on Curiosity REMS and RAD' },
     { kind: 'model', what: 'Relay hand-off', note: 'Two or three minutes added to the signal delay by the station relay, and skipped by a direct link.', origin: 'Added to JPL Horizons light time' },
-    { kind: 'model', what: 'Battery cost of each test and photo', note: 'NASA publishes no per-activity figures, so these are game rules: photograph 80 Wh, weather and radiation 40 Wh, drill 300 or 380 Wh, a photo on the way 20 Wh.', origin: 'Set against the real battery size' },
+    { kind: 'model', what: 'Battery cost of each test', note: 'NASA publishes no per-activity figures, so these are game rules: photograph 80 Wh, weather and radiation 40 Wh, drill 300 or 380 Wh. The photos the rover saves by itself on the way cost nothing.', origin: 'Set against the real battery size' },
     { kind: 'model', what: 'Site score, verdict and stars', note: `Six checks scored 0 to 100 and averaged, a ${MAX_BASE_TILT}° limit for a base, ${GOOD_SCORE} or more for a good place, and +${PHOTO_BONUS_EACH} for each photo spot found.`, origin: 'Built on the real measurements above' },
     { kind: 'simulated', what: `The ${MISSION_SOLS}-day mission limit`, note: 'A game rule that makes waiting for a recharge cost something. Real rover missions last years.', origin: '' },
     { kind: 'simulated', what: 'Budgets, costs and masses', note: 'Game rules for each spacecraft, instrument and supply.', origin: '' },

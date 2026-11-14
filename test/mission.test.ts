@@ -6,8 +6,8 @@ import { CHARGE_MS_PER_HOUR, Mission, WATER_BONUS, cleanCallSign } from '../src/
 import type { Power } from '../src/core/power'
 import { ROVERS, mmrtgNowW } from '../src/core/rovers'
 import {
-  DRIVE_FILMS, DRIVE_PHOTO_WH, MAX_BASE_TILT, MAX_WAYPOINTS, MISSION_SOLS, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, PHOTO_RANGE_M, REGIONS, SOL_HOURS, STOP_RANGE_M, VIDEOS, costPct, spendPct, climbWhPerM,
-  driveWhPerM, fullRechargeSols, groundAt, heightAt, legCost, photoBonus, photoPlaces, rangeM, reserveWh, roverTraits, simulateDrive, slopeAt, testWh,
+  DRIVE_FILMS, MAX_BASE_TILT, MAX_WAYPOINTS, MISSION_SOLS, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, PHOTO_RANGE_M, REGIONS, SOL_HOURS, STOP_RANGE_M, costPct, spendPct, climbWhPerM,
+  driveWhPerM, fullRechargeSols, groundAt, heightAt, legCost, photoBonus, photoPlaces, placeNear, rangeM, reserveWh, roverTraits, simulateDrive, slopeAt, testWh,
   type RegionId,
 } from '../src/core/survey'
 import * as T from '../src/core/tasks'
@@ -45,7 +45,6 @@ test('real data snapshots are present and labelled', () => {
     for (const p of rv.area.photos) assert.ok(existsSync(join('public', p.file)), `photo saved: ${p.file}`)
     assert.ok(rv.parts.length >= 15, `${rv.name} parts explained`)
     for (const p of rv.parts) assert.match(p.url, /^https:\/\/(science\.nasa\.gov|www\.jpl\.nasa\.gov|www\.nasa\.gov|mars\.nasa\.gov)\//)
-    assert.ok(VIDEOS.some(v => v.rover === rv.id && existsSync(join('public', v.file))), `${rv.name}: NASA video saved`)
     assert.ok(DRIVE_FILMS.some(v => v.rover === rv.id && existsSync(join('public', v.file))), `${rv.name}: real drive film saved`)
     // The real picture from orbit behind the map: every tile of the 3 km square is saved.
     const sat = rv.satellite
@@ -256,7 +255,6 @@ test('recharging runs on a real countdown: one Mars hour each second, and it can
   assert.equal(m.canDrive, false)
   assert.match(m.addWaypoint({ x: 100, y: 0 })!, /recharging/)
   assert.match(m.testBlock('photo')!, /recharging/)
-  assert.match(m.photoBlock(photoPlaces(rv)[0].id)!, /recharging/)
   assert.match(m.decideBase(0)!, /recharging/)
   // Ten seconds later: ten Mars hours of charge and of mission time, whether or not anyone was watching.
   assert.equal(m.syncRecharge(t0 + 10_000), false)
@@ -335,35 +333,55 @@ test('the mission lasts 10 Mars days: driving and recharging use them up', () =>
   assert.match(t.deployBlock()!, /hours of the mission are left/)
 })
 
-test('photos on the way: real photo spots in reach join the album and add to the score', () => {
+test('photos save themselves: real photo spots the rover parks at or drives past join the album and add to the score', () => {
   const m = ready('jezero')
   const rv = ROVERS.perseverance
   const places = photoPlaces(rv)
   assert.equal(places.length, 16)
   assert.equal(places.reduce((a, p) => a + p.photos.length, 0), rv.area.photos.length)
-  const far = places.find(p => Math.hypot(p.x, p.y) > 500)!
-  assert.match(m.photoBlock(far.id)!, /Too far/)
-  const here = places.find(p => Math.hypot(p.x, p.y) < PHOTO_RANGE_M)!
-  const score = m.report(m.spots[0]).score, wh = m.batteryWh
-  assert.equal(m.takePhoto(here.id), null, 'the rover starts beside a real photo spot')
-  assert.equal(m.batteryWh, wh - DRIVE_PHOTO_WH)
-  assert.equal(m.report(m.spots[0]).score, score + PHOTO_BONUS_EACH, 'a useful photo raises the score')
-  assert.match(m.takePhoto(here.id)!, /Already/)
-  // A spot the drive passes stays in reach after the rover has driven on.
-  const next = [...places].filter(p => p.id !== here.id).sort((a, b) => Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y))[0]
+  // Parked at the start, beside a real photo spot: saved straight away, and it costs no battery.
+  const here = placeNear(rv, m.pos)!
+  assert.ok(here.distM < PHOTO_RANGE_M)
+  assert.deepEqual(m.photos, [here.place.id])
+  assert.equal(m.batteryWh, 2408, 'saving a photo uses no battery')
+  assert.equal(m.photoBonus, PHOTO_BONUS_EACH)
+  // A drive that passes a spot and carries on: the forecast names it, and the deployment saves it.
+  const next = [...places].filter(p => p.id !== here.place.id).sort((a, b) => Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y))[0]
   m.addWaypoint({ x: next.x, y: next.y })
   m.addWaypoint({ x: next.x + 200, y: next.y })
-  m.deploy()
-  assert.ok(Math.hypot(m.pos.x - next.x, m.pos.y - next.y) > PHOTO_RANGE_M)
-  assert.equal(m.takePhoto(next.id), null)
-  assert.deepEqual(m.photos, [here.id, next.id])
-  assert.equal(m.photoBonus, 2 * PHOTO_BONUS_EACH)
-  assert.equal(photoBonus(9), PHOTO_BONUS_MAX, 'the bonus stops at its maximum')
+  const f = m.forecast()!
+  assert.deepEqual(f.photos.map(p => p.place), [next.id])
+  assert.ok(Math.abs(f.photos[0].alongM - (Math.hypot(next.x, next.y) - PHOTO_RANGE_M)) < 1.5, 'saved when the rover comes into range, 120 m before the spot')
+  const score = m.report(m.spots[0]).score
+  assert.equal(m.deploy(), null)
+  assert.deepEqual(m.drives[0], f, 'forecast and deployment agree on the photos too')
+  assert.ok(Math.hypot(m.pos.x - next.x, m.pos.y - next.y) > PHOTO_RANGE_M, 'the rover has driven on')
+  assert.deepEqual(m.photos, [here.place.id, next.id])
+  assert.equal(m.report(m.spots[0]).score, score + PHOTO_BONUS_EACH, 'a real photo raises the score')
+  assert.equal(m.batteryWh, f.endWh, 'and costs nothing beyond the drive')
   assert.ok(m.causes().some(c => c.good && /photo place/.test(c.text)))
-  // No battery to spare, no photo.
-  const s = ready('gale')
-  s.batteryWh = reserveWh(ROVERS.curiosity) + DRIVE_PHOTO_WH - 1
-  assert.match(s.photoBlock(photoPlaces(ROVERS.curiosity)[0].id)!, /Needs/)
+  // The same spot is never counted twice.
+  m.addWaypoint({ x: next.x, y: next.y })
+  assert.deepEqual(m.forecast()!.photos, [])
+  // A drive nowhere near a real photo spot saves nothing.
+  const far = ready('jezero')
+  far.addWaypoint({ x: -300, y: 300 })
+  assert.deepEqual(far.forecast()!.photos, [])
+  // A drive cut short by the battery saves only the spots it reached.
+  const c = ready('gale')
+  const top = photoPlaces(ROVERS.curiosity)[1]
+  assert.ok(Math.hypot(top.x, top.y) > 1400, 'a spot beyond one battery charge')
+  const atStart = c.photos.length
+  assert.ok(atStart >= 1, 'Curiosity starts beside at least one real photo spot')
+  c.addWaypoint({ x: top.x, y: top.y })
+  const cut = c.forecast()!
+  assert.ok(cut.safeMode)
+  assert.ok(cut.photos.length >= 3 && cut.photos.every(p => p.alongM <= cut.distM + 1))
+  assert.ok(!cut.photos.some(p => p.place === top.id), 'the battery ran out before the last spot')
+  assert.equal(c.deploy(), null)
+  assert.equal(c.photos.length, atStart + cut.photos.length)
+  assert.equal(c.photoBonus, photoBonus(c.photos.length))
+  assert.equal(photoBonus(9), PHOTO_BONUS_MAX, 'the bonus stops at its maximum')
 })
 
 test('battery limits how many spots can be checked', () => {

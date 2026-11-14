@@ -1,6 +1,6 @@
 // Rover operations. First the player chooses one rover for the whole mission. Then, on a real
 // map: tap points for it to drive to, start the deployment and watch it drive (a real drive film
-// on its camera, with a camera button for the real photo spots it passes), run tests at the spot,
+// on its camera; it saves a real photo by itself at each real photo spot it passes), run tests at the spot,
 // read the verdict, and build the base there or explore on. A low battery can be recharged, which
 // uses up some of the mission's Mars days: it runs on a real countdown that carries on while the
 // player is back at the station.
@@ -11,7 +11,7 @@ import '../survey.css'
 import type { Mission, SpotReport } from '../core/mission'
 import { mmrtgNowW, type RoverSpec } from '../core/rovers'
 import {
-  BASE_LOAD_W, DRIVE_PHOTO_WH, MAX_WAYPOINTS, MISSION_SOLS, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, RESERVE_FRACTION, SOL_HOURS, TESTS, TEST_ORDER, climbWhPerM, costPct, driveWhPerM, rechargeW, region,
+  BASE_LOAD_W, MAX_WAYPOINTS, MISSION_SOLS, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, RESERVE_FRACTION, SOL_HOURS, TESTS, TEST_ORDER, climbWhPerM, costPct, driveWhPerM, rechargeW, region,
   reserveWh, spendPct,
   type ActionKind, type Bar, type DriveResult, type Pt, type TestId,
 } from '../core/survey'
@@ -20,7 +20,7 @@ import { sound } from '../audio'
 import { $, $$, el, esc, reducedMotion, toast } from './dom'
 import { ICONS } from './icons'
 import { pin, toPx } from './mapView'
-import { applyView, flash, newViewer, renderViewer, shootState, showActionParts, updateShoot } from './roverPanels'
+import { applyView, captureFrame, flash, newViewer, renderViewer, showActionParts } from './roverPanels'
 
 export interface RoverCtx {
   m: Mission
@@ -83,7 +83,7 @@ export function roverScreen(ctx: RoverCtx) {
   /** The player pressed Recharge and is being asked to confirm. */
   let askCharge = false
   /** A deployment being played back on the map. */
-  let play: { drive: DriveResult; path: Pt[]; total: number; pos: Pt; trail: Pt[]; wh: number; t0: number; ms: number; timer: number; cueAt: number; photoWh: number } | null = null
+  let play: { drive: DriveResult; path: Pt[]; total: number; pos: Pt; trail: Pt[]; wh: number; t0: number; ms: number; timer: number; cueAt: number; shown: number } | null = null
   /** Keeps the recharge countdown on screen up to date. The countdown itself lives in the mission, so it carries on while the player is at the station. */
   let chargeTimer = 0
 
@@ -120,7 +120,8 @@ export function roverScreen(ctx: RoverCtx) {
         render()
       },
       back: () => ctx.back(),
-      shoot,
+      // Photo spots this drive will pass but has not reached yet stay hidden until the rover gets there.
+      pending: play ? play.drive.photos.slice(play.shown).map(x => x.place) : [],
     })
   }
 
@@ -201,6 +202,9 @@ export function roverScreen(ctx: RoverCtx) {
   const head = (title: string) => `<div class="side-h"><h2>${title}</h2><button class="btn small" id="back">← Station</button></div>`
   const timeUpHtml = () => m.timeUp ? `<div class="reason bad"><b>The ${MISSION_SOLS} Mars days are over.</b> Build your base on a spot you visited, or stay in orbit.</div>` : ''
 
+  /** Score that `n` more photo spots would add, given the bonus stops at its maximum. */
+  const gain = (n: number) => Math.min(PHOTO_BONUS_MAX, (m.photos.length + n) * PHOTO_BONUS_EACH) - m.photoBonus
+
   // ---------------------------------------------------------------- Plan a drive
   function driveHtml(rv: RoverSpec) {
     const f = m.forecast()
@@ -214,7 +218,7 @@ export function roverScreen(ctx: RoverCtx) {
       return `<div class="leg ${l.partial ? 'bad' : ''}"><span class="num">${last ? '⚑' : i + 1}</span><div><b>${l.partial ? `Stops after ${Math.round(l.distM)} m` : `${Math.round(l.distM)} m${last ? ' to the spot' : ''}`}</b><small>${l.partial ? 'The battery runs out here' : `${l.climbM >= 1 ? `Climbs ${Math.round(l.climbM)} m · ` : ''}about ${f1(l.hours)} hours for the real rover`}</small></div><em>−${costPct(rv, l.wh)}%</em></div>`
     }).join('') : ''
     const note = f
-      ? f.safeMode ? 'This drive is too long for the battery.' : `After this drive, <b>${spendPct(rv, f.endWh)}%</b> battery is left for tests and photos.`
+      ? f.safeMode ? 'This drive is too long for the battery.' : `After this drive, <b>${spendPct(rv, f.endWh)}%</b> battery is left for tests.`
       : m.canDrive ? `Enough battery for about <b>${Math.round(m.spareWh / perM / 10) * 10} m</b> of driving. The mission lasts ${MISSION_SOLS} Mars days.` : 'The battery is too low to drive. Recharge it, or choose your base.'
     // Why the button is greyed out, in plain words, right above it.
     const why = !n && m.canDrive ? null : block
@@ -222,7 +226,8 @@ export function roverScreen(ctx: RoverCtx) {
       ${timeUpHtml()}
       ${statusBlk(rv, f ? f.endWh : null, f ? f.hours : null, note, !!f?.safeMode)}
       <div class="blk"><div class="blk-h"><span>① Tap the map</span><small>${n}/${MAX_WAYPOINTS} points</small></div>
-        ${n ? `<div class="legs">${rows}</div>` : `<p class="hint">Place points on the map. ${esc(rv.name)} drives them in order, and the last one <b>⚑</b> is the spot it will test. Pass through a camera ring to find a real photo.</p>`}
+        ${n ? `<div class="legs">${rows}</div>` : `<p class="hint">Place points on the map. ${esc(rv.name)} drives them in order, and the last one <b>⚑</b> is the spot it will test. Drive through a camera ring and the rover saves a real photo by itself.</p>`}
+        ${f?.photos.length ? `<p class="hint photoline">📷 This drive passes <b>${f.photos.length} real photo spot${f.photos.length > 1 ? 's' : ''}</b>${gain(f.photos.length) ? `: +${gain(f.photos.length)} score` : ' (the photo bonus is already at its most)'}.</p>` : ''}
         ${f?.safeMode ? `<div class="reason bad">Too far! The battery runs out ${f.distM} m along, before point ${f.reached + 1}. The rover would stop there in safe mode until you recharge it. Undo a point or pick a closer spot${m.rechargeBlock() ? '' : ', or recharge first'}.</div>` : f && spendPct(rv, f.endWh) < 9 ? '<div class="reason">Careful: almost nothing would be left for tests at the spot.</div>' : ''}
         ${n ? `<div class="row2"><button class="btn small" id="undo">↶ Undo last point</button><button class="btn small ghost" id="clear">Clear all</button></div>` : ''}
       </div>
@@ -238,7 +243,7 @@ export function roverScreen(ctx: RoverCtx) {
         <p>Driving needs about ${rv.driveW - (m.balanced ? 30 : 0) + BASE_LOAD_W} W. The rover's nuclear power source (MMRTG) makes ${mmrtgNowW(rv)} W and the battery supplies the rest. Climbing costs extra: ${f1(climbWhPerM(rv))} Wh for every metre up.</p>
         <p><b>Recharging:</b> while the rover is parked, the MMRTG puts about ${rechargeW(rv)} W into the battery, day and night. A full recharge takes ${span((rv.batteryWh - floor) / rechargeW(rv))}.</p>
         <p><b>Mars days:</b> the mission lasts ${MISSION_SOLS} Mars days (a Mars day is 24 hours 40 minutes). Driving counts at the real rover's speed, and recharging counts in full.</p>
-        <p class="cam-credit">Real: battery size, the 40 % rule, MMRTG power, driving under 200 W, top speed ${rv.topSpeedMh} m/h, rover mass and map heights. Our model: the 30 W the computers use, what each test and photo costs, and the ${MISSION_SOLS}-day limit.</p></details>`
+        <p class="cam-credit">Real: battery size, the 40 % rule, MMRTG power, driving under 200 W, top speed ${rv.topSpeedMh} m/h, rover mass and map heights. Our model: the 30 W the computers use, what each test costs, and the ${MISSION_SOLS}-day limit.</p></details>`
   }
 
   // ---------------------------------------------------------------- While the rover drives
@@ -249,8 +254,8 @@ export function roverScreen(ctx: RoverCtx) {
         <div class="gauge"><i class="after" id="lv-bar" style="width:0%"></i></div>
         <p class="hint">The real ${esc(rv.name)} would need about <b>${f1(d.hours)} hours</b> for this, at ${rv.topSpeedMh} m per hour. The game plays it in seconds.</p></div>
       <div class="blk"><div class="blk-h"><span>🔋 Battery</span><b id="lv-b">${spendPct(rv, d.startWh)}%</b></div><div class="gauge"><i class="after" id="lv-bb" style="width:${spendPct(rv, d.startWh)}%"></i></div></div>
-      <div class="blk"><div class="blk-h"><span>📸 Photos found</span><b id="lv-p">${m.photos.length}</b></div>
-        <p class="hint">Watch the map. When the rover drives into a camera ring, the <b>Take photo</b> button under the camera lights up. Tap it to save a real photo and score +${PHOTO_BONUS_EACH}.</p></div>
+      <div class="blk"><div class="blk-h"><span>📸 Photos saved</span><b id="lv-p">${m.photos.length - d.photos.length + play!.shown}</b></div>
+        <p class="hint">${d.photos.length ? `This drive passes <b>${d.photos.length} real photo spot${d.photos.length > 1 ? 's' : ''}</b>. The rover saves each one by itself as it drives through the ring.` : 'This drive passes no real photo spot. Drive through a camera ring next time and the rover saves a real photo by itself.'}</p></div>
       <button class="btn huge" id="skip">Skip to the spot ⏭</button>`
   }
 
@@ -329,34 +334,19 @@ export function roverScreen(ctx: RoverCtx) {
       <button class="btn primary huge" id="report">Mission report →</button>`
   }
 
-  // ---------------------------------------------------------------- The camera button
-  function shoot() {
-    const rv = m.rover
-    if (!rv || m.base || m.charging) return
-    const st = shootState(m, rv, play ? play.pos : m.pos)
-    if (!st.place || !st.ready) { toast(st.note, 'warn'); sound.play('fail'); return }
-    const err = m.takePhoto(st.place.id)
-    if (err) { toast(err, 'warn'); sound.play('fail'); return }
-    if (play) play.photoWh += DRIVE_PHOTO_WH
-    sound.play('shutter')
-    toast(m.photos.length * PHOTO_BONUS_EACH > PHOTO_BONUS_MAX ? '📸 Real photo saved to your album! The photo bonus is already at its maximum.' : `📸 Real photo saved to your album! +${PHOTO_BONUS_EACH} score`, 'ok', 3200)
-    if (play) { drawViewer(); set('#lv-p', String(m.photos.length)) } else render()
-    flash(viewer)
-  }
-
   // ---------------------------------------------------------------- Playback of a deployment
   function startPlayback(d: DriveResult) {
     const path = [d.start, ...d.legs.map(l => l.to)]
     const total = d.legs.reduce((a, l) => a + l.distM, 0) || 1
     // The longer the drive, the longer the film: about 22 m of driving per second, between 8 s and 70 s.
     const ms = Math.max(8000, Math.min(70000, (total / 22) * 1000)) * (reducedMotion() ? 0.3 : 1)
-    play = { drive: d, path, total, pos: d.start, trail: [d.start], wh: d.startWh, t0: performance.now(), ms, timer: 0, cueAt: 0, photoWh: 0 }
+    play = { drive: d, path, total, pos: d.start, trail: [d.start], wh: d.startWh, t0: performance.now(), ms, timer: 0, cueAt: 0, shown: 0 }
     v.tab = 'map'
     v.feedIdx = 0
     viewer.scrollTop = 0
     render()
-    // In a small window the camera button can sit below the fold: bring it into view for the drive.
-    viewer.querySelector('#shoot')?.scrollIntoView({ block: 'nearest' })
+    // In a small window the camera can sit below the fold: bring it into view for the drive.
+    viewer.querySelector('#feed-screen')?.scrollIntoView({ block: 'nearest' })
     tick()
   }
   // A timer, not requestAnimationFrame: frames stop in a hidden tab or pane, and the drive must still finish.
@@ -377,7 +367,6 @@ export function roverScreen(ctx: RoverCtx) {
       trail.push(pos)
       break
     }
-    wh -= p.photoWh
     p.pos = pos; p.trail = trail; p.wh = wh
     const q = toPx(rv, pos)
     // Zoomed in, the map follows the rover.
@@ -391,15 +380,33 @@ export function roverScreen(ctx: RoverCtx) {
     battery(wh)
     const hud = $('#hud-d', viewer)
     if (hud) hud.textContent = `${Math.round(along)} m`
-    updateShoot(viewer, m, rv, pos)
+    // Each real photo spot is saved the moment the rover comes into its ring.
+    let saved = 0
+    while (p.shown < p.drive.photos.length && along >= p.drive.photos[p.shown].alongM) { p.shown++; saved++ }
+    if (saved) photoSaved(saved)
     if (now - p.cueAt > 1500) { p.cueAt = now; sound.play('drive') }
     if (f >= 1) return finish()
     p.timer = window.setTimeout(tick, 33)
+  }
+  /** A real photo spot has just been passed: flash the camera, say so, and show it in the album and on the map. */
+  function photoSaved(n: number) {
+    const before = Math.min(PHOTO_BONUS_MAX, (m.photos.length - (play ? play.drive.photos.length - play.shown : 0) - n) * PHOTO_BONUS_EACH)
+    const now = Math.min(PHOTO_BONUS_MAX, (m.photos.length - (play ? play.drive.photos.length - play.shown : 0)) * PHOTO_BONUS_EACH)
+    sound.play('shutter')
+    toast(now > before ? `📸 ${n > 1 ? `${n} real photos` : 'Real photo'} saved to your album! +${now - before} score` : `📸 ${n > 1 ? `${n} real photos` : 'Real photo'} saved to your album. The photo bonus is already at its most.`, 'ok', 3200)
+    drawViewer()
+    set('#lv-p', String(m.photos.length - (play ? play.drive.photos.length - play.shown : 0)))
+    flash(viewer)
   }
   function finish() {
     if (!play) return
     clearTimeout(play.timer)
     const d = play.drive
+    // Keep the picture the camera was showing when the rover stopped: it is what the camera shows
+    // from now on, unless the rover has stopped at a real photo spot.
+    const frame = captureFrame(viewer)
+    if (frame) m.drafts.roverCam = { url: frame }
+    const unseen = d.photos.length - play.shown
     play = null
     const spot = m.spotHere
     v.focus = spot?.id ?? null
@@ -410,6 +417,8 @@ export function roverScreen(ctx: RoverCtx) {
     sound.play(d.safeMode ? 'alert' : 'telemetry')
     toast(d.safeMode ? `Safe mode! The battery ran out ${d.distM} m along. Recharge to carry on.` : `Arrived at spot ${spot?.label}. Run tests to see if it is a good place.`, d.safeMode ? 'bad' : 'ok', 4500)
     if (m.timeUp) toast(`The ${MISSION_SOLS} Mars days are over. Choose your base.`, 'warn', 5000)
+    // Skipping the film still saves the photo spots the drive passed.
+    if (unseen > 0) toast(`📸 ${unseen} real photo${unseen > 1 ? 's' : ''} saved to your album on the way.`, 'ok', 3500)
     render()
   }
 

@@ -25,8 +25,6 @@ export interface Region { id: RegionId; name: string; where: string; lat: number
 export const ROUGHNESS_SOURCE = { provider: molaFile.provider, retrieved: molaFile.retrieved, note: molaFile.note, info: molaFile.info }
 export const ICE_SOURCE = siteFile.ice
 export const RADIATION = siteFile.radiation
-export interface Video { rover: string; file: string; title: string; date: string; credit: string; page: string }
-export const VIDEOS: Video[] = siteFile.videos
 /** A film NASA made from the rover's own camera frames during a real drive. */
 export interface DriveFilm { rover: string; file: string; kind: string; title: string; date: string; credit: string; page: string; note: string }
 export const DRIVE_FILMS: DriveFilm[] = siteFile.driveFilms
@@ -107,6 +105,8 @@ export function groundAt(r: RoverSpec, p: Pt): Ground {
 // ---------------------------------------------------------------- Driving a path
 export const MAX_WAYPOINTS = 8
 export interface Leg { from: Pt; to: Pt; distM: number; climbM: number; wh: number; hours: number; partial: boolean }
+/** A real photo spot a drive passes: which place, and how far along the drive the rover reaches it. */
+export interface DrivePhoto { place: number; alongM: number }
 export interface DriveResult {
   legs: Leg[]; start: Pt; end: Pt; distM: number; climbM: number; hours: number
   startWh: number; usedWh: number; endWh: number
@@ -114,6 +114,8 @@ export interface DriveResult {
   safeMode: boolean
   /** How many of the planned points were reached. */
   reached: number
+  /** Real photo spots the rover passes on this drive and has not photographed before, in the order it reaches them. */
+  photos: DrivePhoto[]
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10
@@ -136,8 +138,11 @@ export function legCost(r: RoverSpec, a: Pt, b: Pt, balanced: boolean): Leg {
   return { from: a, to: b, distM: r1(d), climbM: r1(climb), wh: r1(d * driveWhPerM(r, balanced) + climb * climbWhPerM(r)), hours: Math.round((d / r.topSpeedMh) * 100) / 100, partial: false }
 }
 
-/** Drives the points in order on one battery. Stops in safe mode where the battery meets the 40 % line. */
-export function simulateDrive(r: RoverSpec, start: Pt, points: Pt[], batteryWh: number, balanced: boolean): DriveResult {
+/**
+ * Drives the points in order on one battery. Stops in safe mode where the battery meets the 40 % line.
+ * `found` lists the photo places already in the album, so the result names only the new ones it passes.
+ */
+export function simulateDrive(r: RoverSpec, start: Pt, points: Pt[], batteryWh: number, balanced: boolean, found: number[] = []): DriveResult {
   const floor = reserveWh(r)
   const legs: Leg[] = []
   let pos = start, wh = batteryWh, safeMode = false, reached = 0
@@ -159,7 +164,7 @@ export function simulateDrive(r: RoverSpec, start: Pt, points: Pt[], batteryWh: 
     reached++
   }
   const sum = (k: 'distM' | 'climbM' | 'hours') => legs.reduce((a, l) => a + l[k], 0)
-  return { legs, start, end: pos, distM: Math.round(sum('distM')), climbM: Math.round(sum('climbM')), hours: Math.round(sum('hours') * 10) / 10, startWh: Math.round(batteryWh), usedWh: Math.round(batteryWh - wh), endWh: Math.round(wh), safeMode, reached }
+  return { legs, start, end: pos, distM: Math.round(sum('distM')), climbM: Math.round(sum('climbM')), hours: Math.round(sum('hours') * 10) / 10, startWh: Math.round(batteryWh), usedWh: Math.round(batteryWh - wh), endWh: Math.round(wh), safeMode, reached, photos: photosAlong(r, legs, found) }
 }
 
 // ---------------------------------------------------------------- Tests at a spot
@@ -282,36 +287,50 @@ export function photoPlaces(r: RoverSpec): PhotoPlace[] {
   placeCache.set(r.id, out)
   return out
 }
-/** MODEL: how close the rover must pass to a photo place to photograph it. */
+/** MODEL: how close the rover must pass to a photo place to photograph it. Its cameras do this by themselves. */
 export const PHOTO_RANGE_M = 120
-/** MODEL: battery one photo on the way uses. */
-export const DRIVE_PHOTO_WH = 20
 /** MODEL: each real photo place found adds this to the base score, up to the cap. */
 export const PHOTO_BONUS_EACH = 2
 export const PHOTO_BONUS_MAX = 10
 export const photoBonus = (found: number) => Math.min(PHOTO_BONUS_MAX, found * PHOTO_BONUS_EACH)
 
-/** Shortest distance from a point to a path of straight legs. */
-export function distToPath(p: Pt, path: Pt[]): number {
-  if (path.length === 1) return dist(p, path[0])
-  let best = Infinity
-  for (let i = 1; i < path.length; i++) {
-    const a = path[i - 1], b = path[i]
-    const len2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2
-    const t = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / len2)) : 0
-    best = Math.min(best, dist(p, { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }))
-  }
-  return best
-}
-/** The nearest photo place not photographed yet, and how far away it is. */
-export function nearestNewPlace(r: RoverSpec, pos: Pt, found: number[]): { place: PhotoPlace; distM: number } | null {
+/** The real photo place the rover is at: the nearest one within range of a position, or null. */
+export function placeNear(r: RoverSpec, pos: Pt): { place: PhotoPlace; distM: number } | null {
   let best: PhotoPlace | null = null, bd = Infinity
   for (const pl of photoPlaces(r)) {
-    if (found.includes(pl.id)) continue
     const d = dist(pl, pos)
     if (d < bd) { bd = d; best = pl }
   }
-  return best ? { place: best, distM: bd } : null
+  return best && bd <= PHOTO_RANGE_M ? { place: best, distM: bd } : null
+}
+/** Every photo place within range of a position (the rover is parked beside them). */
+export const placesInRange = (r: RoverSpec, pos: Pt) => photoPlaces(r).filter(pl => dist(pl, pos) <= PHOTO_RANGE_M)
+
+/**
+ * New photo places a drive passes within range, each with the distance along the drive at which
+ * the rover first comes into range. Sorted by that distance, so they are in the order it meets them.
+ */
+function photosAlong(r: RoverSpec, legs: Leg[], found: number[]): DrivePhoto[] {
+  const out: DrivePhoto[] = []
+  for (const pl of photoPlaces(r)) {
+    if (found.includes(pl.id)) continue
+    let acc = 0
+    for (const leg of legs) {
+      // Where the straight leg first comes within range of the place (a circle around it).
+      const dx = leg.to.x - leg.from.x, dy = leg.to.y - leg.from.y
+      const fx = leg.from.x - pl.x, fy = leg.from.y - pl.y
+      const a = dx * dx + dy * dy, b = 2 * (fx * dx + fy * dy), c = fx * fx + fy * fy - PHOTO_RANGE_M ** 2
+      let t: number | null = null
+      if (c <= 0) t = 0
+      else if (a > 0) {
+        const disc = b * b - 4 * a * c
+        if (disc >= 0) { const t1 = (-b - Math.sqrt(disc)) / (2 * a); if (t1 >= 0 && t1 <= 1) t = t1 }
+      }
+      if (t !== null) { out.push({ place: pl.id, alongM: Math.round((acc + t * leg.distM) * 10) / 10 }); break }
+      acc += leg.distM
+    }
+  }
+  return out.sort((x, y) => x.alongM - y.alongM)
 }
 
 // ---------------------------------------------------------------- Choosing a rover: what each is good and bad at

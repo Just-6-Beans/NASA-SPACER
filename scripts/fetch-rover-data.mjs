@@ -9,14 +9,14 @@
 //   data/nasa/<rover>-satellite.json       which real orbital map tiles cover that square, and where it sits in them
 //   data/nasa/gale-rems-recent.json        recent Curiosity REMS weather at Gale Crater
 //   data/nasa/mola-roughness-regions.json  MOLA slope-corrected roughness at the two regions
-//   data/nasa/site-references.json         Curiosity RAD dose, ice-map coverage, NASA videos, drive films, rover pictures
+//   data/nasa/site-references.json         Curiosity RAD dose, ice-map coverage, drive films, rover pictures
 //   public/nasa/<rover>/*.jpg              the raw photos listed in the area files
-//   public/nasa/video/*                    two NASA/JPL videos (mobile size) and two real drive films
+//   public/nasa/video/*                    two real drive films, made from the rovers' own camera frames
 //   public/nasa/map/<rover>/*.png          the orbital map tiles, unchanged from NASA's rover location maps
 //   public/nasa/rovers/*.jpg               a real selfie and a NASA artist's concept of each rover
 //
 // One step at a time: `node scripts/fetch-rover-data.mjs --only=satellite,pictures`
-// Steps: areas, satellite, weather, roughness, radiation, videos, films, pictures.
+// Steps: areas, satellite, weather, roughness, radiation, films, pictures.
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -185,28 +185,6 @@ async function roverArea(id) {
     mola: await molaHeights(c.lat, c.lon),
   })
   return c
-}
-
-// ---------------------------------------------------------------- NASA videos (NASA Image and Video Library)
-const VIDEOS = [
-  { rover: 'perseverance', file: 'how-perseverance-drives.mp4', id: 'JPL-20220405-M2020f-0001-How Perseverance Drives on Mars-1080cc' },
-  { rover: 'curiosity', file: 'curiosity-challenging-climb.mp4', id: 'JPL-20230803-MARSf-0001-Mars Report Curiosity Challenging Climb August 2023' },
-]
-async function videos() {
-  const dir = join(ROOT, 'public', 'nasa', 'video')
-  await mkdir(dir, { recursive: true })
-  const out = []
-  for (const v of VIDEOS) {
-    const meta = (await json(`https://images-api.nasa.gov/search?nasa_id=${encodeURIComponent(v.id)}`)).collection.items[0].data[0]
-    const assets = (await json(`https://images-api.nasa.gov/asset/${encodeURIComponent(v.id)}`)).collection.items.map(i => i.href)
-    const href = assets.find(h => /~mobile\.mp4$/.test(h))
-    if (!href) throw new Error(`No mobile video for ${v.id}`)
-    const bytes = Buffer.from(await (await get(encodeURI(href))).arrayBuffer())
-    await writeFile(join(dir, v.file), bytes)
-    console.log(`video ${v.file}: ${(bytes.length / 1048576).toFixed(1)} MB`)
-    out.push({ rover: v.rover, file: `nasa/video/${v.file}`, title: meta.title, date: (meta.date_created ?? '').slice(0, 10), credit: 'NASA/JPL-Caltech', page: `https://images.nasa.gov/details/${encodeURIComponent(v.id)}`, source: encodeURI(href) })
-  }
-  return out
 }
 
 // ---------------------------------------------------------------- Curiosity REMS (Gale Crater)
@@ -508,7 +486,7 @@ if (want('roughness')) await molaAt([
   { id: 'jezero', name: 'Jezero Crater', where: `Perseverance, sol ${p.sol}`, lat: p.lat, lon: p.lon },
   { id: 'gale', name: 'Gale Crater', where: `Curiosity, sol ${c.sol}`, lat: c.lat, lon: c.lon },
 ])
-if (['radiation', 'videos', 'films', 'pictures'].some(want)) {
+if (['radiation', 'films', 'pictures'].some(want)) {
   const old = (await saved('site-references.json')) ?? {}
   await save(join(DATA, 'site-references.json'), {
     note: 'Hand-checked references used by the base-site bars. Each entry names its source.',
@@ -519,7 +497,6 @@ if (['radiation', 'videos', 'films', 'pictures'].some(want)) {
       swim: 'https://science.nasa.gov/photojournal/swim-map-shows-subsurface-water-ice-on-mars',
       note: 'The SWIM map covers roughly the equator to 60° N between about 172° E and 299° E, so neither Jezero nor Gale is on it. No ice score is given.',
     },
-    videos: want('videos') ? await videos() : old.videos,
     driveFilms: want('films') ? await driveFilms() : old.driveFilms,
     pictures: want('pictures') ? await pictures() : old.pictures,
   })

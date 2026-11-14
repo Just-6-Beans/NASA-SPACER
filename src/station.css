@@ -15,15 +15,15 @@
 /* touch layouts keep the bottom-left corner for the d-pad */
 @media (pointer: coarse) { .deckmap { left: auto; bottom: auto; top: 66px; right: 18px; width: 168px; } }
 .deckmap svg { display: block; width: 100%; height: auto; }
-.deckmap .hull { fill: rgba(8,26,44,.92); stroke: rgba(226,245,255,.45); stroke-width: 4; }
-.deckmap .block { fill: #22364a; }
-.deckmap .station { fill: #35597c; stroke: #9fd8e8; stroke-width: 3; }
+.deckmap .hull { fill: rgba(8,26,44,.94); stroke: rgba(226,245,255,.5); stroke-width: 7; }
+.deckmap .link { fill: rgba(30,60,92,.95); stroke: rgba(226,245,255,.35); stroke-width: 5; }
+.deckmap .station { fill: #35597c; stroke: #9fd8e8; stroke-width: 5; }
 .deckmap text { font-family: var(--display); font-weight: 700; font-size: 64px; opacity: .55; }
 .deckmap .goal { fill: var(--mint); }
-.deckmap .ring { fill: none; stroke: var(--mint); stroke-width: 7; transform-box: fill-box; transform-origin: center; animation: mmring 1.4s ease-out infinite; }
+.deckmap .ring { fill: none; stroke: var(--mint); stroke-width: 12; transform-box: fill-box; transform-origin: center; animation: mmring 1.4s ease-out infinite; }
 .deckmap .goal.urgent { fill: var(--danger); }
 .deckmap .ring.urgent { stroke: var(--danger); }
-.deckmap .mate { fill: var(--cyan); stroke: #05121c; stroke-width: 5; }
+.deckmap .mate { fill: var(--cyan); stroke: #05121c; stroke-width: 9; }
 @keyframes mmring { from { transform: scale(.6); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
 .deckmap-cap { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--ivory-dim); white-space: nowrap; }
 .deckmap-cap #mm-next { color: var(--mint); overflow: hidden; text-overflow: ellipsis; }

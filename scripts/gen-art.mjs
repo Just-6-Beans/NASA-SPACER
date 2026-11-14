@@ -145,6 +145,7 @@ function cockpitSvg() {
 
 // ---------------------------------------------------------------- High-detail station, crew, rover, Mars, sites
 import * as HQ from './art-hq.mjs'
+import { stationArt } from './art-station.mjs'
 
 function suitSheets() {
   const phases = [0, 1, 0.35, -1, -0.35]
@@ -160,14 +161,10 @@ function suitSheets() {
   }
 }
 
-// The station: the walkable deck, its freestanding props, the view of it from outside, and the
-// relay antenna seen through a window.
+// The station: its eight modules, the passages between them, the freestanding props, what is
+// outside the hull, the view of the station from outside, and the relay antenna.
 function station() {
-  const d = HQ.deckSvg(geo)
-  save('deck.svg', d.W, d.H, d.body, d.defs)
-  for (const [k, p] of Object.entries(HQ.props(geo))) {
-    save(`prop-${k}.svg`, p.w, p.h, `<g transform="translate(${-p.ox} ${-p.oy})">${p.body}</g>`, HQ.stationDefs)
-  }
+  for (const f of stationArt(geo)) save(f.name, f.w, f.h, f.body, f.defs)
   const e = HQ.exteriorSvg({ ORANGE, IVORY })
   save('station-exterior.svg', e.W, e.H, e.body, e.defs)
   for (const [k, p] of Object.entries(HQ.relaySvg())) save(`ext-${k}.svg`, p.w, p.h, p.body, HQ.commonDefs)
