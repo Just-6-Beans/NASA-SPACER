@@ -5,8 +5,9 @@
 .seg-ctl.dates button { text-align: center; padding: 8px 2px; }
 .seg-ctl.dates button small { display: block; }
 
-/* A real measurement, its source, and what our model does with it. */
-.tag { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 0 5px; border-radius: 3px; margin-right: 6px; vertical-align: 1px; }
+/* A real measurement, its source, and what our model does with it. Scoped to the two pill
+   kinds: a bare .tag would also restyle the title screen tagline, which uses that class. */
+.tag.real, .tag.model { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 0 5px; border-radius: 3px; margin-right: 6px; vertical-align: 1px; }
 .tag.real { background: rgba(95,242,197,.14); color: var(--mint); border: 1px solid rgba(95,242,197,.5); }
 .tag.model { background: rgba(255,179,71,.1); color: var(--warn); border: 1px solid rgba(255,179,71,.45); }
 .prov { display: grid; gap: 5px; margin-top: 8px; padding: 8px 10px; background: rgba(6,19,33,.9); border: 1px solid rgba(95,242,197,.35); border-radius: 3px; font-size: 12px; line-height: 1.4; color: var(--ivory-dim); }
