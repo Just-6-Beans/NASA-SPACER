@@ -71,7 +71,7 @@ export function titleScreen(link: CrewLink, onStart: (mode: Mode) => void): Titl
         </div>
       </div>
     </div></div>
-    <div class="foot"><span>A NASA Space Apps educational game. Scenario, terrain, ice readings and timing are <b>simulated</b>.</span>
+    <div class="foot"><span>A NASA Space Apps educational game. Scenario, terrain and ice readings are <b>simulated</b>; the signal delay and the Mars night cold are NASA data.</span>
       <span>Mars globe: procedural artist's impression, not a NASA image.</span></div>
   </section>`)
   const flipEl = $('#flip', s), front = $('#front', s), back = $('#back', s), body = $('#lbody', s)

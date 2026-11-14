@@ -7,7 +7,18 @@ Only the experience lane edits this file. Everyone reads it.
 
 ## Done
 
-- (nothing yet)
+- 14 Nov, asked for by a human on this device (title polish and co-op are otherwise out of scope in CHALLENGE.md section 2): **3D title screen with a solo / co-op choice.**
+  - Backdrop: a lit, rotating Mars globe with two orbit rings and a parallax star field, drawn by a raw WebGL2 shader in `src/ui/titleScene.ts`. No new dependency. It is a procedural artist's impression, and the title footer says so. Without WebGL2, or with reduced motion, the title shows a static planet or a single still frame.
+  - Menu: the logo and the two mode cards sit in real CSS 3D (`src/title.css`) and tilt with the pointer.
+  - **Solo mission** starts as before. **Co-op mission** flips the cards to a "crew link" lobby that joins the existing Colyseus room (`spacer_power`) from the title, shows both seats, and keeps the link through launch and docking. Server offline: the lobby says so and offers Retry or Fly solo instead.
+  - Frozen co-op files (`server/`, `src/coop.ts`, `src/core/protocol.ts`) were not changed. The wiring is in `src/main.ts` (`crewLink`, `startMission`, `leaveCoop`); the in-station Co-op panel still works.
+  - Checked in headless Edge on an Intel UHD laptop: two tabs join the same room from the title and see each other after docking; about 2 s to the first backdrop frame on a cold start, then full frame rate. `npm run check` passes.
+  - Not checked: a real phone, Firefox, Safari. Play time was not re-measured; the new choice adds one click.
+
+### Merged to main (14 Nov, at a human's request)
+
+- The title screen, the rules lane's operations-date commit and the station's NASA-data wiring went to main together. Mission Ops now compares the three operations dates, shows the passCauses rows, and its Data sources tab reads provider, place, date and limits from `src/data/opsDates.ts`. The Rover Comms screen splits the delay into JPL Horizons light time and relay hand-off. The title footer no longer calls the timing simulated.
+- The bare `.tag` rule in `src/rover.css` became `.tag.real, .tag.model`, because it was restyling the title tagline.
 
 ### Station redesign (14 Nov)
 
@@ -26,7 +37,7 @@ Only the experience lane edits this file. Everyone reads it.
 
 ## Now
 
-- **Station wiring for the rules lane's NASA data.** Built and checked in the browser against `lane/rules` at 9beefe8, and held on this device (branch `local/station-on-rules`, two commits) until that commit is on main. It changes the Mission Ops brief, Mission status (the rules' `passCauses` rows, and the three operations dates compared, with a button to pick one), Data sources (from `SOURCES` in `src/data/opsDates.ts`) and the Rover Comms deck screen. Until it lands, those screens on main say "simulated" about numbers that will be real.
+- (nothing claimed)
 
 ## Next
 
@@ -38,8 +49,6 @@ Only the experience lane edits this file. Everyone reads it.
 
 ## Asks for other lanes
 
-- **rules, for your rebase onto main** (read against `lane/rules` at 9beefe8): the station screens no longer call `Ship.relayMin` or `signalLeg()`. They ask the mission for its plan snapshot and run `simulatePass` (`src/ui/forecast.ts`), and they show a dash until the plan has what your rules need, such as an operations date. I merged your branch with main in a scratch folder: it type-checks, all 26 tests pass, and Mission Ops and the deck work before and after a date is picked. One conflict is left for you, in the README walkthrough: keep your steps 4 and 6, and keep `(front right)` in step 5.
-- **rules, before you land**: `.tag` in your `src/rover.css` is a bare class, and the title screen's tagline is `.title .tag`. With your stylesheet loaded the tagline turns inline-block and the Start button jumps up beside it. I saw this in the browser on your branch merged with main. Changing the selector to `.tag.real, .tag.model` fixes it without touching your markup. The new title screen waiting in the main checkout uses `class="tag"` as well.
 - **rules**: export the transmit thresholds (life 3, comms 4) from `src/core/power.ts`. `NEED` in `src/ui/stationHud.ts` mirrors them for the HUD meters, the floor buses and Mission status.
 - **rules**: a public way to forecast a pass for an instrument that is selected but not yet activated. `forecastFor()` in `src/ui/forecast.ts` gets one today by asking a copy of the mission for its snapshot.
 - **rules**: the debrief cause list can reuse the Mission status rows in `src/ui/ops.ts` as its layout.
