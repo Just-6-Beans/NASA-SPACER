@@ -23,6 +23,8 @@ export interface StationView {
   battery: number
   /** One-way signal delay in minutes, or null while the rover plan cannot say yet. */
   linkMin: number | null
+  /** Where that delay comes from, for the line under it on the Rover Comms screen. */
+  linkNote: string
   /** Rover clock in simulated minutes once the plan is transmitted, else null. */
   passClock: number | null
   passDone: boolean
@@ -92,7 +94,7 @@ export class StationLive {
     this.glow = scene.add.graphics().setDepth(-6.9).setBlendMode(Phaser.BlendModes.ADD)
     const [cx, cy, cw] = LIVE.commsScreen
     this.linkBig = scene.add.text(cx + cw / 2, cy + 38, '', { ...mono(13, '#6ef2c6'), fontStyle: 'bold' }).setOrigin(0.5).setDepth(-6.8)
-    this.linkSub = scene.add.text(cx + cw / 2, cy + 50, 'ONE-WAY · SIMULATED', mono(6.5, '#8fd9c4')).setOrigin(0.5).setDepth(-6.8)
+    this.linkSub = scene.add.text(cx + cw / 2, cy + 50, '', mono(6.5, '#8fd9c4')).setOrigin(0.5).setDepth(-6.8)
 
     // on the freestanding props (just in front of each prop, behind anyone standing before it)
     const bayDepth = prop('payload').depth + 0.2
@@ -118,7 +120,7 @@ export class StationLive {
     this.relayLabel.setText(`MARS RELAY · ${relay}`).setColor(v.relayFault ? '#ff8a7a' : '#9fd8e8')
     const mins = v.linkMin === null ? '—' : Number.isInteger(v.linkMin) ? String(v.linkMin) : v.linkMin.toFixed(1)
     this.linkBig.setText(v.relayFault ? 'NO LINK' : `${mins} MIN`).setColor(v.relayFault ? '#ff6a55' : '#6ef2c6')
-    this.linkSub.setVisible(!v.relayFault)
+    this.linkSub.setText(v.linkNote).setVisible(!v.relayFault)
     this.batt.setText(`${v.battery}%`)
     const shown = v.instrument ?? v.instrumentDraft
     for (const id of ['ir', 'gpr'] as InstrumentId[]) this.inst[id].setVisible(shown === id)

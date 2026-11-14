@@ -102,10 +102,10 @@ Three pressurised nodes in a row, joined by open hatches. You arrive through the
 The deck shows mission state, so you can read your choices off the room:
 
 - **Power buses** in the floor run from the Power Grid to Hab Systems (life support), Rover Comms (communications) and the Calibration bench (research). Each glows with the units routed to it, and turns amber while it is below what transmission needs.
-- **Consoles** show live values: the allocation on the Power Grid, the one-way signal delay on Rover Comms, the rover's starting charge in the bay, and lamps for calibration, water and medical.
+- **Consoles** show live values: the allocation on the Power Grid, the one-way signal delay on Rover Comms (split into the JPL Horizons light time and the relay hand-off), the rover's starting charge in the bay, and lamps for calibration, water and medical.
 - **The rover** carries the instrument you chose at Payload.
 - **Relay fault**: the beacon flashes, the dish hunts for the carrier, and the link display reads NO LINK until you repair it.
-- **Mission Ops** has three tabs: the mission brief, a live mission status (budget, mass, power, battery and time against their limits, then each choice and what it is causing), and the data sources for every number.
+- **Mission Ops** has three tabs: the mission brief; a live mission status (budget, mass, power, battery and time against their limits, what is deciding the rover pass, and the three operations dates compared side by side, where you can also pick one); and the data sources, which name the two NASA datasets with their place, date and limits and say which numbers are our model.
 
 ## Two-tab co-op
 

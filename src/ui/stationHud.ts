@@ -3,8 +3,9 @@
 import '../station.css'
 import { SUITS, byId } from '../core/data'
 import type { Mission } from '../core/mission'
-import { powerBlock, type Power } from '../core/power'
+import { fastRelay, powerBlock, type Power } from '../core/power'
 import { fmt } from '../core/rover'
+import { opsDate } from '../data/opsDates'
 import { DECK, MODULES, SOLIDS, TERMINALS, moduleAt, terminal, type TerminalId } from '../game/deck'
 import type { StationView } from '../game/stationFx'
 import { el } from './dom'
@@ -26,7 +27,7 @@ export function objectiveFor(m: Mission, briefed: boolean): Objective {
     const pb = powerBlock(m.power)
     if (pb) return at('power', `Route power at the Power Grid (node A, rear left): ${pb}`)
     if (!m.calibrated) return at('comms', 'Optional: calibrate at the Calibration bench (node C, front right). Then plan and transmit at Rover Comms.')
-    return at('comms', 'Plan the Drive → Scan → Return pass and transmit at Rover Comms.')
+    return at('comms', 'Pick an operations date, a route and a scan at Rover Comms, then transmit.')
   }
   if (!m.passDone) return at('comms', `Rover pass under way (T+${fmt(m.clock)}). Follow telemetry at Rover Comms.`)
   if (!m.landing) return at('comms', 'Final telemetry received. Choose a landing site at Rover Comms.')
@@ -35,6 +36,9 @@ export function objectiveFor(m: Mission, briefed: boolean): Objective {
 
 /** Mission state in the shape the live deck layer draws. */
 export function stationView(m: Mission, o: Objective, guide: boolean): StationView {
+  // The Rover Comms screen splits the delay into its real part and our model's part.
+  const d = m.plan ? opsDate(m.plan.date) : m.ops
+  const direct = fastRelay(m.plan?.power ?? m.power)
   return {
     ship: m.ship.id,
     power: { ...m.power },
@@ -45,6 +49,7 @@ export function stationView(m: Mission, o: Objective, guide: boolean): StationVi
     calibrated: m.calibrated,
     battery: m.ship.battery,
     linkMin: linkMinutes(m),
+    linkNote: d ? `${fmt(d.lightMin)} JPL HORIZONS ${direct ? '· DIRECT' : `+ ${m.ship.handoffMin} RELAY`}` : 'NO OPERATIONS DATE YET',
     passClock: m.pass ? m.clock : null,
     passDone: m.passDone,
     water: m.completed.has('water'),
