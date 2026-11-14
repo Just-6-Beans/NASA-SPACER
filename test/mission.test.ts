@@ -15,8 +15,8 @@ import { validPose } from '../src/core/protocol'
 
 const READY: Power = { life: 3, comms: 4, research: 2 }
 
-function ready(region: RegionId, opts: { power?: Power; water?: boolean; balanced?: boolean; calibrated?: boolean; ship?: 'odyssey' | 'atlas' } = {}) {
-  const m = new Mission({ callSign: 'Test', suit: 'ember', ship: opts.ship ?? 'odyssey' })
+function ready(region: RegionId, opts: { power?: Power; water?: boolean; balanced?: boolean; calibrated?: boolean; ship?: 'atlasv' | 'falcon9' } = {}) {
+  const m = new Mission({ callSign: 'Test', suit: 'ember', ship: opts.ship ?? 'atlasv' })
   assert.equal(m.selectInstrument('ir'), null)
   assert.equal(m.activatePayload(), null)
   assert.ok(m.relayFault)
@@ -197,7 +197,7 @@ test('one charge: a drive that is too long ends in safe mode partway', () => {
 })
 
 test('choosing a rover: one for the whole mission, with pros and cons from the real numbers', () => {
-  const m = new Mission({ callSign: 'Test', suit: 'ember', ship: 'odyssey' })
+  const m = new Mission({ callSign: 'Test', suit: 'ember', ship: 'atlasv' })
   assert.equal(m.rover, null)
   assert.match(m.deployBlock() ?? '', /payload|rover/i)
   assert.equal(m.chooseRover('curiosity'), null)
@@ -315,7 +315,7 @@ test('battery limits how many spots can be checked', () => {
 })
 
 test('station choices change the rover: ship charge, balancing, research, water, comms', () => {
-  assert.equal(ready('jezero', { ship: 'atlas' }).batteryWh, Math.round(2408 * 0.92), 'Atlas delivers the rover at 92 %')
+  assert.equal(ready('jezero', { ship: 'falcon9' }).batteryWh, Math.round(2408 * 0.92), 'Falcon 9 + Crew Dragon delivers the rover at 92 %')
   const a = ready('jezero'), b = ready('jezero', { balanced: true })
   for (const m of [a, b]) { m.addWaypoint({ x: 600, y: 0 }); m.deploy() }
   assert.ok(b.batteryWh > a.batteryWh, 'balanced pack drives on less energy')
@@ -342,10 +342,10 @@ test('Curiosity at Gale works the same way and has level real stops nearby', () 
   assert.ok(m.base!.stars >= 2)
 })
 
-test('payload rules: Vector cannot carry radar, payload locks', () => {
-  const m = new Mission({ callSign: '  ', suit: 'sage', ship: 'vector' })
+test('payload rules: the instrument has to fit what the launch left, payload locks', () => {
+  const m = new Mission({ callSign: '  ', suit: 'sage', ship: 'shuttle', loadout: { cargo: { water: 2000, shielding: 1500, oxygen: 400 } } })
   assert.equal(m.profile.callSign, 'Pilot')
-  assert.ok(m.selectInstrument('gpr'))
+  assert.match(m.selectInstrument('gpr')!, /costs 68 cr; the launch and its cargo left 58 cr/)
   assert.equal(m.selectInstrument('ir'), null)
   m.activatePayload()
   assert.ok(m.selectInstrument('ir'))

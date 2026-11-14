@@ -6,6 +6,7 @@
       "src/data/",
       "scripts/fetch-nasa-data.mjs",
       "scripts/build-ops-dates.mjs",
+      "scripts/fetch-launch-vehicles.mjs",
       "notes/data.md",
       "scripts/fetch-rover-data.mjs"
     ],

@@ -1,10 +1,13 @@
 // Mission report, built from what actually happened: the drives, every spot and its tests, the
 // base that was built, and the choices that decided the outcome.
-import { INSTRUMENTS, SUITS, byId } from '../core/data'
+import { INSTRUMENTS, MISSION_BUDGET, SUITS, byId } from '../core/data'
+import { aboard, cargoKg, designCost, launchCauses } from '../core/loadout'
 import { TASK_INFO, type Mission } from '../core/mission'
 import { mmrtgNowW } from '../core/rovers'
 import { DRIVE_FILMS, MISSION_SOLS, RADIATION, ROUGHNESS_SOURCE, SOL_HOURS, TESTS, VIDEOS, WEATHER_SOURCE, photoPlaces, region } from '../core/survey'
 import type { TaskId } from '../core/tasks'
+import { ROCKET_DATA, rocket, rocketSources } from '../data/launchVehicles'
+import { formatDate } from '../data/opsDates'
 import { $, el, esc } from './dom'
 import { sequenceTab, type PanelCtx } from './panels'
 import { barsHtml, starsHtml } from './roverView'
@@ -16,6 +19,9 @@ export function reportScreen(m: Mission, ctx: PanelCtx, onReplay: () => void, on
     const ship = m.ship
     const suit = byId(SUITS, m.profile.suit)
     const inst = m.instrument ? byId(INSTRUMENTS, m.instrument) : null
+    const l = m.loadout, cost = l ? designCost(ship, l) : null
+    const launch = m.profile.launch ? launchCauses(ship, m.profile.launch) : null
+    const lv = rocket(ship.rocket)
     const B = m.base
     const rv = m.rover
     const good = B?.approved && B.level === 'good'
@@ -30,9 +36,12 @@ export function reportScreen(m: Mission, ctx: PanelCtx, onReplay: () => void, on
       ${B?.approved ? `<p style="margin:-6px 0 14px">${esc(B.reason)}</p>` : ''}
       <div class="rgrid">
         <div class="rbox" style="grid-column:1/-1"><h3>What decided the outcome</h3><ul>${causes.map(c => `<li style="color:${c.good ? 'var(--mint)' : 'var(--warn)'}">${c.good ? '＋' : '−'} ${esc(c.text)}</li>`).join('') || '<li>The rover never left the station\'s control room.</li>'}</ul></div>
-        <div class="rbox"><h3>Crew & spacecraft</h3><div class="kv"><span>Call sign</span><b>${esc(m.profile.callSign)}</b><span>Suit</span><b style="color:${suit.light}">${suit.name}</b><span>Ship</span><b>${ship.name} · ${ship.role}</b><span>Instrument</span><b>${inst ? `${inst.name} (${inst.code})` : 'none'}</b></div></div>
+        ${launch ? `<div class="rbox" style="grid-column:1/-1"><h3>What decided the launch</h3>
+          <div class="causes"><div class="cause ${launch.ok ? 'ok' : 'bad'}"><b>${launch.ok ? '✓' : '✗'} ${esc(launch.headline)}</b><ul>${launch.parts.map(x => `<li>${esc(x)}</li>`).join('')}${l && cost ? `<li>Budget: ${MISSION_BUDGET} cr, of which the launch took ${cost.launch} cr and the station cargo ${cost.cargo} cr, leaving ${cost.left} cr for the rover instrument and the rest.</li>` : ''}</ul></div></div>
+          <p class="dataline" style="margin:10px 0 0"><span class="tag model">Our model</span>The ascent, the cargo masses and the ratings. The launch systems are real; their thrust and weight at lift-off are NASA figures where NASA gives them.</p></div>` : ''}
+        <div class="rbox"><h3>Crew & spacecraft</h3><div class="kv"><span>Call sign</span><b>${esc(m.profile.callSign)}</b><span>Suit</span><b style="color:${suit.light}">${suit.name}</b><span>Launch system</span><b>${ship.name}</b><span>Station cargo</span><b>${l ? (cargoKg(l) ? `${cargoKg(l).toLocaleString('en-US')} kg: ${aboard(l).map(x => `${x.item.name.toLowerCase()} ${x.step.kg.toLocaleString('en-US')} kg`).join(', ')}` : 'none') : 'not recorded'}</b><span>Instrument</span><b>${inst ? `${inst.name} (${inst.code})` : 'none'}</b></div></div>
         <div class="rbox"><h3>Preparation</h3><ul>${(['relay', 'calibration', ...routine] as TaskId[]).map(t => `<li>${m.completed.has(t) ? '✓' : '○'} ${TASK_INFO[t].name}${m.completed.has(t) ? ` — <span style="color:#b9ae95">${TASK_INFO[t].reward}</span>` : ' — not done'}</li>`).join('')}</ul></div>
-        <div class="rbox"><h3>Rover & crater</h3><div class="kv"><span>Rover</span><b>${rv ? esc(rv.name) : '—'}</b><span>Crater</span><b>${m.region ? esc(region(m.region).name) : '—'}</b>${rv ? `<span>MMRTG now</span><b>${mmrtgNowW(rv)} W</b><span>Battery</span><b>${esc(rv.batteryText)}</b><span>Charge left</span><b>${m.batteryWh} Wh</b><span>Driven</span><b>${m.drives.reduce((a, d) => a + d.distM, 0)} m, ${m.drives.reduce((a, d) => a + d.climbM, 0)} m of climb</b><span>Mars days used</span><b>${Math.round((m.hoursUsed / SOL_HOURS) * 10) / 10} of ${MISSION_SOLS}</b><span>Recharges</span><b>${m.recharges}</b><span>Photo spots found</span><b>${m.photos.length} of ${photoPlaces(rv).length} (+${m.photoBonus} score)</b>` : ''}</div></div>
+        <div class="rbox"><h3>Rover & crater</h3><div class="kv"><span>Rover</span><b>${rv ? esc(rv.name) : '—'}</b><span>Crater</span><b>${m.region ? esc(region(m.region).name) : '—'}</b>${rv ? `<span>MMRTG now</span><b>${mmrtgNowW(rv)} W</b><span>Battery</span><b>${esc(rv.batteryText)}</b><span>Charge left</span><b>${m.batteryWh} Wh</b><span>Driven</span><b>${m.drives.reduce((a, d) => a + d.distM, 0)} m, ${m.drives.reduce((a, d) => a + d.climbM, 0)} m of climb</b><span>Mars days used</span><b>${Math.round((m.hoursUsed / SOL_HOURS) * 10) / 10} of ${m.missionSols}</b><span>Recharges</span><b>${m.recharges}</b><span>Photo spots found</span><b>${m.photos.length} of ${photoPlaces(rv).length} (+${m.photoBonus} score)</b>` : ''}</div></div>
         <div class="rbox"><h3>Spots visited</h3>${reports.length ? `<ul>${reports.map(r => `<li><b>${r.spot.label}</b>${B?.approved && B.id === r.spot.id ? ' 🏗' : ''}: ${esc(r.verdict.title)} · ${r.score}/100<br/><span style="color:#b9ae95">${r.ground.source === 'rover' ? `Real ${esc(rv!.name)} stop, sol ${r.ground.sol}` : 'Orbit data (MOLA)'} · tests: ${m.testsFor(r.spot).map(t => TESTS[t].name.toLowerCase()).join(', ') || 'none'}</span></li>`).join('')}</ul>` : '<p style="margin:0">No rover was chosen.</p>'}</div>
         <div class="rbox" style="grid-column:1/-1"><h3>Base site measurements (tap a bar for its source)</h3>${B?.bars.length ? barsHtml(B.bars) : '<p style="margin:0">No base was built.</p>'}</div>
         <div class="rbox" style="grid-column:1/-1"><h3>Data sources</h3><ul class="srcs">
@@ -40,6 +49,7 @@ export function reportScreen(m: Mission, ctx: PanelCtx, onReplay: () => void, on
           <li><b>Map picture:</b> ${esc(rv.satellite.provider)}, saved ${esc(rv.satellite.retrieved)}. <a href="${esc(rv.satellite.page)}" target="_blank" rel="noopener">NASA's map ↗</a></li>
           <li><b>Map heights:</b> ${esc(rv.area.mola.provider)}. ${esc(rv.area.mola.note)}</li>
           <li><b>Rover pictures:</b> real selfie “${esc(rv.selfie.title)}”, ${esc(rv.selfie.credit)}; parts picture “${esc(rv.partsPicture.title)}” (an artist's concept, not a photo), ${esc(rv.partsPicture.credit)}.</li>` : ''}
+          <li><b>Launch system, ${esc(lv.name)}:</b> ${rocketSources(lv).length} NASA pages and reports, quoted in the game's snapshot, retrieved ${esc(formatDate(ROCKET_DATA.retrieved))}.</li>
           <li><b>Weather:</b> ${esc(WEATHER_SOURCE.provider)}, ${esc(WEATHER_SOURCE.location)}, saved ${esc(WEATHER_SOURCE.retrieved)}. ${esc(WEATHER_SOURCE.note)}</li>
           <li><b>Radiation:</b> ${esc(RADIATION.provider)}. ${esc(RADIATION.note)}</li>
           <li><b>Terrain roughness:</b> ${esc(ROUGHNESS_SOURCE.provider)}, saved ${esc(ROUGHNESS_SOURCE.retrieved)}.</li>

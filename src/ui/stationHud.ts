@@ -4,7 +4,6 @@ import '../station.css'
 import { SUITS, byId } from '../core/data'
 import type { Mission } from '../core/mission'
 import { fastRelay, powerBlock, type Power } from '../core/power'
-import { MISSION_SOLS } from '../core/survey'
 const fmt = (n: number) => String(Math.round(n * 10) / 10)
 import { DECK, MODULES, SOLIDS, TERMINALS, moduleAt, terminal, type TerminalId } from '../game/deck'
 import type { StationView } from '../game/stationFx'
@@ -23,13 +22,13 @@ export function objectiveFor(m: Mission, briefed: boolean): Objective {
   if (!briefed && !m.instrumentDraft && !m.payloadActive) return at('ops', 'Read the mission brief at the Mission Ops table (centre, under the cupola).')
   if (!m.payloadActive) return at('payload', m.instrumentDraft ? 'Activate the payload at the Payload terminal in the rover bay.' : 'Choose a rover instrument at the Payload terminal in the rover bay (centre).')
   if (m.relayFault) return at('comms', 'EMERGENCY: repair the relay at Rover Comms (node C, rear right).', true)
-  const pb = powerBlock(m.power)
+  const pb = powerBlock(m.power, m.lifeNeed)
   if (!m.region) return pb ? at('power', `Route power at the Power Grid: ${pb}`) : at('comms', 'Choose Perseverance or Curiosity at Rover Comms.')
   if (m.base) return { text: 'Base decided. Review the report at Rover Comms.', target: 'comms', urgent: false }
   if (pb) return at('power', `Route power at the Power Grid: ${pb}`)
-  if (m.timeUp) return at('comms', `The ${MISSION_SOLS} Mars days are over. Choose your base at Rover Comms.`)
+  if (m.timeUp) return at('comms', `The ${m.missionSols} Mars days are over. Choose your base at Rover Comms.`)
   if (m.stranded || !m.canDrive) return at('comms', 'Recharge the rover or choose your base at Rover Comms.')
-  return at('comms', `Plan ${m.rover!.name}'s drive at Rover Comms (day ${m.sol}/${MISSION_SOLS}).`)
+  return at('comms', `Plan ${m.rover!.name}'s drive at Rover Comms (day ${m.sol}/${m.missionSols}).`)
 
 }
 
@@ -41,12 +40,12 @@ export function stationView(m: Mission, o: Objective, guide: boolean): StationVi
   return {
     ship: m.ship.id,
     power: { ...m.power },
-    need: NEED,
+    need: { ...NEED, life: m.lifeNeed },
     relayFault: m.relayFault,
     instrument: m.instrument,
     instrumentDraft: m.instrumentDraft,
     calibrated: m.calibrated,
-    battery: m.rover ? Math.round(m.batteryWh / m.rover.batteryWh * 100) : m.ship.battery,
+    battery: m.rover ? Math.round(m.batteryWh / m.rover.batteryWh * 100) : m.startBattery,
     linkMin: linkMinutes(m),
     linkNote: d ? `${fmt(d.lightMin)} JPL HORIZONS ${direct ? '· DIRECT' : `+ ${m.ship.handoffMin} RELAY`}` : 'NO OPERATIONS DATE YET',
     passClock: m.drives.length ? m.hoursUsed * 60 : null,

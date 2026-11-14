@@ -1,6 +1,7 @@
 // Terminal task panels. Every panel re-renders from mission state + its saved draft, so closing
 // and reopening keeps work in progress.
-import { INSTRUMENTS, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
+import { INSTRUMENTS, MISSION_BUDGET, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
+import { aboard, cargoKg, designCost } from '../core/loadout'
 import type { Mission } from '../core/mission'
 import { fastRelay, powerBlock, researchFilter, unassigned, type Power } from '../core/power'
 import * as T from '../core/tasks'
@@ -108,7 +109,10 @@ function payloadTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
   const sel = m.instrument ?? m.instrumentDraft
   const inst = sel ? byId(INSTRUMENTS, sel) : null
   const mass = inst?.massKg ?? 0
-  body.innerHTML = `<p class="lead">Choose one rover instrument for ${esc(m.ship.name)}. Activating the payload locks the choice and powers up the rover link.</p>
+  const l = m.loadout, c = l ? designCost(m.ship, l) : null
+  const lead = !l ? `Choose one rover instrument for ${esc(m.ship.name)}. Activating the payload locks the choice and powers up the rover link.`
+    : `Choose one rover instrument. It is paid for from what the launch left (${c!.left} cr). Activating the payload locks the choice and powers up the rover link.`
+  body.innerHTML = `<p class="lead">${lead}</p>
     <div class="cards">${INSTRUMENTS.map(i => {
       const block = m.instrumentBlock(i.id)
       return `<button class="card" data-id="${i.id}" aria-pressed="${sel === i.id}" ${block || m.payloadActive ? 'disabled' : ''}>
@@ -116,12 +120,19 @@ function payloadTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
         <div class="stats">Cost ${i.cost} cr · Mass ${i.massKg} kg<br/>Rover drilling uses ${i.id === 'gpr' ? 380 : 300} Wh (game model)</div>
         ${block ? `<div class="why">Blocked: ${esc(block)}</div>` : ''}</button>`
     }).join('')}</div>
-    <div class="ledger">
+    ${l && c ? `<div class="ledger">
+      <span>Mission budget</span><b>${MISSION_BUDGET} cr</b>
+      <span>Launch on the ${esc(m.ship.rocketName)}</span><b>−${c.launch} cr</b>
+      <span>Station cargo</span><b>${c.cargo ? `−${c.cargo} cr · ${cargoKg(l).toLocaleString('en-US')} kg` : 'none'}</b>
+      <span>Rover instrument</span><b>${inst ? `−${inst.cost} cr` : '—'}</b>
+      <span>Remaining</span><b>${m.credits} cr</b>
+      <span>Cargo aboard</span><b>${aboard(l).map(x => esc(x.item.name.toLowerCase())).join(', ') || 'none'}</b>
+    </div>` : `<div class="ledger">
       <span>Supply budget</span><b>${m.ship.budget} cr</b>
       <span>Instrument</span><b>${inst ? `−${inst.cost} cr` : '—'}</b>
       <span>Remaining</span><b>${m.credits} cr</b>
       <span>Payload mass</span><b>${mass} / ${m.ship.payloadKg} kg</b>
-    </div>
+    </div>`}
     ${m.payloadActive ? `<div class="feedback ok">Payload active: ${esc(inst!.name)} locked. Rover Comms is online${m.relayFault ? ' — but the relay just faulted.' : '.'}</div>` : '<div class="feedback">No payload active.</div>'}
     <div class="actions">${m.payloadActive ? '' : `<button class="btn primary" id="act" ${sel ? '' : 'disabled'}>Activate payload</button>`}</div>`
   $$('.card', body).forEach(c => c.addEventListener('click', () => {
@@ -168,7 +179,7 @@ function powerTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
   const rows: [keyof Power, string, number][] = [['life', 'Life support', 3], ['comms', 'Communications', 4], ['research', 'Research', 3]]
   const d = m.ops
   const hand = m.ship.handoffMin
-  const block = powerBlock(p)
+  const block = powerBlock(p, ctx.m.lifeNeed)
   body.innerHTML = `<p class="lead">Route ${POWER_TOTAL} units. Faster transmission (communications) competes with cheaper rover drilling (research). ${ctx.coopOn() ? `<b style="color:#5fd8f0">Shared with your crewmate · revision ${ctx.powerRevision()}</b>` : ''}</p>
     <div class="power-rows">${rows.map(([k, label, need]) => `<div class="prow">
       <span class="lbl">${label}</span><button class="btn small" data-k="${k}" data-d="-1" aria-label="Decrease ${label}" ${p[k] <= 0 ? 'disabled' : ''}>−</button>
@@ -177,7 +188,7 @@ function powerTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
     </div>
     <div class="ledger"><span>Unassigned</span><b>${free} unit${free === 1 ? '' : 's'}</b><span>Total</span><b>${POWER_TOTAL - free} / ${POWER_TOTAL}</b></div>
     <div class="effects">
-      <div class="${p.life >= 3 ? 'on' : 'bad'}">${p.life >= 3 ? '✓' : '✗'} Life support ≥ 3 (required to transmit)</div>
+      <div class="${p.life >= ctx.m.lifeNeed ? 'on' : 'bad'}">${p.life >= ctx.m.lifeNeed ? '✓' : '✗'} Life support ≥ ${ctx.m.lifeNeed} (required to transmit${ctx.m.lifeNeed < 3 ? '; the oxygen tanks you carried lowered it from 3' : ''})</div>
       <div class="${p.comms >= 4 ? 'on' : 'bad'}">${p.comms >= 4 ? '✓' : '✗'} Communications ≥ 4 (required to transmit)</div>
       <div class="${fastRelay(p) ? 'on' : 'off'}">${fastRelay(p) ? '✓' : '○'} Communications ≥ 5: direct link skips the ${hand} min relay hand-off → <b>${m.signalMin} min</b> one-way on ${d.label}. The light time cannot be shortened.</div>
       <div class="${researchFilter(p) ? 'on' : 'off'}">${researchFilter(p) ? '✓' : '○'} Research ≥ 3: rover drilling uses 30 % less battery</div>
@@ -287,7 +298,7 @@ function relayTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
 function roverTab(body: HTMLElement, ctx: PanelCtx) {
   const m = ctx.m
   const block = m.roverAccess()
-  const pb = powerBlock(m.power)
+  const pb = powerBlock(m.power, m.lifeNeed)
   const status = m.base ? 'Base decided. Open the planner for the report.' : m.rover ? `${m.rover.name}: ${m.spots.length} spot${m.spots.length === 1 ? '' : 's'} visited, ${m.photos.length} photo spot${m.photos.length === 1 ? '' : 's'} found, day ${m.sol} of the mission.` : 'First you choose your rover: Perseverance (Jezero Crater) or Curiosity (Gale Crater). You keep it for the whole mission.'
   body.innerHTML = `<p class="lead">Choose a real NASA rover, drive it across a real picture of its surroundings, test the ground, and pick where the crew's base goes. Every command travels at light speed through an orbiter relay.</p>
     <div class="ledger"><span>Instrument</span><b>${m.instrumentInfo ? esc(m.instrumentInfo.code) : '—'}</b><span>Calibration</span><b>${m.calibrated ? 'Locked: samples analysed' : 'Uncalibrated: samples flagged'}</b>

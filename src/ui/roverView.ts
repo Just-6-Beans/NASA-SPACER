@@ -8,7 +8,7 @@
 import type { Mission, SpotReport } from '../core/mission'
 import { mmrtgNowW, type RoverSpec } from '../core/rovers'
 import {
-  BASE_LOAD_W, DRIVE_PHOTO_WH, MAX_WAYPOINTS, MISSION_SOLS, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, RESERVE_FRACTION, SOL_HOURS, TESTS, TEST_ORDER, climbWhPerM, costPct, driveWhPerM, rechargeW, region,
+  BASE_LOAD_W, DRIVE_PHOTO_WH, MAX_WAYPOINTS, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, RESERVE_FRACTION, SOL_HOURS, TESTS, TEST_ORDER, climbWhPerM, costPct, driveWhPerM, rechargeW, region,
   reserveWh, spendPct,
   type ActionKind, type Bar, type DriveResult, type Pt, type TestId,
 } from '../core/survey'
@@ -133,9 +133,9 @@ export function roverScreen(ctx: RoverCtx) {
   function days(hoursUsed: number) {
     const dc = $('#daychip', s)
     if (!m.rover) { dc.innerHTML = ''; return }
-    const left = Math.max(0, MISSION_SOLS - hoursUsed / SOL_HOURS)
+    const left = Math.max(0, m.missionSols - hoursUsed / SOL_HOURS)
     dc.className = `daychip ${left <= 2 ? 'low' : ''}`
-    dc.textContent = `☀ Day ${Math.min(MISSION_SOLS, Math.floor(hoursUsed / SOL_HOURS) + 1)} of ${MISSION_SOLS}`
+    dc.textContent = `☀ Day ${Math.min(m.missionSols, Math.floor(hoursUsed / SOL_HOURS) + 1)} of ${m.missionSols}`
     dc.title = `${f1(left)} Mars days left. Driving and recharging use them up.`
   }
 
@@ -162,7 +162,7 @@ export function roverScreen(ctx: RoverCtx) {
       <div class="stat"><span>🔋 Battery</span><b class="${after <= 15 ? 'low' : ''}">${afterWh === null ? `${now}%` : `${now}% → ${after}%`}</b>
         <div class="gauge" role="img" aria-label="Battery ${now} percent${afterWh === null ? '' : `, ${after} percent after the drive`}"><i class="now" style="width:${now}%"></i><i class="after ${after <= 15 ? 'low' : ''}" style="width:${after}%"></i></div></div>
       <div class="stat"><span>☀ Mars days left</span><b class="${leftAfter <= 2 ? 'low' : ''}">${afterHours === null ? f1(left) : `${f1(left)} → ${f1(leftAfter)}`}</b>
-        <div class="gauge" role="img" aria-label="${f1(left)} of ${MISSION_SOLS} Mars days left"><i class="now" style="width:${(left / MISSION_SOLS) * 100}%"></i><i class="after sun ${leftAfter <= 2 ? 'low' : ''}" style="width:${(leftAfter / MISSION_SOLS) * 100}%"></i></div></div>
+        <div class="gauge" role="img" aria-label="${f1(left)} of ${m.missionSols} Mars days left"><i class="now" style="width:${(left / m.missionSols) * 100}%"></i><i class="after sun ${leftAfter <= 2 ? 'low' : ''}" style="width:${(leftAfter / m.missionSols) * 100}%"></i></div></div>
       <p class="hint">${note}</p>
       ${rechargeHtml(forceCharge)}</div>`
   }
@@ -182,7 +182,7 @@ export function roverScreen(ctx: RoverCtx) {
   }
 
   const head = (title: string) => `<div class="side-h"><h2>${title}</h2><button class="btn small" id="back">← Station</button></div>`
-  const timeUpHtml = () => m.timeUp ? `<div class="reason bad"><b>The ${MISSION_SOLS} Mars days are over.</b> Build your base on a spot you visited, or stay in orbit.</div>` : ''
+  const timeUpHtml = () => m.timeUp ? `<div class="reason bad"><b>The ${m.missionSols} Mars days are over.</b> Build your base on a spot you visited, or stay in orbit.</div>` : ''
 
   // ---------------------------------------------------------------- Plan a drive
   function driveHtml(rv: RoverSpec) {
@@ -198,7 +198,7 @@ export function roverScreen(ctx: RoverCtx) {
     }).join('') : ''
     const note = f
       ? f.safeMode ? 'This drive is too long for the battery.' : `After this drive, <b>${spendPct(rv, f.endWh)}%</b> battery is left for tests and photos.`
-      : m.canDrive ? `Enough battery for about <b>${Math.round(m.spareWh / perM / 10) * 10} m</b> of driving. The mission lasts ${MISSION_SOLS} Mars days.` : 'The battery is too low to drive. Recharge it, or choose your base.'
+      : m.canDrive ? `Enough battery for about <b>${Math.round(m.spareWh / perM / 10) * 10} m</b> of driving. The mission lasts ${m.missionSols} Mars days.` : 'The battery is too low to drive. Recharge it, or choose your base.'
     // Why the button is greyed out, in plain words, right above it.
     const why = !n && m.canDrive ? null : block
     return `${head('Plan the drive')}
@@ -220,8 +220,8 @@ export function roverScreen(ctx: RoverCtx) {
         <p>The gauge shows the battery the rover is allowed to use. NASA keeps ${esc(rv.name)}'s battery above ${Math.round(RESERVE_FRACTION * 100)} % full, so 0 % on the gauge is that safety line (${floor} Wh of ${rv.batteryWh} Wh).</p>
         <p>Driving needs about ${rv.driveW - (m.balanced ? 30 : 0) + BASE_LOAD_W} W. The rover's nuclear power source (MMRTG) makes ${mmrtgNowW(rv)} W and the battery supplies the rest. Climbing costs extra: ${f1(climbWhPerM(rv))} Wh for every metre up.</p>
         <p><b>Recharging:</b> while the rover is parked, the MMRTG puts about ${rechargeW(rv)} W into the battery, day and night. A full recharge takes ${span((rv.batteryWh - floor) / rechargeW(rv))}.</p>
-        <p><b>Mars days:</b> the mission lasts ${MISSION_SOLS} Mars days (a Mars day is 24 hours 40 minutes). Driving counts at the real rover's speed, and recharging counts in full.</p>
-        <p class="cam-credit">Real: battery size, the 40 % rule, MMRTG power, driving under 200 W, top speed ${rv.topSpeedMh} m/h, rover mass and map heights. Our model: the 30 W the computers use, what each test and photo costs, and the ${MISSION_SOLS}-day limit.</p></details>`
+        <p><b>Mars days:</b> the mission lasts ${m.missionSols} Mars days (a Mars day is 24 hours 40 minutes). Driving counts at the real rover's speed, and recharging counts in full.</p>
+        <p class="cam-credit">Real: battery size, the 40 % rule, MMRTG power, driving under 200 W, top speed ${rv.topSpeedMh} m/h, rover mass and map heights. Our model: the 30 W the computers use, what each test and photo costs, and the ${m.missionSols}-day limit.</p></details>`
   }
 
   // ---------------------------------------------------------------- While the rover drives
@@ -243,7 +243,7 @@ export function roverScreen(ctx: RoverCtx) {
     return `<div class="side-h"><h2>Recharging…</h2></div>
       <div class="blk chargeblk"><div class="chargesky" aria-hidden="true"><i class="sunmoon"></i></div>
         <div class="blk-h"><span>🔋 Battery</span><b id="ch-b">${spendPct(rv, c.fromWh)}%</b></div><div class="gauge"><i class="after" id="ch-bar" style="width:${spendPct(rv, c.fromWh)}%"></i></div>
-        <div class="blk-h" style="margin-top:16px"><span>☀ Mars days left</span><b id="ch-d">${f1(MISSION_SOLS - c.fromH / SOL_HOURS)}</b></div>
+        <div class="blk-h" style="margin-top:16px"><span>☀ Mars days left</span><b id="ch-d">${f1(m.missionSols - c.fromH / SOL_HOURS)}</b></div>
         <p class="hint">${esc(rv.name)} is parked. Its nuclear power source (MMRTG) puts about ${rechargeW(rv)} W into the battery, day and night. The real wait is <b>${span(c.toH - c.fromH).replace('about ', '')}</b>.</p></div>
       <button class="btn huge" id="skipcharge">Skip ⏭</button>`
   }
@@ -387,7 +387,7 @@ export function roverScreen(ctx: RoverCtx) {
     askCharge = false
     sound.play(d.safeMode ? 'alert' : 'telemetry')
     toast(d.safeMode ? `Safe mode! The battery ran out ${d.distM} m along. Recharge to carry on.` : `Arrived at spot ${spot?.label}. Run tests to see if it is a good place.`, d.safeMode ? 'bad' : 'ok', 4500)
-    if (m.timeUp) toast(`The ${MISSION_SOLS} Mars days are over. Choose your base.`, 'warn', 5000)
+    if (m.timeUp) toast(`The ${m.missionSols} Mars days are over. Choose your base.`, 'warn', 5000)
     render()
   }
 
@@ -412,7 +412,7 @@ export function roverScreen(ctx: RoverCtx) {
     const wh = c.fromWh + (c.toWh - c.fromWh) * f, hours = c.fromH + (c.toH - c.fromH) * f
     set('#ch-b', `${spendPct(rv, wh)}%`)
     width('#ch-bar', spendPct(rv, wh))
-    set('#ch-d', f1(Math.max(0, MISSION_SOLS - hours / SOL_HOURS)))
+    set('#ch-d', f1(Math.max(0, m.missionSols - hours / SOL_HOURS)))
     battery(wh)
     days(hours)
     if (f >= 1) return endCharge()
@@ -424,7 +424,7 @@ export function roverScreen(ctx: RoverCtx) {
     charge = null
     const rv = m.rover!
     sound.play('success')
-    if (m.timeUp) { panel = 'choose'; toast(`Battery at ${spendPct(rv, m.batteryWh)}%, but the ${MISSION_SOLS} Mars days are over. Choose your base.`, 'warn', 5000) }
+    if (m.timeUp) { panel = 'choose'; toast(`Battery at ${spendPct(rv, m.batteryWh)}%, but the ${m.missionSols} Mars days are over. Choose your base.`, 'warn', 5000) }
     else toast(`Battery at ${spendPct(rv, m.batteryWh)}%. ${f1(m.solsLeft)} Mars days left.`, 'ok', 4000)
     render()
   }

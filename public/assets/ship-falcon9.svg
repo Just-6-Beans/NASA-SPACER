@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" width="900" height="420"><defs>
+  <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf6ea"/><stop offset=".5" stop-color="#ece4d2"/><stop offset="1" stop-color="#9c937f"/></linearGradient>
+  <linearGradient id="hullS" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b9b1a0"/><stop offset=".5" stop-color="#f4eee0"/><stop offset="1" stop-color="#cfc7b4"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a5059"/><stop offset="1" stop-color="#1b1e23"/></linearGradient>
+  <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b4047"/><stop offset="1" stop-color="#15171b"/></linearGradient>
+  <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2b77d"/><stop offset=".5" stop-color="#b9864b"/><stop offset="1" stop-color="#6e4b26"/></linearGradient>
+  <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe3e8"/><stop offset=".5" stop-color="#a3abb5"/><stop offset="1" stop-color="#5d646d"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9ff3ff"/><stop offset=".5" stop-color="#2a7f9c"/><stop offset="1" stop-color="#0d2833"/></linearGradient>
+  <linearGradient id="panel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1e3354"/><stop offset=".5" stop-color="#2f5b8f"/><stop offset="1" stop-color="#1e3354"/></linearGradient>
+  <filter id="sh"><feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity=".55"/></filter></defs><g filter="url(#sh)">
+    <path d="M250 118 L196 92 L196 132 L250 150 Z M250 302 L196 328 L196 288 L250 270 Z" fill="url(#dark)"/>
+    <rect x="240" y="116" width="236" height="188" rx="8" fill="url(#hull)"/>
+    <rect x="250" y="122" width="216" height="62" rx="3" fill="url(#panel)" stroke="#9fb6d1" stroke-width="2"/><line x1="274" y1="122" x2="274" y2="184" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="298" y1="122" x2="298" y2="184" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="322" y1="122" x2="322" y2="184" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="346" y1="122" x2="346" y2="184" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="370" y1="122" x2="370" y2="184" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="394" y1="122" x2="394" y2="184" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="418" y1="122" x2="418" y2="184" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="442" y1="122" x2="442" y2="184" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="250" y1="153" x2="466" y2="153" stroke="#9fb6d1" stroke-width="1" opacity=".6"/>
+    <rect x="240" y="286" width="236" height="10" fill="#3a3f46"/>
+    <line x1="240" y1="238" x2="476" y2="238" stroke="#b9b09a" stroke-width="2"/>
+    <path d="M476 108 L500 108 Q640 128 700 178 Q716 194 716 210 Q716 226 700 242 Q640 292 500 312 L476 312 Z" fill="url(#hull)"/>
+    <path d="M476 108 L500 108 L500 312 L476 312 Z" fill="url(#tile)"/>
+    <path d="M520 132 Q570 140 604 160 L590 196 L520 196 Z" fill="url(#dark)" opacity=".85"/><path d="M520 288 Q570 280 604 260 L590 224 L520 224 Z" fill="url(#dark)" opacity=".85"/>
+    <rect x="534" y="150" width="34" height="26" rx="8" fill="url(#glass)"/><rect x="534" y="244" width="34" height="26" rx="8" fill="url(#glass)"/>
+    <circle cx="612" cy="210" r="9" fill="#15171b"/><circle cx="640" cy="196" r="5" fill="#15171b"/><circle cx="640" cy="224" r="5" fill="#15171b"/>
+    <path d="M700 178 Q716 194 716 210 Q716 226 700 242 L724 236 L724 184 Z" fill="url(#steel)"/>
+    <path d="M704 172 Q760 140 790 150 Q768 168 724 184 Z" fill="url(#hullS)" stroke="#a69c86" stroke-width="2"/>
+    <rect x="290" y="193" width="124" height="34" rx="6" fill="url(#metal)"/>
+    <text x="352" y="217" text-anchor="middle" font-family="Arial Narrow,Arial" font-weight="700" font-size="20" fill="#2b1a0b">DRAGON</text>
+    <circle cx="452" cy="262" r="7" fill="#6ef2c6"/></g></svg>
