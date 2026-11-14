@@ -1,5 +1,6 @@
 import './style.css'
 import './holo.css'
+import './title.css'
 import './survey.css'
 import { ICONS } from './ui/icons'
 import type Phaser from 'phaser'
@@ -8,16 +9,17 @@ import { Mission, TASK_INFO } from './core/mission'
 import { powerBlock, validPower, type Power } from './core/power'
 import { MISSION_SOLS } from './core/survey'
 import type { TaskId } from './core/tasks'
-import type { CrewMember } from './core/protocol'
+import { ROOM_NAME, type CrewMember } from './core/protocol'
 import { sound } from './audio'
 import { Coop, coopUrl } from './coop'
 import { createGame, type StationScene, type Terminal } from './game/game'
 import { bindDpad, clearHeld, input, setBlocked } from './game/input'
 import { $, el, esc, isTouch, toast } from './ui/dom'
-import { crewScreen, fleetScreen, launchScreen, titleScreen, type Draft } from './ui/intro'
+import { crewScreen, fleetScreen, launchScreen, titleScreen, type CrewLink, type Draft, type LinkStatus, type Mode, type TitleUi } from './ui/intro'
 import { closePanel, openPanel, panelOpen, refreshPanel, type PanelCtx } from './ui/panels'
 import { reportScreen } from './ui/report'
 import { roverScreen } from './ui/roverView'
+import { NEED, deckMap, objectiveFor, stationView, type DeckMap } from './ui/stationHud'
 
 type ScreenName = 'title' | 'fleet' | 'crew' | 'launch' | 'station' | 'rover' | 'report'
 
@@ -32,13 +34,18 @@ let screen: ScreenName = 'title'
 let screenEl: HTMLElement | null = null
 let hud: HTMLElement | null = null
 let rover: ReturnType<typeof roverScreen> | null = null
+let map: DeckMap | null = null
+let briefed = false // the mission brief at Mission Ops has been opened in this session
+let guideOn = (() => { try { return localStorage.getItem('spacer.guide') !== '0' } catch { return true } })()
 let drawerOpen = false
 let debugOn = false
 let prevFault = false
 const coop = new Coop()
 let coopPanel: HTMLElement | null = null
-let coopStatus: 'offline' | 'connecting' | 'connected' | 'error' = 'offline'
+let coopStatus: LinkStatus = 'offline'
 let coopError = ''
+let titleUi: TitleUi | null = null
+let soloOnly = false // the player chose a solo mission while a co-op join was still in flight
 let powerInFlight = false
 let powerWanted: Power | null = null
 const gameReady = createGame(gameHost).then(g => { game = g; g.loop.sleep(); return g })
@@ -66,7 +73,14 @@ function show(name: ScreenName, node: HTMLElement | null) {
 // ------------------------------------------------------------------ Intro flow
 function goTitle() {
   leaveGameplay()
-  show('title', titleScreen(goFleet))
+  titleUi = titleScreen(crewLink, mode => void startMission(mode))
+  show('title', titleUi.el)
+}
+/** Solo drops any co-op link first. Co-op keeps the link opened in the title lobby through docking. */
+async function startMission(mode: Mode) {
+  soloOnly = mode === 'solo'
+  if (soloOnly && coop.connected) await leaveCoop()
+  goFleet()
 }
 function goFleet() { show('fleet', fleetScreen(draft, goTitle, ship => { draft.ship = ship; saveDraft(); goCrew() })) }
 function goCrew() { show('crew', crewScreen(draft, goFleet, d => { draft = d; saveDraft(); goLaunch() })) }
@@ -77,6 +91,7 @@ async function dock() {
   mission = new Mission({ callSign: draft.callSign, suit: draft.suit as SuitId, ship: draft.ship as ShipId })
   if (coop.connected && sharedPower) mission.setPower(sharedPower)
   prevFault = false
+  briefed = false
   enterStation(true)
   toast(`Docked at 408 km. Welcome aboard, ${mission.profile.callSign}.`, 'ok')
   sound.play('dock')
@@ -99,6 +114,7 @@ function enterStation(fresh = false) {
     if (fresh) s.respawn()
     s.layout()
     s.forcePoseSend()
+    pushView()
     if (coop.connected) syncCrew()
   }
   if (st.sys.settings.status >= 5 && (st as unknown as { feet?: unknown }).feet) ready()
@@ -153,6 +169,7 @@ function openTerminal(id: string) {
   if (!mission) return
   sound.play('ui')
   setBlocked(true)
+  if (id === 'ops') briefed = true
   openPanel(id, panelCtx())
 }
 function closeTask() {
@@ -168,17 +185,11 @@ function completeTask(task: TaskId, detail: string) {
   refresh()
 }
 
-function objective(): string {
-  const m = mission!
-  if (!m.payloadActive) return m.instrumentDraft ? 'Activate the payload at the Payload terminal (center).' : 'Choose a rover instrument at the Payload terminal (center, just ahead).'
-  if (m.relayFault) return 'EMERGENCY: repair the relay at Rover Comms (rear right).'
-  const pb = powerBlock(m.power)
-  if (!m.region) return pb ? `Route power at the Power Grid (rear left): ${pb}` : 'Open Rover Comms (rear right) and choose your rover.'
-  if (m.base) return 'Base decided. Review the report at Rover Comms.'
-  if (pb) return `Route power at the Power Grid (rear left): ${pb}`
-  if (m.timeUp) return `The ${MISSION_SOLS} Mars days are over. Choose the base at Rover Comms.`
-  if (m.stranded || !m.canDrive) return `${m.rover!.name} is low on battery. Recharge it or choose the base at Rover Comms.`
-  return `Plan ${m.rover!.name}'s drive on the map at Rover Comms (day ${m.sol} of ${MISSION_SOLS}).`
+const objective = () => objectiveFor(mission!, briefed)
+
+/** Hands the mission state to the deck, which draws it: power buses, consoles, guide. */
+function pushView() {
+  if (mission && game) station().setView(stationView(mission, objective(), guideOn))
 }
 
 function buildHud(): HTMLElement {
@@ -186,7 +197,7 @@ function buildHud(): HTMLElement {
   const suit = byId(SUITS, m.profile.suit)
   hud = el(`<section class="screen hud" aria-label="Station">
     <div class="ops-head"><div class="brand">SPACER</div><div class="sect">ORBITAL OPERATIONS</div>
-      <div class="hud-buttons"><button class="btn small" id="b-tasks">Tasks</button><button class="btn small" id="b-sound"></button><button class="btn small" id="b-debug">Debug</button><button class="btn small" id="b-coop">Co-op</button></div>
+      <div class="hud-buttons"><button class="btn small" id="b-tasks">Tasks</button><button class="btn small" id="b-guide"></button><button class="btn small" id="b-sound"></button><button class="btn small" id="b-debug">Debug</button><button class="btn small" id="b-coop">Co-op</button></div>
       <div class="crewtag" title="${esc(m.profile.callSign)} · ${m.ship.name} · ${suit.name} suit"><span class="sw" style="background:${suit.primary}"></span><div><b>${esc(m.profile.callSign)}</b><br/><span>${m.ship.name} · ${suit.name}</span></div></div>
       <div class="crewn">${ICONS.crew}<span id="crewn">1 / 2 CREW</span></div></div>
     <div class="ops-sub">
@@ -207,6 +218,9 @@ function buildHud(): HTMLElement {
   $('#b-sound', hud).addEventListener('click', () => { sound.setMuted(!sound.muted); sound.play('ui'); refresh() })
   $('#b-debug', hud).addEventListener('click', () => { debugOn = !debugOn; station().setDebug(debugOn); refresh() })
   $('#b-coop', hud).addEventListener('click', openCoop)
+  $('#b-guide', hud).addEventListener('click', () => { guideOn = !guideOn; try { localStorage.setItem('spacer.guide', guideOn ? '1' : '0') } catch { /* ignore */ } sound.play('ui'); refresh() })
+  map = deckMap(m)
+  hud.append(map.el)
   $('#d-add', hud).addEventListener('click', () => { station().addLoad(250) })
   $('#d-rst', hud).addEventListener('click', () => { station().resetLoad() })
   const dpad = $('#dpad', hud)
@@ -223,21 +237,23 @@ function refresh() {
   if (!m.relayFault && prevFault) toast('Relay restored. Rover planner online.', 'ok')
   prevFault = m.relayFault
   if (hud && screen === 'station') {
-    $('#obj', hud).textContent = objective()
+    $('#obj', hud).textContent = objective().text
+    $('#b-guide', hud).textContent = guideOn ? 'Guide: on' : 'Guide: off'
+    $('#b-guide', hud).classList.toggle('mint', guideOn)
     $('#b-sound', hud).textContent = sound.muted ? 'Sound: off' : 'Sound: on'
     $('#b-debug', hud).classList.toggle('mint', debugOn)
     $('#b-coop', hud).textContent = coop.connected ? `Co-op · ${coop.players}` : 'Co-op'
     $('#b-coop', hud).classList.toggle('mint', coop.connected)
     const p = m.power
-    $('#meters', hud).innerHTML = ([['Life support', ICONS.leaf, p.life, 3], ['Comms', ICONS.signal, p.comms, 4], ['Research', ICONS.flask, p.research, 0]] as [string, string, number, number][]).map(([n, ic, v, need]) =>
-      `<div class="sm ${v < need ? 'low' : ''}" title="${n}: ${v} of 10 units${need ? `, needs ${need} to transmit` : ''}">${ic}<b>${n}<span>${v}/10</span></b><div class="bar"><i style="width:${v * 10}%"></i></div></div>`).join('')
+    $('#meters', hud).innerHTML = ([['Life support', ICONS.leaf, 'life'], ['Comms', ICONS.signal, 'comms'], ['Research', ICONS.flask, 'research']] as [string, string, keyof Power][]).map(([n, ic, k]) =>
+      `<div class="sm bus-${k} ${p[k] < NEED[k] ? 'low' : ''}" title="${n}: ${p[k]} of 10 units${NEED[k] ? `, needs ${NEED[k]} to transmit` : ''}">${ic}<b>${n}<span>${p[k]}/10</span></b><div class="bar"><i style="width:${p[k] * 10}%"></i></div></div>`).join('')
     $('#objline', hud).classList.toggle('alert', m.relayFault)
     $('#crewn', hud).textContent = `${coop.connected ? coop.players : 1} / 2 CREW`
     $('#banner', hud).classList.toggle('hidden', !m.relayFault)
     $('#debug', hud).classList.toggle('hidden', !debugOn)
     if (drawerOpen) renderDrawer()
   }
-  if (panelOpen() && screen === 'station') {/* panels re-render themselves */}
+  pushView()
 }
 
 // clocks + debug readout
@@ -252,6 +268,12 @@ setInterval(() => {
     $('#dstats', hud).innerHTML = `FPS <b>${Math.round(game!.loop.actualFps)}</b> · DPR ${window.devicePixelRatio.toFixed(2)}<br/>Docked clock ${s}s real · Exterior ${(ph * 100).toFixed(0)}% of 30× orbit<br/>Rover ${mission.rover ? `${mission.rover.name}, ${mission.batteryWh} Wh` : '—'}<br/>Player ${Math.round(st.position.x)}, ${Math.round(st.position.y)} · remote crew ${st.remoteCount}<br/>Visual-only sprites <b>${st.loadCount}</b> / 3000`
   }
 }, 250)
+
+setInterval(() => {
+  if (!mission || !map || !game || screen !== 'station') return
+  const st = station()
+  if (st.created) map.update(st.position, objective(), st.remoteInfo())
+}, 100)
 
 // ------------------------------------------------------------------ Task drawer
 function toggleDrawer(force?: boolean) {
@@ -268,6 +290,7 @@ function renderDrawer() {
   const prog = (t: TaskId) => m.completed.has(t) ? 'complete' : d(t) ? 'in progress (draft saved)' : 'not started'
   const routine = (['battery', 'cargo', 'water', 'medical'] as TaskId[]).map(t => item(m.completed.has(t), TASK_INFO[t].name, TASK_INFO[t].where, `${prog(t)} · ${TASK_INFO[t].reward}`)).join('')
   const missionItems = [
+    item(briefed, 'Read the mission brief', 'Mission Ops', briefed ? 'read' : 'not read'),
     item(m.payloadActive, 'Select & activate payload', 'Payload', m.payloadActive ? `${m.instrumentInfo!.code} active` : m.instrumentDraft ? 'instrument selected' : 'not started'),
     item(!powerBlock(m.power), 'Route transmission power', 'Power Grid', `life ${m.power.life}/3 · comms ${m.power.comms}/4`),
     item(m.completed.has('calibration'), 'Two-point calibration (optional)', 'Calibration', prog('calibration')),
@@ -328,6 +351,7 @@ function leaveGameplay() {
   closePanel()
   drawerOpen = false
   hud = null
+  map = null
   if (game) {
     if (game.scene.isActive('station')) game.scene.sleep('station')
     if (game.scene.isActive('mars')) game.scene.sleep('mars')
@@ -383,7 +407,24 @@ function closeCoop() {
   setBlocked(panelOpen())
   refresh()
 }
+/** The title lobby's view of the co-op service: the same Colyseus room the in-station Co-op panel uses. */
+const crewLink: CrewLink = {
+  state: () => ({ status: coopStatus, error: coopError, url: coopUrl(), room: ROOM_NAME, roomId: coop.roomId, players: coop.players }),
+  join: () => void joinCoop(),
+  leave: leaveCoop,
+}
+
+async function leaveCoop() {
+  await coop.leave()
+  coopStatus = 'offline'
+  if (game) station().clearRemotes()
+  renderCoop()
+  refresh()
+}
+
+/** Redraws whichever co-op view is on screen: the title lobby, the in-station panel, or neither. */
 function renderCoop() {
+  if (screen === 'title') titleUi?.update()
   if (!coopPanel) return
   const b = $('#cbody', coopPanel)
   const statusText = { offline: 'Not connected', connecting: 'Connecting…', connected: 'Connected', error: 'Connection failed' }[coopStatus]
@@ -393,26 +434,32 @@ function renderCoop() {
     ${coopStatus === 'error' ? `<div class="feedback bad">${esc(coopError)}<br/>Start the local service in a terminal with <code>npm run server</code>, keep it running, then retry.</div>` : ''}
     <div class="actions">${coop.connected ? '<button class="btn" id="cleave">Leave room</button>' : `<button class="btn primary" id="cjoin" ${coopStatus === 'connecting' ? 'disabled' : ''}>${coopStatus === 'error' ? 'Retry' : 'Join co-op room'}</button>`}</div>`
   $('#cjoin', b)?.addEventListener('click', joinCoop)
-  $('#cleave', b)?.addEventListener('click', async () => { await coop.leave(); coopStatus = 'offline'; station().clearRemotes(); toast('Left co-op. Solo play continues.', 'info'); renderCoop(); refresh() })
+  $('#cleave', b)?.addEventListener('click', async () => { await leaveCoop(); toast('Left co-op. Solo play continues.', 'info') })
 }
 
+// The room can be joined from the title lobby, before the station scene exists, so every handler
+// that touches the deck checks that the player is actually on it.
 async function joinCoop() {
+  if (coopStatus === 'connecting' || coop.connected) return
+  soloOnly = false
   coopStatus = 'connecting'; renderCoop()
   try {
     await coop.join({
       onSnapshot: s => {
         coopStatus = 'connected'
         applyShared(s.power)
-        for (const c of s.crew) if (c.id !== s.you && screen === 'station') station().upsertRemote(c)
-        station().forcePoseSend()
+        if (screen === 'station') {
+          for (const c of s.crew) if (c.id !== s.you) station().upsertRemote(c)
+          station().forcePoseSend()
+        }
         renderCoop()
         toast(`Joined co-op room ${s.roomId} (${s.players}/2).`, 'ok')
       },
       onPower: s => { applyShared(s.power); renderCoop() },
       onPose: (c: CrewMember) => { if (screen === 'station') station().upsertRemote(c) },
       onCrew: list => { if (screen !== 'station') return; for (const c of list) station().upsertRemote(c) },
-      onGone: id => station().removeRemote(id),
-      onRespawn: p => { station().respawn(p.x, p.y); toast('Moved aside so you do not overlap your crewmate.', 'info') },
+      onGone: id => { if (game) station().removeRemote(id) },
+      onRespawn: p => { if (screen !== 'station') return; station().respawn(p.x, p.y); toast('Moved aside so you do not overlap your crewmate.', 'info') },
       onNotice: n => {
         if (n.kind === 'allocate' && !n.ok) { powerInFlight = false; toast(n.text, 'warn') }
         if (n.kind === 'limit') toast(n.text, 'warn')
@@ -425,6 +472,7 @@ async function joinCoop() {
         renderCoop(); refresh()
       },
     })
+    if (soloOnly) await leaveCoop() // the join landed after the player had already started a solo mission
   } catch (e) {
     coopStatus = 'error'
     coopError = `Could not reach the co-op service at ${coopUrl()} (${(e as Error).message || 'offline'}).`

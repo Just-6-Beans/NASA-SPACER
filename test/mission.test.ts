@@ -395,3 +395,23 @@ test('pose validation', () => {
   assert.ok(!validPose({ ...ok, name: 'x'.repeat(21) }))
   assert.ok(!validPose({ ...ok, moving: 'yes' }))
 })
+
+test('operations dates and station power share one delay, with the date locked after deployment', async () => {
+  const { OPS_DATES } = await import('../src/data/opsDates')
+  const m = ready('jezero')
+  for (const d of OPS_DATES) {
+    assert.equal(m.selectOpsDate(d.id), null)
+    assert.equal(m.signalMin, Math.round((d.lightMin + m.ship.handoffMin) * 10) / 10)
+    m.setPower({ life: 3, comms: 5, research: 2 })
+    assert.equal(m.signalMin, d.lightMin, 'direct link preserves the real light time')
+    m.setPower(READY)
+  }
+  const selected = m.opsDate
+  assert.match(m.selectOpsDate('invalid')!, /Unknown/)
+  assert.equal(m.opsDate, selected)
+  const stop = flatStop('perseverance')
+  assert.equal(m.addWaypoint({ x: stop.x, y: stop.y }), null)
+  assert.equal(m.deploy(), null)
+  assert.match(m.selectOpsDate(OPS_DATES[0].id)!, /locked/)
+  assert.equal(m.opsDate, selected)
+})

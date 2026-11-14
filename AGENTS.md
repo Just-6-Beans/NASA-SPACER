@@ -6,7 +6,7 @@ This is a NASA Space Apps 2026 hackathon entry, built by three devices working a
 2. Ask the human which lane this device has (`data`, `rules` or `experience`) if `notes/` does not already say. Work only on that lane's branch and files.
 3. At the start of a session run `git pull --rebase origin main` and read all three files in `notes/`.
 4. The game lives at the repository root. Its run commands and controls are in [README.md](README.md).
-5. Before landing work on `main`, run `npm run check`. Land only if it passes. Never force-push `main`.
+5. Before landing work on `main`, run `npm run check` and `npm run lane-check`. Land only if both pass. Never force-push `main`. The pre-push hook that `npm ci` installs runs both and refuses force pushes; do not bypass it with `--no-verify`. File ownership is in `lanes.json`.
 6. Update your own lane's notes file when you finish or start something. Do not edit another lane's notes file.
 7. Do not edit `CHALLENGE.md`, add a dependency, or change an export another lane uses without a human's yes.
 8. The original prototype lives in [Space-Mission-Design-Game](https://github.com/Just-6-Beans/Space-Mission-Design-Game). Do not copy its code into this repository; its NASA data snapshots may be copied by the data lane.

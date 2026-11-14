@@ -53,11 +53,6 @@ h1, h2, h3 { font-family: var(--display); letter-spacing: .04em; margin: 0; text
 
 /* ---------- Title / fleet / crew ---------- */
 .earth-bg { background: #03050b url('/assets/earth.svg') center bottom / cover no-repeat; }
-.title { display: grid; place-items: center; text-align: center; }
-.title .logo { font-family: var(--display); font-weight: 700; font-size: clamp(64px, 14vw, 168px); letter-spacing: .32em; margin-right: -.32em; line-height: .9; color: var(--ivory); text-shadow: 0 0 40px rgba(95,216,240,.35); }
-.title .tag { font-family: var(--mono); color: var(--cyan); letter-spacing: .2em; font-size: clamp(11px, 1.6vw, 14px); margin: 14px 0 34px; text-transform: uppercase; }
-.title .btn.primary { font-size: 22px; padding: 14px 34px; }
-.title .foot { position: absolute; bottom: 16px; left: 16px; right: 16px; font-size: 12px; color: var(--ivory-dim); }
 
 .topbar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; gap: 10px; }
 .step { font-family: var(--mono); font-size: 12px; color: var(--cyan); letter-spacing: .14em; text-transform: uppercase; }

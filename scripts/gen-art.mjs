@@ -140,19 +140,6 @@ function cockpitSvg() {
   ${[...Array(10)].map((_, i) => `<rect x="${1010 + (i % 5) * 46}" y="${650 + Math.floor(i / 5) * 60}" width="30" height="30" rx="4" fill="${i % 3 ? '#2b2f36' : ORANGE}" stroke="#6b6250"/>`).join('')}
   <rect x="770" y="580" width="60" height="10" rx="4" fill="${ORANGE}" filter="url(#gl)"/>`
   save('cockpit.svg', W, H, body, defs)
-
-  // Station exterior (seen during approach and through nothing else)
-  const ext = `<linearGradient id="mod" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf6ea"/><stop offset=".6" stop-color="#cfc5ad"/><stop offset="1" stop-color="#7f7765"/></linearGradient>
-  <linearGradient id="sol" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#16294a"/><stop offset=".5" stop-color="#2e5a93"/><stop offset="1" stop-color="#16294a"/></linearGradient>`
-  const wing = (x, y) => `<rect x="${x}" y="${y}" width="230" height="64" fill="url(#sol)" stroke="#a7bad3" stroke-width="2"/>${[1, 2, 3, 4, 5].map(i => `<line x1="${x + i * 38}" y1="${y}" x2="${x + i * 38}" y2="${y + 64}" stroke="#a7bad3" opacity=".5"/>`).join('')}`
-  save('station-exterior.svg', 900, 420, `
-    <rect x="80" y="196" width="740" height="14" fill="#8c8576"/>
-    ${wing(90, 90)}${wing(90, 266)}${wing(580, 90)}${wing(580, 266)}
-    <rect x="300" y="150" width="300" height="106" rx="40" fill="url(#mod)"/>
-    <rect x="390" y="120" width="120" height="166" rx="36" fill="url(#mod)"/>
-    <rect x="320" y="190" width="260" height="10" fill="${ORANGE}"/>
-    ${[0, 1, 2, 3].map(i => `<rect x="${336 + i * 62}" y="214" width="34" height="14" rx="5" fill="#ffd9a0"/>`).join('')}
-    <circle cx="450" cy="120" r="16" fill="${IVORY}" stroke="#7f7765" stroke-width="4"/><circle cx="450" cy="120" r="6" fill="${MINT}"/>`, ext)
 }
 
 
@@ -173,18 +160,23 @@ function suitSheets() {
   }
 }
 
-function deck() {
+// The station: the walkable deck, its freestanding props, the view of it from outside, and the
+// relay antenna seen through a window.
+function station() {
   const d = HQ.deckSvg(geo)
   save('deck.svg', d.W, d.H, d.body, d.defs)
-  for (const [k, p] of Object.entries(HQ.props())) {
-    save(`prop-${k}.svg`, p.w, p.h, `<g transform="translate(${-p.ox} ${-p.oy})">${p.body}</g>`, HQ.commonDefs)
+  for (const [k, p] of Object.entries(HQ.props(geo))) {
+    save(`prop-${k}.svg`, p.w, p.h, `<g transform="translate(${-p.ox} ${-p.oy})">${p.body}</g>`, HQ.stationDefs)
   }
+  const e = HQ.exteriorSvg({ ORANGE, IVORY })
+  save('station-exterior.svg', e.W, e.H, e.body, e.defs)
+  for (const [k, p] of Object.entries(HQ.relaySvg())) save(`ext-${k}.svg`, p.w, p.h, p.body, HQ.commonDefs)
 }
 
 earthSvg()
 ;['odyssey', 'atlas', 'vector'].forEach(shipSvg)
 suitSheets()
-deck()
+station()
 cockpitSvg()
 { const m = HQ.marsSvg(geo); save('mars-sector.svg', m.W, m.H, m.body, m.defs) }
 { const r = HQ.roverSvg(); save('rover.svg', r.w, r.h, r.body, HQ.commonDefs) }

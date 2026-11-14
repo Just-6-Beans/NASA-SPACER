@@ -117,9 +117,41 @@ export function astronaut(id, dir, st) {
 }
 
 // ------------------------------------------------------------------ Station deck
+// Three pressurised nodes side by side (A Utility, B Command, C Science & Comms), joined by open
+// bulkhead hatches. Every position comes from src/art/geo.json, which the game reads too.
 function chamfer(x, y, w, h, c) {
   return `M${x + c} ${y} H${x + w - c} L${x + w} ${y + c} V${y + h - c} L${x + w - c} ${y + h} H${x + c} L${x} ${y + h - c} V${y + c} Z`
 }
+
+const VIOLET = '#c9a2ff'
+const BUS = { life: MINT, comms: CYAN, research: VIOLET }
+const FONT = 'font-family="Barlow Condensed, Arial Narrow, Arial" font-weight="700"'
+const MONO = 'font-family="IBM Plex Mono, Consolas, monospace" font-weight="600"'
+
+// Deck-only random sequence, so floor wear never moves the Mars and site art generated after it.
+let dseed = 23
+const drand = () => ((dseed = (dseed * 16807) % 2147483647) / 2147483647)
+const r2 = n => Math.round(n * 100) / 100
+
+export const stationDefs = commonDefs + `
+  <linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e4decd"/><stop offset=".7" stop-color="#d3cbb7"/><stop offset="1" stop-color="#aca38d"/></linearGradient>
+  <linearGradient id="floorG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#66727f"/><stop offset=".35" stop-color="#7c8996"/><stop offset="1" stop-color="#606c79"/></linearGradient>
+  <linearGradient id="steelTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93a0ad"/><stop offset="1" stop-color="#6d7986"/></linearGradient>
+  <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#aeb8c2"/><stop offset="1" stop-color="#5f6a76"/></linearGradient>
+  <linearGradient id="glassDark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#12303f"/><stop offset="1" stop-color="#06131c"/></linearGradient>
+  <linearGradient id="coreG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#06231f"/><stop offset=".5" stop-color="#1f8f76"/><stop offset="1" stop-color="#06231f"/></linearGradient>
+  <linearGradient id="water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fd6ee"/><stop offset="1" stop-color="#2b8fb5"/></linearGradient>
+  <linearGradient id="aoTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1118" stop-opacity=".6"/><stop offset="1" stop-color="#0b1118" stop-opacity="0"/></linearGradient>
+  <linearGradient id="aoL" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0b1118" stop-opacity=".5"/><stop offset="1" stop-color="#0b1118" stop-opacity="0"/></linearGradient>
+  <linearGradient id="aoR" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#0b1118" stop-opacity=".5"/><stop offset="1" stop-color="#0b1118" stop-opacity="0"/></linearGradient>
+  <radialGradient id="pool" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#eaf6ff" stop-opacity=".2"/><stop offset="1" stop-color="#eaf6ff" stop-opacity="0"/></radialGradient>
+  <radialGradient id="growGlow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ff9ad5" stop-opacity=".5"/><stop offset="1" stop-color="#ff9ad5" stop-opacity="0"/></radialGradient>
+  <linearGradient id="pipe" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a2c14"/><stop offset=".4" stop-color="#e2683e"/><stop offset="1" stop-color="#7a2410"/></linearGradient>
+  <linearGradient id="pipeG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a3d42"/><stop offset=".4" stop-color="#7d828a"/><stop offset="1" stop-color="#2c2f33"/></linearGradient>
+  <linearGradient id="pipeH" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a2c14"/><stop offset=".4" stop-color="#e2683e"/><stop offset="1" stop-color="#7a2410"/></linearGradient>
+  <linearGradient id="pipeGH" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3d42"/><stop offset=".4" stop-color="#7d828a"/><stop offset="1" stop-color="#2c2f33"/></linearGradient>
+  <pattern id="haz" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="${YEL}"/><rect width="6" height="12" fill="${CHAR}"/></pattern>
+  <pattern id="grip" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r="1.1" fill="#dfe8f0" fill-opacity=".26"/><circle cx="7" cy="7" r="1.1" fill="#10161d" fill-opacity=".3"/></pattern>`
 
 const ICON = {
   power: (x, y, s = 1) => `<path transform="translate(${x} ${y}) scale(${s})" d="M2 -10 L-6 2 L0 2 L-2 10 L6 -2 L0 -2 Z" fill="#fff8e6"/>`,
@@ -127,175 +159,361 @@ const ICON = {
   antenna: (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})" fill="none" stroke="#fff8e6" stroke-width="2" stroke-linecap="round"><path d="M0 -2 L-5 10 M0 -2 L5 10 M-3 5 H3"/><circle cy="-4" r="2" fill="#fff8e6"/><path d="M-6 -9 Q-9 -4 -6 1 M6 -9 Q9 -4 6 1"/></g>`,
   drop: (x, y, s = 1) => `<path transform="translate(${x} ${y}) scale(${s})" d="M0 -10 Q8 0 6 4 A6 6 0 0 1 -6 4 Q-8 0 0 -10 Z" fill="#fff8e6"/>`,
   crate: (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})" fill="none" stroke="#fff8e6" stroke-width="2"><rect x="-8" y="-7" width="16" height="14" rx="1"/><path d="M-8 -1 H8 M0 -7 V7"/></g>`,
+  orbit: (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})" fill="none" stroke="#fff8e6" stroke-width="2"><circle r="4" fill="#fff8e6"/><ellipse rx="11" ry="4.5" transform="rotate(-25)"/></g>`,
 }
 
-function header(cx, y, w, label, icon) {
-  return `<g filter="url(#drop)"><path d="${chamfer(cx - w / 2, y, w, 22, 5)}" fill="url(#cream)" ${stroke}/>
-    <path d="${chamfer(cx - w / 2, y, 30, 22, 5)}" fill="url(#red)" ${stroke}/>${ICON[icon](cx - w / 2 + 15, y + 11, .8)}
-    <text x="${cx - w / 2 + 38}" y="${y + 16.5}" font-family="Barlow Condensed, Arial Narrow, Arial" font-weight="700" font-size="15" letter-spacing="1.6" fill="#3a3128">${label}</text></g>`
+// Name plate: cream bar with a red icon tab. Wall consoles use the 22 px size, floor props 18 px.
+function sign(cx, y, w, label, icon, h = 22, fs = 15) {
+  const x = cx - w / 2, tab = h + 8, c = h > 20 ? 5 : 4
+  return `<g filter="url(#drop)"><path d="${chamfer(x, y, w, h, c)}" fill="url(#cream)" ${stroke}/>
+    <path d="${chamfer(x, y, tab, h, c)}" fill="url(#red)" ${stroke}/>${ICON[icon](x + tab / 2, y + h / 2, (.8 * h) / 22)}
+    <text x="${x + tab + 8}" y="${r1(y + h * .75)}" ${FONT} font-size="${fs}" letter-spacing="1.6" fill="#3a3128">${label}</text></g>`
 }
 
-function consolePower() {
-  return `<g>
-    <ellipse cx="236" cy="252" rx="98" ry="12" fill="url(#ao)"/>
-    <path d="M156 116 H304 L306 196 H154 Z" fill="url(#cream)" ${stroke}/>
-    <rect x="162" y="122" width="22" height="70" rx="3" fill="url(#char)" ${stroke}/>${[0, 1, 2].map(i => `<rect x="166" y="${128 + i * 20}" width="14" height="14" rx="2" fill="${i === 0 ? RED : '#4f555e'}"/>`).join('')}
-    <rect x="192" y="124" width="82" height="58" rx="4" fill="url(#screen)" ${stroke}/><rect x="192" y="124" width="82" height="58" fill="url(#screenGlow)"/>
-    <g stroke="${MINT}" stroke-width="2" fill="none"><rect x="225" y="130" width="16" height="12" rx="1"/><path d="M233 142 V150 M210 150 H256 M210 150 V158 M233 150 V158 M256 150 V158"/><rect x="203" y="158" width="14" height="10" rx="1"/><rect x="226" y="158" width="14" height="10" rx="1"/><rect x="249" y="158" width="14" height="10" rx="1"/></g>
-    ${ICON.power(233, 136, .45)}
-    <rect x="280" y="124" width="18" height="58" rx="3" fill="${CHAR_M}" ${stroke}/>${[0, 1, 2, 3].map(i => `<rect x="284" y="${130 + i * 13}" width="10" height="8" rx="1.5" fill="${['#6ef2c6', '#e9b22c', '#6ef2c6', '#d9512c'][i]}"/>`).join('')}
-    ${box(150, 206, 160, 46, 14, { stripe: [26, 6] })}
-    ${[0, 1, 2, 3, 4, 5].map(i => `<rect x="${164 + i * 22}" y="${195 - (i % 2) * 1}" width="14" height="7" rx="2" fill="${i === 2 ? MINT : i === 4 ? RED : CHAR_M}" ${stroke}/>`).join('')}
-    ${[0, 1, 2, 3].map(i => `<rect x="${170 + i * 34}" y="${216}" width="22" height="5" rx="2" fill="#a2967c"/>`).join('')}
-    ${bolt(158, 240)}${bolt(302, 240)}
-    ${header(230, 92, 132, 'POWER GRID', 'power')}</g>`
-}
-function consoleCalib() {
-  return `<g>
-    <ellipse cx="586" cy="252" rx="98" ry="12" fill="url(#ao)"/>
-    <path d="M506 116 H654 L656 196 H504 Z" fill="url(#cream)" ${stroke}/>
-    <rect x="514" y="124" width="74" height="54" rx="4" fill="url(#screen)" ${stroke}/><rect x="514" y="124" width="74" height="54" fill="url(#screenGlow)"/>
-    <path d="M520 168 L534 156 L546 160 L560 140 L576 134" stroke="${MINT}" stroke-width="2.2" fill="none"/><circle cx="534" cy="156" r="2.4" fill="#ff8f45"/><circle cx="576" cy="134" r="2.4" fill="#ff8f45"/>
-    <path d="M520 172 H582 M520 130 V172" stroke="${MINT}" stroke-width="1" opacity=".5"/>
-    <circle cx="622" cy="152" r="26" fill="url(#char)" ${stroke}/><circle cx="622" cy="152" r="19" fill="#d9cdb3" ${stroke}/><circle cx="622" cy="152" r="12" fill="#1f5e78"/><circle cx="622" cy="152" r="6" fill="#0b2633"/><circle cx="617" cy="147" r="3.5" fill="#c9f4ff" opacity=".9"/>
-    ${box(500, 206, 160, 46, 14, { stripe: [26, 6] })}
-    ${[0, 1].map(i => `<rect x="${516 + i * 70}" y="194" width="52" height="7" rx="3.5" fill="${CHAR_M}" ${stroke}/><circle cx="${530 + i * 70 + i * 12}" cy="197.5" r="4.5" fill="#ff8f45" ${stroke}/>`).join('')}
-    ${bolt(508, 240)}${bolt(652, 240)}
-    ${header(580, 92, 140, 'CALIBRATION', 'target')}</g>`
-}
-function consoleComms() {
-  return `<g>
-    <ellipse cx="936" cy="252" rx="98" ry="12" fill="url(#ao)"/>
-    <path d="M856 116 H1004 L1006 196 H854 Z" fill="url(#cream)" ${stroke}/>
-    <rect x="862" y="122" width="78" height="60" rx="4" fill="url(#screen)" ${stroke}/><rect x="862" y="122" width="78" height="60" fill="url(#screenGlow)"/>
-    <g stroke="${MINT}" stroke-width="2" fill="none"><rect x="878" y="148" width="34" height="12" rx="2"/><circle cx="884" cy="164" r="4"/><circle cx="895" cy="164" r="4"/><circle cx="906" cy="164" r="4"/><path d="M904 148 V136 M898 136 H910"/></g>
-    ${[0, 1, 2, 3].map(i => `<rect x="${918 + i * 5}" y="${160 - i * 5}" width="3.5" height="${4 + i * 5}" fill="${MINT}"/>`).join('')}
-    <rect x="946" y="122" width="52" height="40" rx="4" fill="url(#screen)" ${stroke}/>
-    <circle cx="972" cy="142" r="14" fill="none" stroke="${MINT}" stroke-width="1.2" opacity=".7"/><circle cx="972" cy="142" r="6" fill="none" stroke="${MINT}" stroke-width="1.2" opacity=".7"/><path d="M972 142 L982 134" stroke="${MINT}" stroke-width="2"/>
-    <rect x="946" y="166" width="52" height="16" rx="3" fill="${CHAR_M}" ${stroke}/>${[0, 1, 2, 3].map(i => `<rect x="${950 + i * 12}" y="170" width="8" height="8" rx="1.5" fill="${['#e9b22c', '#6ef2c6', '#d9512c', '#6ef2c6'][i]}"/>`).join('')}
-    ${box(850, 206, 160, 46, 14, { stripe: [26, 6] })}
-    ${[...Array(12)].map((_, i) => `<rect x="${862 + (i % 6) * 22}" y="${193 + Math.floor(i / 6) * 0}" width="16" height="7" rx="1.5" fill="${i % 5 === 1 ? '#ff8f45' : i % 4 === 3 ? MINT : CHAR_M}" ${stroke}/>`).slice(0, 6).join('')}
-    ${bolt(858, 240)}${bolt(1002, 240)}
-    ${header(930, 92, 150, 'ROVER COMMS', 'antenna')}</g>`
-}
-
-function crateStack(x, y, scale = 1) {
-  const c = (cx, cy, w, h, stripe) => box(cx, cy, w, h, 10, { stripe: stripe ? [h * .35, 5] : null, shadow: false }) +
-    `<path d="M${cx + w * .55} ${cy} l${w * .25} ${h}" stroke="url(#red)" stroke-width="7" opacity="${stripe ? 0 : .9}"/>${bolt(cx + 4, cy + 4, 1.3)}${bolt(cx + w - 4, cy + 4, 1.3)}`
-  return `<g transform="translate(${x} ${y}) scale(${scale})"><ellipse cx="46" cy="50" rx="56" ry="10" fill="url(#ao)"/>${c(0, 14, 56, 36, false)}${c(52, 22, 40, 28, true)}${c(10, -18, 40, 30, true)}</g>`
-}
-
-function plant(x, y) {
-  let leaves = ''
-  for (let i = 0; i < 11; i++) {
-    const a = (-160 + i * 14) * Math.PI / 180, l = 18 + (i % 3) * 7
-    leaves += `<path d="M${x} ${y} Q${r1(x + Math.cos(a) * l * .45)} ${r1(y - l * .75)} ${r1(x + Math.cos(a) * l)} ${r1(y + Math.sin(a) * l)}" stroke="${i % 2 ? '#3f7a3c' : '#62a552'}" stroke-width="5.5" fill="none" stroke-linecap="round"/>`
-  }
-  return `<g><ellipse cx="${x + 4}" cy="${y + 34}" rx="22" ry="6" fill="url(#ao)"/>${leaves}
-    <path d="M${x - 15} ${y + 2} L${x + 15} ${y + 2} L${x + 11} ${y + 32} L${x - 11} ${y + 32} Z" fill="url(#red)" ${stroke}/><rect x="${x - 16}" y="${y}" width="32" height="5" rx="2" fill="#e88b62" ${stroke}/></g>`
-}
+const fbolt = (x, y) => `<circle cx="${r1(x)}" cy="${r1(y)}" r="1.3" fill="#27303a"/><circle cx="${r1(x - .4)}" cy="${r1(y - .4)}" r=".55" fill="#c7d2dd" opacity=".55"/>`
+const sprout = (x, y, l) => [-1, 0, 1].map(k => `<path d="M${r1(x)} ${y} Q${r1(x + k * l * .25)} ${r1(y - l * .7)} ${r1(x + k * l * .55)} ${r1(y - l)}" stroke="${k ? '#3f7a3c' : '#62a552'}" stroke-width="3.6" fill="none" stroke-linecap="round"/>`).join('')
 
 export function deckSvg(geo) {
-  const { width: W, height: H, windows } = geo.deck
-  const holes = windows.map(([x, y, w, h]) => chamfer(x, y, w, h, 22)).join(' ')
-  const defs = commonDefs + `
-  <linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d8ccb2"/><stop offset=".7" stop-color="#cbbd9f"/><stop offset="1" stop-color="#a99a7c"/></linearGradient>
-  <linearGradient id="floorG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8f7c64"/><stop offset=".35" stop-color="#a48d70"/><stop offset="1" stop-color="#7a6650"/></linearGradient>
-  <linearGradient id="aoTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a0f05" stop-opacity=".55"/><stop offset="1" stop-color="#1a0f05" stop-opacity="0"/></linearGradient>
-  <linearGradient id="aoL" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1a0f05" stop-opacity=".5"/><stop offset="1" stop-color="#1a0f05" stop-opacity="0"/></linearGradient>
-  <linearGradient id="aoR" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#1a0f05" stop-opacity=".5"/><stop offset="1" stop-color="#1a0f05" stop-opacity="0"/></linearGradient>
-  <radialGradient id="pool" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffe0b0" stop-opacity=".28"/><stop offset="1" stop-color="#ffe0b0" stop-opacity="0"/></radialGradient>
-  <linearGradient id="pipe" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a2c14"/><stop offset=".4" stop-color="#e2683e"/><stop offset="1" stop-color="#7a2410"/></linearGradient>
-  <linearGradient id="pipeG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a3d42"/><stop offset=".4" stop-color="#7d828a"/><stop offset="1" stop-color="#2c2f33"/></linearGradient>`
+  const D = geo.deck
+  const { width: W, height: H, wallY: WY, frontY: FY, windows, modules, bulkheads, doorway: [DY0, DY1], conduits, live, spawn: [SX, SY] } = D
+  const R = id => D.solids.find(s => s.id === id).rect
 
-  // floor plates with bevels and wear
-  let plates = ''
-  for (let y = 214; y < 650; y += 54) for (let x = 40; x < 1120; x += 90) {
-    const tone = r1(rnd() * .08)
-    plates += `<rect x="${x + 1.5}" y="${y + 1.5}" width="87" height="51" rx="2" fill="#000" opacity="${tone}"/>
-      <path d="M${x + 2} ${y + 2} H${x + 88}" stroke="#d9c4a2" stroke-opacity=".45" stroke-width="1.3"/>
-      <path d="M${x + 2} ${y + 52} H${x + 88} M${x + 88} ${y + 2} V${y + 52}" stroke="#3b2f22" stroke-opacity=".55" stroke-width="1.3"/>
-      ${bolt(x + 6, y + 6, 1.2)}${bolt(x + 84, y + 6, 1.2)}${bolt(x + 6, y + 48, 1.2)}${bolt(x + 84, y + 48, 1.2)}`
-    if (rnd() < .25) plates += `<path d="M${r1(x + 10 + rnd() * 50)} ${r1(y + 12 + rnd() * 30)} q${r1(10 + rnd() * 20)} ${r1(rnd() * 6 - 3)} ${r1(25 + rnd() * 20)} 0" stroke="#5a4733" stroke-opacity=".35" stroke-width="1.2" fill="none"/>`
+  // ---- back wall, seen face on
+  const cham = i => (i === 1 ? 30 : 22)
+  const holes = windows.map(([x, y, w, h], i) => chamfer(x, y, w, h, cham(i))).join(' ')
+  let wall = `<path fill-rule="evenodd" d="M0 0 H${W} V${WY} H0 Z ${holes}" fill="url(#wallG)"/>`
+  for (let x = 40; x <= W - 40; x += 46) wall += `<path d="M${x} 14 V${WY - 20}" stroke="#000" stroke-opacity=".05"/>`
+  wall += [62, 132].map(y => `<path d="M0 ${y} H${W}" stroke="#000" stroke-opacity=".06"/>`).join('')
+  wall += `<rect x="0" y="0" width="${W}" height="14" fill="url(#char)"/>`
+  wall += modules.map(m => `<rect x="${m.x + 26}" y="4" width="${m.w - 52}" height="5" rx="2.5" fill="#fff6dc"/>`).join('')
+
+  // structural rib where each bulkhead meets the wall
+  const pillar = bx => {
+    const x = bx - 12
+    return `<rect x="${x}" y="0" width="48" height="${WY - 20}" fill="url(#creamH)" ${stroke}/>
+    <rect x="${x + 5}" y="0" width="5" height="${WY - 20}" fill="#000" opacity=".08"/><rect x="${x + 38}" y="0" width="5" height="${WY - 20}" fill="#000" opacity=".12"/>
+    <path d="M${x} 150 L${x + 48} 134 V146 L${x} 162 Z" fill="url(#red)"/>
+    <rect x="${x + 19}" y="28" width="10" height="84" rx="5" fill="#fff1cf" ${stroke}/><rect x="${x + 22}" y="32" width="4" height="76" rx="2" fill="#fffdf2"/>`
   }
-  // red dashed hazard frame (like a loading zone) around the central walkway
-  const zone = { x: 430, y: 300, w: 300, h: 320 }
-  let dashes = ''
-  const per = 2 * (zone.w + zone.h)
-  for (let d = 0; d < per; d += 26) {
-    const pt = t => t < zone.w ? [zone.x + t, zone.y] : t < zone.w + zone.h ? [zone.x + zone.w, zone.y + t - zone.w] : t < 2 * zone.w + zone.h ? [zone.x + zone.w - (t - zone.w - zone.h), zone.y + zone.h] : [zone.x, zone.y + zone.h - (t - 2 * zone.w - zone.h)]
-    const [a, b] = [pt(d), pt(Math.min(per, d + 15))]
-    dashes += `<line x1="${r1(a[0])}" y1="${r1(a[1])}" x2="${r1(b[0])}" y2="${r1(b[1])}" stroke="#d9512c" stroke-width="7" stroke-linecap="square" opacity=".75"/>`
-  }
-  const winFrames = windows.map(([x, y, w, h]) => `
-    <path d="${chamfer(x, y, w, h, 22)}" fill="url(#glassSheen)"/>
+
+  const winFrame = ([x, y, w, h], c) => `
+    <path d="${chamfer(x, y, w, h, c)}" fill="url(#glassSheen)"/>
     <path d="M${x + 30} ${y + 12} l40 0 l-60 70" stroke="#fff" stroke-opacity=".05" stroke-width="10" fill="none"/>
-    <path d="${chamfer(x - 9, y - 9, w + 18, h + 18, 28)}" fill="none" stroke="url(#cream)" stroke-width="16" stroke-linejoin="round"/>
-    <path d="${chamfer(x - 17, y - 17, w + 34, h + 34, 33)}" fill="none" stroke="${OUTL}" stroke-width="1.6"/>
-    <path d="${chamfer(x - 1, y - 1, w + 2, h + 2, 22)}" fill="none" stroke="#3a332a" stroke-width="3.5"/>
-    ${[.2, .5, .8].map(f => bolt(x + w * f, y - 9) + bolt(x + w * f, y + h + 9)).join('')}${bolt(x - 9, y + h / 2)}${bolt(x + w + 9, y + h / 2)}
-    <rect x="${x + w / 2 - 22}" y="${y + h + 4}" width="44" height="7" rx="2" fill="url(#red)" ${stroke}/>`).join('')
-  const pillar = (x) => `<rect x="${x}" y="0" width="70" height="200" fill="url(#creamH)" ${stroke}/>
-    <rect x="${x + 8}" y="0" width="6" height="200" fill="#000" opacity=".08"/><rect x="${x + 56}" y="0" width="6" height="200" fill="#000" opacity=".12"/>
-    <path d="M${x} 150 L${x + 70} 128 L${x + 70} 140 L${x} 162 Z" fill="url(#red)"/>`
-  const photo = (x, y, c, rot) => `<g transform="rotate(${rot} ${x + 13} ${y + 16})" filter="url(#drop)"><rect x="${x}" y="${y}" width="26" height="32" fill="#f6f0e2" ${stroke}/><rect x="${x + 3}" y="${y + 3}" width="20" height="21" fill="${c}"/><circle cx="${x + 13}" cy="${y + 12}" r="4.5" fill="#e5c4a0"/><path d="M${x + 6} ${y + 24} q7 -9 14 0 Z" fill="#f2ead8"/></g>`
-  const patch = (x, y, c) => `<g filter="url(#drop)"><circle cx="${x}" cy="${y}" r="13" fill="${c}" stroke="#f6f0e2" stroke-width="3"/><path d="M${x - 7} ${y + 4} L${x} ${y - 8} L${x + 7} ${y + 4} Z" fill="#f6f0e2"/><circle cx="${x}" cy="${y + 2}" r="2.6" fill="${RED}"/></g>`
-  const lamp = (x, y) => `<ellipse cx="${x}" cy="${y + 50}" rx="80" ry="70" fill="url(#lampGlow)"/><rect x="${x - 16}" y="${y}" width="32" height="10" rx="3" fill="#fff1cf" ${stroke}/><rect x="${x - 12}" y="${y + 2}" width="24" height="5" rx="2" fill="#fffdf2"/>`
-  const pipes = (x) => `<rect x="${x}" y="0" width="7" height="${H}" fill="url(#pipe)" ${stroke}/><rect x="${x + 10}" y="0" width="5" height="${H}" fill="url(#pipeG)" ${stroke}/>${[90, 300, 520].map(y => `<rect x="${x - 2}" y="${y}" width="19" height="8" rx="2" fill="#8f836a" ${stroke}/>`).join('')}`
+    <path d="${chamfer(x - 9, y - 9, w + 18, h + 18, c + 6)}" fill="none" stroke="url(#cream)" stroke-width="16" stroke-linejoin="round"/>
+    <path d="${chamfer(x - 17, y - 17, w + 34, h + 34, c + 11)}" fill="none" stroke="${OUTL}" stroke-width="1.6"/>
+    <path d="${chamfer(x - 1, y - 1, w + 2, h + 2, c)}" fill="none" stroke="#3a332a" stroke-width="3.5"/>
+    ${[.2, .5, .8].map(f => bolt(x + w * f, y - 9) + bolt(x + w * f, y + h + 9)).join('')}${bolt(x - 9, y + h / 2)}${bolt(x + w + 9, y + h / 2)}`
+
+  // the cupola: a three-pane bay window over the Mission Ops table
+  const [cx0, cy0, cw, ch] = windows[1]
+  const cupola = `
+    <path d="M${cx0} ${cy0 + 30} L${cx0 + 30} ${cy0} H${cx0 + 96} V${cy0 + ch} H${cx0 + 30} L${cx0} ${cy0 + ch - 30} Z" fill="#061624" opacity=".18"/>
+    <path d="M${cx0 + cw} ${cy0 + 30} L${cx0 + cw - 30} ${cy0} H${cx0 + cw - 96} V${cy0 + ch} H${cx0 + cw - 30} L${cx0 + cw} ${cy0 + ch - 30} Z" fill="#061624" opacity=".18"/>
+    ${winFrame(windows[1], 30)}
+    ${[cx0 + 91, cx0 + cw - 101].map(x => `<rect x="${x}" y="${cy0 - 2}" width="10" height="${ch + 4}" fill="url(#creamH)" ${stroke}/>${bolt(x + 5, cy0 + 12)}${bolt(x + 5, cy0 + ch - 12)}`).join('')}
+    <rect x="${cx0 - 22}" y="${cy0 + ch + 18}" width="${cw + 44}" height="9" rx="3" fill="url(#creamTop)" ${stroke}/>
+    <rect x="${cx0 + cw / 2 - 30}" y="${cy0 + ch + 20}" width="60" height="5" rx="2" fill="url(#red)"/>`
+
+  const nodePlate = (x, y, letter) => `<g filter="url(#drop)"><rect x="${x}" y="${y}" width="30" height="30" rx="5" fill="url(#red)" ${stroke}/><text x="${x + 15}" y="${y + 23}" text-anchor="middle" ${FONT} font-size="24" fill="#fff8e6">${letter}</text></g>`
+
+  // ---- floor: slate deck plates, four across each node
+  let floor = `<rect x="0" y="${WY}" width="${W}" height="${H - WY}" fill="url(#floorG)"/>`
+  for (const m of modules) {
+    const cols = 4, rows = 8, pw = m.w / cols, ph = (FY - WY) / rows
+    floor += `<rect x="${m.x}" y="${WY}" width="${m.w}" height="${FY - WY}" fill="${m.tint}" opacity=".05"/>`
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const x = r1(m.x + c * pw), y = r1(WY + r * ph), x1 = r1(m.x + (c + 1) * pw), y1 = r1(WY + (r + 1) * ph)
+      floor += `<rect x="${x + 1.5}" y="${y + 1.5}" width="${r1(x1 - x - 3)}" height="${r1(y1 - y - 3)}" rx="2" fill="${drand() < .5 ? '#000' : '#fff'}" opacity="${r2(drand() * .07)}"/>
+        <path d="M${x + 2} ${y + 2} H${x1 - 2}" stroke="#aebbc8" stroke-opacity=".42" stroke-width="1.2"/>
+        <path d="M${x + 2} ${r1(y1 - 1.5)} H${x1 - 2} M${r1(x1 - 1.5)} ${y + 2} V${y1 - 2}" stroke="#1c232b" stroke-opacity=".5" stroke-width="1.2"/>
+        ${fbolt(x + 6, y + 6)}${fbolt(x1 - 6, y + 6)}${fbolt(x + 6, y1 - 6)}${fbolt(x1 - 6, y1 - 6)}`
+      if (drand() < .22) floor += `<path d="M${r1(x + 10 + drand() * 40)} ${r1(y + 12 + drand() * 28)} q${r1(8 + drand() * 16)} ${r1(drand() * 6 - 3)} ${r1(20 + drand() * 16)} 0" stroke="#1c232b" stroke-opacity=".3" stroke-width="1.2" fill="none"/>`
+    }
+    floor += `<rect x="${m.x + 9}" y="${WY + 9}" width="${m.w - 18}" height="${FY - WY - 18}" rx="9" fill="none" stroke="${m.tint}" stroke-opacity=".36" stroke-width="2.2"/>`
+  }
+
+  // anti-slip walkway through both hatches; the comms and research buses run inside it
+  const bandY0 = conduits.comms[1][1] - 16, bandY1 = conduits.research[1][1] + 16
+  floor += `<rect x="52" y="${bandY0}" width="${W - 104}" height="${bandY1 - bandY0}" fill="url(#grip)"/>
+    <path d="M52 ${bandY0} H${W - 52} M52 ${bandY1} H${W - 52}" stroke="#dfe8f0" stroke-opacity=".3" stroke-width="1.5" stroke-dasharray="18 8"/>`
+
+  // hatch thresholds
+  floor += bulkheads.map(bx => `<rect x="${bx - 6}" y="${DY0}" width="6" height="${DY1 - DY0}" fill="url(#haz)"/><rect x="${bx + 24}" y="${DY0}" width="6" height="${DY1 - DY0}" fill="url(#haz)"/>
+    <rect x="${bx}" y="${DY0}" width="24" height="${DY1 - DY0}" fill="#2b3038" ${stroke}/><path d="M${bx + 12} ${DY0 + 6} V${DY1 - 6}" stroke="#0f1318" stroke-width="3"/>
+    ${[.08, .3, .5, .7, .92].map(f => fbolt(bx + 5, DY0 + (DY1 - DY0) * f) + fbolt(bx + 19, DY0 + (DY1 - DY0) * f)).join('')}`).join('')
+
+  // power buses recessed in the floor; the game lights them from the live allocation
+  const groove = (pts, color) => {
+    const d = 'M' + pts.map(p => p.join(' ')).join(' L')
+    let ticks = ''
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], len = Math.hypot(x1 - x0, y1 - y0), ux = (x1 - x0) / len, uy = (y1 - y0) / len
+      for (let t = 9; t < len - 4; t += 14) ticks += `<path d="M${r1(x0 + ux * t - uy * 4)} ${r1(y0 + uy * t + ux * 4)} L${r1(x0 + ux * t + uy * 4)} ${r1(y0 + uy * t - ux * 4)}" stroke="#0e1319" stroke-width="1.6"/>`
+    }
+    const cap = ([x, y]) => `<rect x="${x - 9}" y="${y - 5}" width="18" height="10" rx="2" fill="url(#steel)" ${stroke}/><rect x="${x - 4}" y="${y - 2.5}" width="8" height="5" rx="1" fill="${color}"/>`
+    return `<path d="${d}" fill="none" stroke="#141a21" stroke-width="11" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#2d3742" stroke-width="7" stroke-linejoin="round"/>${ticks}
+      <path d="${d}" fill="none" stroke="${color}" stroke-opacity=".3" stroke-width="2" stroke-linejoin="round"/>${cap(pts[0])}${cap(pts[pts.length - 1])}`
+  }
+  const busLabel = (x, y, s, color, rot = 0) => `<text ${rot ? `transform="translate(${x} ${y}) rotate(${rot})"` : `x="${x}" y="${y}"`} ${MONO} font-size="8.5" letter-spacing="1.5" fill="${color}" opacity=".75">${s}</text>`
+  floor += Object.entries(conduits).map(([bus, pts]) => groove(pts, BUS[bus])).join('')
+    + busLabel(conduits.life[0][0] - 17, 282, 'LIFE SUPPORT BUS', BUS.life, 90)
+    + busLabel(bulkheads[1] - 96, bandY0 + 8, 'COMMS BUS', BUS.comms) + busLabel(bulkheads[1] - 96, bandY1 - 3, 'RESEARCH BUS', BUS.research)
+
+  // node names, stencilled along the walkway
+  const stencil = (x, s, color) => `<text x="${x}" y="${bandY0 - 6}" ${FONT} font-size="14" letter-spacing="3" fill="${color}" opacity=".72">${s}</text>`
+  floor += stencil(174, 'A · UTILITY', modules[0].tint) + stencil(410, 'B · COMMAND', modules[1].tint) + stencil(886, 'C · SCIENCE &amp; COMMS', modules[2].tint)
+
+  // rover bay loading zone
+  const [px, py, pw, ph] = R('payload')
+  const zone = { x: px - 30, y: py - 14, w: pw + 60, h: ph + 56 }
+  floor += `<rect x="${zone.x}" y="${zone.y}" width="${zone.w}" height="${zone.h}" fill="none" stroke="${RED}" stroke-width="6" stroke-dasharray="17 9" opacity=".8"/>`
+  floor += `<text x="${px + pw / 2}" y="${zone.y + zone.h + 17}" text-anchor="middle" ${FONT} font-size="14" letter-spacing="6" fill="${RED}" opacity=".7">ROVER BAY</text>`
+
+  // arrival pad in front of the airlock
+  floor += `<rect x="${SX - 50}" y="${SY - 20}" width="100" height="46" rx="8" fill="#10161d" opacity=".3"/>
+    <path d="M${SX - 50} ${SY - 8} v-12 h14 M${SX + 50} ${SY - 8} v-12 h-14 M${SX - 50} ${SY + 14} v12 h14 M${SX + 50} ${SY + 14} v12 h-14" stroke="${YEL}" stroke-width="3" fill="none"/>
+    <path d="M${SX - 11} ${SY - 3} l11 -9 l11 9 M${SX - 11} ${SY + 7} l11 -9 l11 9" stroke="${YEL}" stroke-opacity=".85" stroke-width="3" fill="none"/>
+    <text x="${SX}" y="${SY - 26}" text-anchor="middle" ${FONT} font-size="11" letter-spacing="4" fill="${YEL}" opacity=".85">AIRLOCK</text>`
+
+  // shading and light
+  floor += `<rect x="0" y="${WY}" width="${W}" height="70" fill="url(#aoTop)"/>
+    <ellipse cx="${cx0 + cw / 2}" cy="300" rx="250" ry="120" fill="url(#pool)"/><ellipse cx="228" cy="330" rx="200" ry="90" fill="url(#pool)"/><ellipse cx="932" cy="330" rx="200" ry="90" fill="url(#pool)"/>`
+
+  const pipes = x => `<rect x="${x}" y="0" width="7" height="${H}" fill="url(#pipe)" ${stroke}/><rect x="${x + 10}" y="0" width="5" height="${H}" fill="url(#pipeG)" ${stroke}/>${[90, 300, 520].map(y => `<rect x="${x - 2}" y="${y}" width="19" height="8" rx="2" fill="#8f836a" ${stroke}/>`).join('')}`
   const sideWall = (x, flip) => `<rect x="${x}" y="0" width="40" height="${H}" fill="url(#creamH)" ${stroke}/>
     ${pipes(flip ? x + 6 : x + 18)}
     ${[260, 400, 540].map(y => `<rect x="${x + (flip ? 24 : 4)}" y="${y}" width="12" height="54" rx="3" fill="${CHAR_M}" ${stroke}/><rect x="${x + (flip ? 26 : 6)}" y="${y + 6}" width="8" height="6" rx="1" fill="${flip ? '#ff8f45' : MINT}"/>`).join('')}`
 
-  const body = `
-  <path fill-rule="evenodd" d="M0 0 H${W} V214 H0 Z ${holes}" fill="url(#wallG)"/>
-  ${[0, 1, 2, 3].map(i => `<path d="M0 ${40 + i * 44} H${W}" stroke="#000" stroke-opacity=".06"/>`).join('')}
-  <rect x="0" y="0" width="${W}" height="14" fill="url(#char)"/>
-  ${pillar(368)}${pillar(718)}
-  ${winFrames}
-  ${photo(380, 30, '#4f78a6', -4)}${photo(404, 66, '#a65d4f', 5)}${patch(752, 44, '#2b4f7f')}${photo(736, 70, '#5f8a5a', -3)}
-  ${lamp(403, 112)}${lamp(753, 112)}${lamp(60, 112)}${lamp(1100, 112)}
-  <rect x="0" y="194" width="${W}" height="20" fill="url(#cream)" ${stroke}/><rect x="0" y="202" width="${W}" height="5" fill="url(#red)"/>
-  <rect x="0" y="214" width="${W}" height="${H - 214}" fill="url(#floorG)"/>${plates}
-  <rect x="0" y="214" width="${W}" height="70" fill="url(#aoTop)"/>
-  <ellipse cx="580" cy="470" rx="320" ry="150" fill="url(#pool)"/><ellipse cx="230" cy="330" rx="210" ry="90" fill="url(#pool)"/><ellipse cx="930" cy="330" rx="210" ry="90" fill="url(#pool)"/>
-  ${dashes}
-  <text x="580" y="612" text-anchor="middle" font-family="Barlow Condensed, Arial Narrow, Arial" font-weight="700" font-size="16" letter-spacing="6" fill="#d9512c" opacity=".55">PAYLOAD BAY</text>
+  // bulkhead stub running out of the wall: lit top face, then the cut end facing the viewer
+  const stubUp = bx => `<rect x="${bx + 24}" y="${WY}" width="14" height="84" fill="url(#aoL)"/>
+    <rect x="${bx}" y="${WY - 46}" width="24" height="82" fill="url(#creamTop)" ${stroke}/>
+    <rect x="${bx + 9}" y="${WY - 40}" width="6" height="68" rx="3" fill="#bff3ff" opacity=".85"/>
+    <rect x="${bx}" y="${WY + 36}" width="24" height="46" fill="url(#cream)" ${stroke}/><rect x="${bx}" y="${WY + 52}" width="24" height="6" fill="url(#red)"/>
+    ${bolt(bx + 5, WY + 74)}${bolt(bx + 19, WY + 74)}`
+
+  // power core: the column that feeds the three buses
+  const [tx, ty, tw, th] = live.coreTube
+  const tcx = tx + tw / 2
+  const core = `<g><ellipse cx="${tcx + 6}" cy="234" rx="54" ry="9" fill="url(#ao)"/>
+    <rect x="102" y="150" width="50" height="7" fill="url(#pipeH)" ${stroke}/><rect x="102" y="166" width="50" height="5" fill="url(#pipeGH)" ${stroke}/>
+    <rect x="${tx - 10}" y="${ty - 18}" width="${tw + 20}" height="${th + 40}" rx="12" fill="url(#char)" ${stroke}/>
+    <rect x="${tx}" y="${ty}" width="${tw}" height="${th}" rx="10" fill="url(#coreG)" stroke="#0b1512" stroke-width="2"/>
+    ${[...Array(6)].map((_, i) => `<ellipse cx="${tcx}" cy="${ty + 14 + i * 17}" rx="${tw / 2 - 3}" ry="3.6" fill="none" stroke="${MINT}" stroke-width="1.6" opacity="${r2(.9 - i * .1)}"/>`).join('')}
+    <rect x="${tx + 5}" y="${ty + 6}" width="4" height="${th - 12}" rx="2" fill="#fff" opacity=".18"/>
+    <rect x="${tx - 6}" y="${ty - 8}" width="${tw + 12}" height="10" rx="3" fill="url(#cream)" ${stroke}/><rect x="${tx - 6}" y="${ty + th - 2}" width="${tw + 12}" height="10" rx="3" fill="url(#cream)" ${stroke}/>
+    <rect x="${tx + 6}" y="${ty - 14}" width="${tw - 12}" height="5" rx="2" fill="url(#red)"/>
+    ${box(46, 214, 60, 20, 8, { front: 'url(#char)', topFill: '#5a5f68', shadow: false })}
+    ${box(104, 218, 36, 14, 6, { front: 'url(#char)', topFill: '#5a5f68', shadow: false })}</g>`
+
+  // relay equipment rack with the fault beacon on top
+  const [bx0, by0] = live.beacon
+  const rack = `<g><ellipse cx="1094" cy="234" rx="52" ry="9" fill="url(#ao)"/>
+    <rect x="1100" y="14" width="6" height="124" fill="url(#pipeG)" ${stroke}/><rect x="1108" y="14" width="5" height="124" fill="url(#pipe)" ${stroke}/>
+    ${box(1022, 218, 40, 14, 6, { front: 'url(#char)', topFill: '#5a5f68', shadow: false })}
+    ${box(1062, 142, 52, 92, 9, { front: 'url(#char)', topFill: '#5a5f68', shadow: false })}
+    ${[0, 1, 2, 3, 4].map(r => `<rect x="1068" y="${150 + r * 16}" width="40" height="11" rx="2" fill="#15191e" ${stroke}/>` + [0, 1, 2, 3].map(c => `<rect x="${1071 + c * 9}" y="${153 + r * 16}" width="6" height="5" rx="1" fill="${(r + c) % 3 === 0 ? MINT : (r * 2 + c) % 4 === 1 ? '#ffb347' : '#3d444d'}"/>`).join('')).join('')}
+    <rect x="${bx0 - 10}" y="${by0 + 4}" width="20" height="6" rx="2" fill="url(#steel)" ${stroke}/>
+    <path d="M${bx0 - 8} ${by0 + 4} A8 9 0 0 1 ${bx0 + 8} ${by0 + 4} Z" fill="#7a2416" ${stroke}/></g>`
+
+  const cabinet = cx => `<path d="M${cx - 80} 122 H${cx + 80} L${cx + 82} 196 H${cx - 82} Z" fill="url(#cream)" ${stroke}/>`
+  const screenAt = ([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="url(#screen)" ${stroke}/><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#screenGlow)"/>`
+
+  const consolePower = () => {
+    const [x, y, w] = R('power'), cx = x + w / 2
+    return `<g><ellipse cx="${cx + 6}" cy="${y + 56}" rx="${w * .58}" ry="12" fill="url(#ao)"/>${cabinet(cx)}
+      <rect x="${cx - 74}" y="128" width="20" height="60" rx="3" fill="url(#char)" ${stroke}/>${[MINT, CYAN, VIOLET].map((c, i) => `<rect x="${cx - 70}" y="${133 + i * 18}" width="12" height="12" rx="2" fill="${c}"/>`).join('')}
+      ${screenAt(live.powerScreen)}
+      <rect x="${cx + 56}" y="128" width="20" height="60" rx="3" fill="${CHAR_M}" ${stroke}/>${[0, 1, 2].map(i => `<rect x="${cx + 60}" y="${132 + i * 18}" width="12" height="14" rx="2" fill="#15191e"/><rect x="${cx + 62}" y="${133 + i * 18 + (i === 1 ? 6 : 0)}" width="8" height="6" rx="1.5" fill="${i === 1 ? '#8f836a' : RED}"/>`).join('')}
+      ${box(x, y + 10, w, 46, 14, { stripe: [26, 6] })}
+      ${[0, 1, 2, 3, 4, 5, 6].map(i => `<rect x="${x + 14 + i * 22}" y="${y - 1 - (i % 2)}" width="14" height="7" rx="2" fill="${i === 1 ? MINT : i === 3 ? CYAN : i === 5 ? VIOLET : CHAR_M}" ${stroke}/>`).join('')}
+      ${[0, 1, 2, 3].map(i => `<rect x="${x + 20 + i * 38}" y="${y + 20}" width="24" height="5" rx="2" fill="#a2967c"/>`).join('')}
+      ${bolt(x + 8, y + 44)}${bolt(x + w - 8, y + 44)}
+      ${sign(cx, 98, 148, 'POWER GRID', 'power')}</g>`
+  }
+  const consoleComms = () => {
+    const [x, y, w] = R('comms'), cx = x + w / 2, [ox, oy, or] = live.scope
+    return `<g><ellipse cx="${cx + 6}" cy="${y + 56}" rx="${w * .58}" ry="12" fill="url(#ao)"/>${cabinet(cx)}
+      ${screenAt(live.commsScreen)}
+      <circle cx="${ox}" cy="${oy}" r="${or + 4}" fill="url(#char)" ${stroke}/><circle cx="${ox}" cy="${oy}" r="${or}" fill="#082a25" stroke="#0b1512" stroke-width="1.5"/>
+      <circle cx="${ox}" cy="${oy}" r="${r1(or * .6)}" fill="none" stroke="${MINT}" stroke-width="1" opacity=".45"/><path d="M${ox - or} ${oy} H${ox + or} M${ox} ${oy - or} V${oy + or}" stroke="${MINT}" stroke-width=".8" opacity=".35"/>
+      ${[0, 1, 2].map(i => `<rect x="${ox - 15 + i * 11}" y="${oy + or + 6}" width="8" height="6" rx="1.5" fill="${[YEL, MINT, RED][i]}"/>`).join('')}
+      ${box(x, y + 10, w, 46, 14, { stripe: [26, 6] })}
+      ${[0, 1, 2, 3, 4, 5, 6].map(i => `<rect x="${x + 14 + i * 22}" y="${y - 1}" width="16" height="7" rx="1.5" fill="${i % 5 === 1 ? '#ff8f45' : i % 4 === 3 ? MINT : CHAR_M}" ${stroke}/>`).join('')}
+      ${[0, 1, 2, 3].map(i => `<rect x="${x + 20 + i * 38}" y="${y + 20}" width="24" height="5" rx="2" fill="#a2967c"/>`).join('')}
+      ${bolt(x + 8, y + 44)}${bolt(x + w - 8, y + 44)}
+      ${sign(cx, 98, 166, 'ROVER COMMS', 'antenna')}</g>`
+  }
+
+  const body = `${wall}
+  ${bulkheads.map(pillar).join('')}
+  ${winFrame(windows[0], 22)}${cupola}${winFrame(windows[2], 22)}
+  ${nodePlate(R('power')[0] + R('power')[2] + 6, 142, 'A')}${nodePlate(R('comms')[0] - 36, 142, 'C')}
+  <rect x="0" y="${WY - 20}" width="${W}" height="20" fill="url(#cream)" ${stroke}/><rect x="0" y="${WY - 12}" width="${W}" height="5" fill="url(#red)"/>
+  ${floor}
   ${sideWall(0, false)}${sideWall(W - 40, true)}
-  <rect x="40" y="214" width="50" height="${H - 214}" fill="url(#aoL)"/><rect x="${W - 90}" y="214" width="50" height="${H - 214}" fill="url(#aoR)"/>
-  ${crateStack(46, 204, .95)}${crateStack(1024, 204, .95)}
-  ${consolePower()}${consoleCalib()}${consoleComms()}
-  ${plant(381, 206)}${plant(779, 206)}`
-  return { body, defs, W, H }
+  <rect x="40" y="${WY}" width="50" height="${H - WY}" fill="url(#aoL)"/><rect x="${W - 90}" y="${WY}" width="50" height="${H - WY}" fill="url(#aoR)"/>
+  ${core}${rack}${consolePower()}${consoleComms()}
+  ${bulkheads.map(stubUp).join('')}`
+  return { body, defs: stationDefs, W, H }
 }
 
-// Freestanding props drawn as separate sprites so the astronaut can walk behind them.
-export function props() {
-  const payload = { w: 200, h: 150, ox: 480, oy: 324, body: `
-    <ellipse cx="584" cy="462" rx="96" ry="14" fill="url(#ao)"/>
-    <rect x="504" y="420" width="152" height="10" rx="3" fill="url(#yel)" ${stroke}/>
-    <rect x="510" y="380" width="8" height="48" fill="url(#yel)" ${stroke}/><rect x="642" y="380" width="8" height="48" fill="url(#yel)" ${stroke}/>
-    ${[518, 640].map(x => `<circle cx="${x}" cy="455" r="7" fill="url(#char)" ${stroke}/><circle cx="${x}" cy="455" r="2.5" fill="#8f836a"/><rect x="${x - 2}" y="428" width="4" height="22" fill="${CHAR_M}"/>`).join('')}
-    ${box(514, 396, 132, 26, 8, { front: 'url(#char)', topFill: '#5a5f68', shadow: false })}
-    ${box(522, 360, 116, 36, 12, { stripe: [14, 6], shadow: false })}
-    <path d="M560 360 l0 36 M600 360 l0 36" stroke="url(#red)" stroke-width="6"/>
-    <rect x="548" y="342" width="64" height="8" rx="2" fill="#a2967c" ${stroke}/>
-    <rect x="566" y="402" width="28" height="14" rx="2" fill="url(#screen)" ${stroke}/><circle cx="604" cy="409" r="3.5" fill="${MINT}"/><circle cx="614" cy="409" r="3.5" fill="#ff8f45"/>
-    <path d="${chamfer(536, 436, 88, 18, 4)}" fill="url(#cream)" ${stroke}/>${ICON.crate(548, 445, .6)}<text x="560" y="449.5" font-family="Barlow Condensed, Arial Narrow, Arial" font-weight="700" font-size="12" letter-spacing="1.5" fill="#3a3128">PAYLOAD</text>` }
-  const hab = { w: 220, h: 170, ox: 50, oy: 380, body: `
-    <ellipse cx="164" cy="536" rx="104" ry="14" fill="url(#ao)"/>
-    ${box(66, 486, 188, 50, 12, { stripe: [22, 6], shadow: false })}
-    ${[0, 1].map(i => `<g><rect x="${76 + i * 50}" y="${404 + i * 10}" width="42" height="${84 - i * 10}" rx="18" fill="url(#creamH)" ${stroke}/>
-      <rect x="${82 + i * 50}" y="${424 + i * 10}" width="30" height="${44 - i * 8}" rx="8" fill="#123c4a" ${stroke}/><rect x="${82 + i * 50}" y="${444 + i * 6}" width="30" height="${24 - i * 4}" rx="6" fill="#45b6d6" opacity=".85"/>
-      <circle cx="${90 + i * 50}" cy="${452 + i * 6}" r="2" fill="#dff7ff" opacity=".8"/><circle cx="${100 + i * 50}" cy="${458 + i * 6}" r="1.5" fill="#dff7ff" opacity=".8"/></g>`).join('')}
-    <rect x="176" y="430" width="70" height="50" rx="4" fill="url(#cream)" ${stroke}/><rect x="182" y="436" width="58" height="34" rx="3" fill="url(#screen)" ${stroke}/>
-    <path d="M186 456 h12 l4 -12 l5 22 l4 -10 h25" stroke="${MINT}" stroke-width="2" fill="none"/><text x="235" y="447" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="8" fill="${MINT}">72</text>
-    <path d="${chamfer(106, 504, 112, 18, 4)}" fill="url(#cream)" ${stroke}/>${ICON.drop(118, 513, .6)}<text x="130" y="517.5" font-family="Barlow Condensed, Arial Narrow, Arial" font-weight="700" font-size="12" letter-spacing="1.5" fill="#3a3128">HAB SYSTEMS</text>` }
-  const rack = { w: 150, h: 160, ox: 974, oy: 370, body: `<g transform="translate(-6 0)">${crateStack(996, 456, 1.12)}</g>` }
-  const rail = { w: 1160, h: 50, ox: 0, oy: 624, body: `
-    <rect x="0" y="640" width="1160" height="8" rx="4" fill="url(#yel)" ${stroke}/>
-    ${[...Array(13)].map((_, i) => `<rect x="${44 + i * 89}" y="640" width="9" height="30" fill="url(#yel)" ${stroke}/><rect x="${42 + i * 89}" y="${642}" width="13" height="5" rx="1" fill="${YEL_D}"/>`).join('')}
-    <rect x="0" y="656" width="1160" height="5" rx="2.5" fill="url(#yel)" ${stroke}/>` }
-  return { payload, hab, rack, rail }
+// Freestanding props, drawn as separate sprites so the astronaut can walk behind them.
+// Each returns the region of the deck it covers (geo.deck.props), so art and game agree.
+export function props(geo) {
+  const D = geo.deck, live = D.live, W = D.width
+  const R = id => D.solids.find(s => s.id === id).rect
+  const frame = (id, body) => { const p = D.props.find(q => q.id === id); return { w: p.size[0], h: p.size[1], ox: p.at[0], oy: p.at[1], body } }
+  const led = ([x, y]) => `<circle cx="${x}" cy="${y}" r="5.5" fill="#15191e" ${stroke}/><circle cx="${x}" cy="${y}" r="3" fill="#2c343d"/>`
+
+  // Mission Ops: a round holo-table under the cupola
+  const [ex, ey] = live.emitter
+  const ops = frame('ops', `
+    <ellipse cx="${ex + 5}" cy="${ey + 41}" rx="80" ry="10" fill="url(#ao)"/>
+    <path d="M${ex - 70} ${ey} A70 20 0 0 0 ${ex + 70} ${ey} V${ey + 22} A70 20 0 0 1 ${ex - 70} ${ey + 22} Z" fill="url(#char)" ${stroke}/>
+    <path d="M${ex - 69.6} ${ey + 5} A70 20 0 0 0 ${ex + 69.6} ${ey + 5}" fill="none" stroke="${RED}" stroke-width="4"/>
+    <ellipse cx="${ex}" cy="${ey}" rx="70" ry="20" fill="url(#creamTop)" ${stroke}/>
+    <ellipse cx="${ex}" cy="${ey}" rx="55" ry="14.5" fill="url(#glassDark)" stroke="#3a332a" stroke-width="2"/>
+    <ellipse cx="${ex}" cy="${ey}" rx="42" ry="10.5" fill="none" stroke="${CYAN}" stroke-width="1.4" opacity=".8"/>
+    <ellipse cx="${ex}" cy="${ey}" rx="24" ry="6" fill="none" stroke="${CYAN}" stroke-width="1" opacity=".55"/>
+    <ellipse cx="${ex}" cy="${ey}" rx="6" ry="2" fill="${CYAN}"/>
+    ${[...Array(8)].map((_, i) => { const a = (i / 8) * Math.PI * 2 + .39; return bolt(ex + Math.cos(a) * 63, ey + Math.sin(a) * 17.5, 1.4) }).join('')}
+    ${sign(ex, ey + 23, 128, 'MISSION OPS', 'orbit', 18, 12)}`)
+
+  // Rover bay: the rover itself on a lift platform, between two marker posts. Nothing here
+  // stands taller than the rover, so the walkway behind it stays in view.
+  const [px, py, pw, ph] = R('payload')
+  const top = py + 48
+  const [bsx, bsy, bsw, bsh] = live.battScreen
+  const [rvx, rvy] = live.rover
+  const post = x => `<rect x="${x}" y="${py - 20}" width="8" height="34" fill="url(#yel)" ${stroke}/><rect x="${x - 2}" y="${py - 9}" width="12" height="5" fill="${CHAR}"/><rect x="${x - 2}" y="${py - 24}" width="12" height="7" rx="2" fill="url(#char)" ${stroke}/><circle cx="${x + 4}" cy="${py - 27}" r="3.4" fill="#ff8f45" ${stroke}/>`
+  const payload = frame('payload', `
+    <ellipse cx="${px + pw / 2 + 4}" cy="${py + ph + 1}" rx="112" ry="12" fill="url(#ao)"/>
+    ${post(px + 14)}${post(px + pw - 22)}
+    <path d="M${px} ${top} L${px + 10} ${py + 6} H${px + pw - 10} L${px + pw} ${top} Z" fill="url(#steelTop)" ${stroke}/>
+    <ellipse cx="${px + pw / 2}" cy="${py + 27}" rx="88" ry="15" fill="#10161d" opacity=".24"/><ellipse cx="${px + pw / 2}" cy="${py + 27}" rx="88" ry="15" fill="none" stroke="#dfe8f0" stroke-opacity=".5" stroke-width="1.5" stroke-dasharray="6 5"/>
+    <g transform="translate(${rvx} ${rvy})">${roverSvg().body}</g>
+    <path d="M${px} ${top} L${px + 1.6} ${top - 6} H${px + pw - 1.6} L${px + pw} ${top} Z" fill="url(#haz)" ${stroke}/>
+    <rect x="${px}" y="${top}" width="${pw}" height="${py + ph - top}" fill="url(#char)" ${stroke}/>
+    <rect x="${px}" y="${py + ph - 5}" width="${pw}" height="5" fill="#000" opacity=".22"/>
+    <rect x="${bsx}" y="${bsy}" width="${bsw}" height="${bsh}" rx="2" fill="url(#screen)" ${stroke}/>
+    ${sign(px + pw / 2, top + 2, 92, 'PAYLOAD', 'crate', 18, 12)}
+    <circle cx="${px + pw - 46}" cy="${top + 11}" r="3.5" fill="${MINT}"/><circle cx="${px + pw - 35}" cy="${top + 11}" r="3.5" fill="#ff8f45"/><rect x="${px + pw - 26}" y="${top + 5}" width="18" height="12" rx="2" fill="url(#haz)" ${stroke}/>`)
+
+  // Hab Systems: water recycler, hydroponics rack, medical monitor
+  const [hx, hy, , hh] = R('hab')
+  const hab = frame('hab', `
+    <ellipse cx="${hx + 122}" cy="${hy + hh}" rx="120" ry="12" fill="url(#ao)"/>
+    ${[0, 1].map(i => `<g><rect x="${hx + 14 + i * 48}" y="${hy - 66 + i * 10}" width="42" height="${92 - i * 10}" rx="18" fill="url(#creamH)" ${stroke}/>
+      <rect x="${hx + 20 + i * 48}" y="${hy - 46 + i * 10}" width="30" height="${50 - i * 8}" rx="8" fill="#123c4a" ${stroke}/><rect x="${hx + 20 + i * 48}" y="${hy - 24 + i * 6}" width="30" height="${28 - i * 4}" rx="6" fill="url(#water)" opacity=".9"/>
+      <circle cx="${hx + 28 + i * 48}" cy="${hy - 14 + i * 6}" r="2" fill="#dff7ff" opacity=".8"/><circle cx="${hx + 40 + i * 48}" cy="${hy - 8 + i * 6}" r="1.5" fill="#dff7ff" opacity=".8"/></g>`).join('')}
+    <path d="M${hx + 50} ${hy - 62} q8 -14 18 -4" fill="none" stroke="${RED_D}" stroke-width="5" stroke-linecap="round"/><circle cx="${hx + 59}" cy="${hy - 69}" r="5" fill="url(#red)" ${stroke}/>
+    <ellipse cx="${hx + 138}" cy="${hy - 28}" rx="46" ry="54" fill="url(#growGlow)"/>
+    <rect x="${hx + 110}" y="${hy - 74}" width="56" height="98" rx="4" fill="url(#char)" ${stroke}/>
+    <rect x="${hx + 114}" y="${hy - 70}" width="48" height="6" rx="2" fill="#ffc4ea"/>
+    ${[0, 1].map(t => { const sy = hy - 30 + t * 34; return [0, 1, 2, 3].map(k => sprout(hx + 121 + k * 11.5, sy, 14 + ((k + t) % 2) * 6)).join('') + `<rect x="${hx + 114}" y="${sy}" width="48" height="7" rx="2" fill="url(#cream)" ${stroke}/>` }).join('')}
+    <rect x="${hx + 176}" y="${hy - 44}" width="50" height="60" rx="4" fill="url(#cream)" ${stroke}/><rect x="${hx + 181}" y="${hy - 39}" width="40" height="32" rx="3" fill="url(#screen)" ${stroke}/>
+    <path d="M${hx + 184} ${hy - 20} h8 l3 -11 l4 20 l3 -9 h15" stroke="${MINT}" stroke-width="1.8" fill="none"/><text x="${hx + 218}" y="${hy - 30}" text-anchor="end" ${MONO} font-size="8" fill="${MINT}">72</text>
+    <rect x="${hx + 190}" y="${hy - 68}" width="22" height="18" rx="4" fill="url(#creamTop)" ${stroke}/><path d="M${hx + 201} ${hy - 65} v12 M${hx + 195} ${hy - 59} h12" stroke="#2f9d6b" stroke-width="3.4"/>
+    ${box(hx + 4, hy + 24, 222, 48, 12, { stripe: [22, 6], shadow: false })}
+    ${led(live.habWater)}${led(live.habMed)}
+    ${sign(hx + 115, hy + 41, 124, 'HAB SYSTEMS', 'drop', 18, 12)}`)
+
+  // Calibration bench: graph monitor, optical sensor, two reference standards
+  const [lx, ly, lw, lh] = R('calibration')
+  const eye = [lx + 116, ly - 22]
+  const lab = frame('lab', `
+    <ellipse cx="${lx + lw / 2 + 2}" cy="${ly + lh}" rx="118" ry="12" fill="url(#ao)"/>
+    <rect x="${lx + 12}" y="${ly - 50}" width="68" height="68" rx="5" fill="url(#cream)" ${stroke}/><rect x="${lx + 18}" y="${ly - 44}" width="56" height="46" rx="3" fill="url(#screen)" ${stroke}/>
+    <path d="M${lx + 23} ${ly - 6} L${lx + 34} ${ly - 17} L${lx + 44} ${ly - 13} L${lx + 56} ${ly - 30} L${lx + 69} ${ly - 36}" stroke="${MINT}" stroke-width="2.2" fill="none"/><circle cx="${lx + 34}" cy="${ly - 17}" r="2.4" fill="#ff8f45"/><circle cx="${lx + 69}" cy="${ly - 36}" r="2.4" fill="#ff8f45"/>
+    <path d="M${lx + 22} ${ly - 3} H${lx + 71} M${lx + 22} ${ly - 40} V${ly - 3}" stroke="${MINT}" stroke-width="1" opacity=".5"/>
+    <rect x="${eye[0] - 8}" y="${eye[1] + 22}" width="16" height="22" fill="url(#steel)" ${stroke}/>
+    <circle cx="${eye[0]}" cy="${eye[1]}" r="26" fill="url(#char)" ${stroke}/><circle cx="${eye[0]}" cy="${eye[1]}" r="19" fill="#d9cdb3" ${stroke}/><circle cx="${eye[0]}" cy="${eye[1]}" r="12" fill="#1f5e78"/><circle cx="${eye[0]}" cy="${eye[1]}" r="6" fill="#0b2633"/><circle cx="${eye[0] - 5}" cy="${eye[1] - 5}" r="3.5" fill="#c9f4ff" opacity=".9"/>
+    <path d="M${eye[0] + 27} ${eye[1] + 2} L${lx + 158} ${ly - 6} M${eye[0] + 27} ${eye[1] + 4} L${lx + 188} ${ly - 6}" stroke="#ff8f45" stroke-width="1.4" stroke-dasharray="4 3" opacity=".8"/>
+    <rect x="${lx + 148}" y="${ly + 8}" width="72" height="8" rx="2" fill="url(#steel)" ${stroke}/>
+    ${[['A', '#4b5058', '#fff8e6'], ['B', '#f6f0e2', '#3a3128']].map(([t, fill, ink], i) => `<rect x="${lx + 154 + i * 32}" y="${ly - 20}" width="24" height="30" rx="2" fill="${fill}" ${stroke}/><text x="${lx + 166 + i * 32}" y="${ly + 4}" text-anchor="middle" ${FONT} font-size="12" fill="${ink}">${t}</text><circle cx="${lx + 166 + i * 32}" cy="${ly - 11}" r="3" fill="#ff8f45"/>`).join('')}
+    ${box(lx + 4, ly + 24, 222, 48, 12, { stripe: [22, 6], shadow: false })}
+    ${led(live.labStatus)}
+    ${sign(lx + 108, ly + 41, 124, 'CALIBRATION', 'target', 18, 12)}`)
+
+  // lower bulkhead stubs: the astronaut passes behind their raised top face
+  const stubLow = (id, bx) => frame(id, `
+    <rect x="${bx + 24}" y="548" width="12" height="94" fill="url(#aoL)"/>
+    <rect x="${bx}" y="502" width="24" height="94" fill="url(#creamTop)" ${stroke}/>
+    <rect x="${bx + 9}" y="510" width="6" height="78" rx="3" fill="#bff3ff" opacity=".85"/>
+    <rect x="${bx}" y="596" width="24" height="46" fill="url(#cream)" ${stroke}/><rect x="${bx}" y="612" width="24" height="6" fill="url(#red)"/>
+    ${bolt(bx + 5, 634)}${bolt(bx + 19, 634)}`)
+
+  // front edge: a low sill with EVA handrails and the airlock the crew arrived through
+  const SX = D.spawn[0]
+  const rail = (a, b) => `<rect x="${a}" y="629" width="${b - a}" height="6" rx="3" fill="url(#yel)" ${stroke}/>` + [...Array(Math.floor((b - a - 12) / 86) + 1)].map((_, i) => `<rect x="${a + 6 + i * 86}" y="634" width="6" height="9" fill="url(#yel)" ${stroke}/>`).join('')
+  const front = frame('front', `
+    <rect x="0" y="641" width="${W}" height="29" fill="url(#creamTop)" ${stroke}/><rect x="0" y="642" width="${W}" height="3" fill="#fff" opacity=".55"/>
+    <rect x="0" y="659" width="${W}" height="11" fill="url(#char)"/>
+    ${[...Array(13)].map((_, i) => `<rect x="${40 + i * 90}" y="642" width="5" height="17" fill="#000" opacity=".1"/>`).join('')}
+    ${rail(56, SX - 72)}${rail(SX + 72, W - 56)}
+    <rect x="${SX - 58}" y="629" width="116" height="41" rx="7" fill="url(#char)" ${stroke}/>
+    <rect x="${SX - 46}" y="636" width="92" height="34" rx="3" fill="#0a0f15"/>
+    <rect x="${SX - 46}" y="636" width="5" height="34" fill="${MINT}"/><rect x="${SX + 41}" y="636" width="5" height="34" fill="${MINT}"/>
+    <rect x="${SX - 41}" y="662" width="82" height="8" fill="url(#haz)"/>`)
+
+  // instruments that appear on the rover once chosen at the Payload terminal
+  const instIr = { w: 44, h: 32, ox: 0, oy: 0, body: `
+    <rect x="1" y="15" width="16" height="5" rx="2" fill="#8f836a" ${stroke}/>
+    <rect x="12" y="5" width="28" height="22" rx="5" fill="url(#cream)" ${stroke}/><rect x="12" y="13" width="28" height="4" fill="url(#red)"/>
+    <circle cx="32" cy="16" r="7" fill="#1b0e05" ${stroke}/><circle cx="32" cy="16" r="4.2" fill="#ff8f45"/><circle cx="30.4" cy="14.4" r="1.5" fill="#fff" opacity=".85"/>
+    <circle cx="17.5" cy="9.5" r="1.7" fill="${MINT}"/>` }
+  const instGpr = { w: 60, h: 42, ox: 0, oy: 0, body: `
+    <path d="M5 6 L30 24" stroke="${OUTL}" stroke-width="6.4" stroke-linecap="round"/><path d="M5 6 L30 24" stroke="#a2967c" stroke-width="3.6" stroke-linecap="round"/>
+    <circle cx="5" cy="6" r="3.6" fill="url(#steel)" ${stroke}/>
+    <path d="M18 23 H52 L57 33 H13 Z" fill="url(#char)" ${stroke}/><rect x="13" y="33" width="44" height="5" fill="#15191e" ${stroke}/>
+    <path d="M25 25 L23 31 M35 25 V31 M45 25 L47 31" stroke="${MINT}" stroke-width="2"/>` }
+
+  return { ops, payload, hab, lab, stubL: stubLow('stubL', D.bulkheads[0]), stubR: stubLow('stubR', D.bulkheads[1]), front, 'inst-ir': instIr, 'inst-gpr': instGpr }
+}
+
+// Station exterior for the docking approach: the same three nodes, cupola and relay dish.
+export function exteriorSvg({ ORANGE, IVORY }) {
+  const o = `stroke="${OUTL}" stroke-width="1.5"`
+  const defs = `<linearGradient id="mod" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf6ea"/><stop offset=".6" stop-color="#cfc5ad"/><stop offset="1" stop-color="#7f7765"/></linearGradient>
+    <linearGradient id="sol" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#16294a"/><stop offset=".5" stop-color="#2e5a93"/><stop offset="1" stop-color="#16294a"/></linearGradient>
+    <linearGradient id="tr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9c2cc"/><stop offset="1" stop-color="#5f6a76"/></linearGradient>
+    <linearGradient id="cup" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9ff3ff"/><stop offset=".5" stop-color="#2a7f9c"/><stop offset="1" stop-color="#0d2833"/></linearGradient>`
+  const wing = (x, y) => `<rect x="${x}" y="${y}" width="190" height="58" fill="url(#sol)" stroke="#a7bad3" stroke-width="2"/>${[1, 2, 3, 4, 5].map(i => `<line x1="${r1(x + (190 / 6) * i)}" y1="${y}" x2="${r1(x + (190 / 6) * i)}" y2="${y + 58}" stroke="#a7bad3" opacity=".5"/>`).join('')}<line x1="${x}" y1="${y + 29}" x2="${x + 190}" y2="${y + 29}" stroke="#a7bad3" opacity=".5"/>`
+  let lattice = ''
+  for (let x = 64; x <= 808; x += 24) lattice += `<path d="M${x} 100 L${x + 12} 112 L${x + 24} 100" stroke="#3a424c" stroke-width="1.4" fill="none"/>`
+  const body = `
+    ${wing(64, 28)}${wing(64, 126)}${wing(646, 28)}${wing(646, 126)}
+    <rect x="156" y="86" width="6" height="40" fill="#8c8576"/><rect x="738" y="86" width="6" height="40" fill="#8c8576"/>
+    <rect x="60" y="98" width="780" height="16" fill="url(#tr)" ${o}/>${lattice}
+    ${[300, 578].map(x => `<rect x="${x}" y="114" width="22" height="64" fill="#f4eede" stroke="#8c8576" stroke-width="1.5"/>${[0, 1, 2, 3, 4].map(i => `<line x1="${x}" y1="${124 + i * 11}" x2="${x + 22}" y2="${124 + i * 11}" stroke="#b3a58a"/>`).join('')}`).join('')}
+    <rect x="440" y="112" width="20" height="96" fill="url(#tr)" ${o}/>
+    <path d="M692 242 L768 178" stroke="#8c8576" stroke-width="7" stroke-linecap="round"/><path d="M692 242 L768 178" stroke="#d9cdb3" stroke-width="3" stroke-linecap="round"/>
+    <rect x="196" y="226" width="216" height="92" rx="40" fill="url(#mod)" ${o}/><rect x="488" y="226" width="216" height="92" rx="40" fill="url(#mod)" ${o}/>
+    <rect x="372" y="204" width="156" height="136" rx="34" fill="url(#mod)" ${o}/>
+    <rect x="386" y="212" width="9" height="120" fill="#8c8576" opacity=".55"/><rect x="505" y="212" width="9" height="120" fill="#8c8576" opacity=".55"/>
+    <rect x="212" y="264" width="476" height="9" fill="${ORANGE}"/>
+    ${[0, 1, 2].map(i => `<rect x="${232 + i * 46}" y="286" width="30" height="13" rx="5" fill="#ffd9a0"/><rect x="${538 + i * 46}" y="286" width="30" height="13" rx="5" fill="#ffd9a0"/>`).join('')}
+    <path d="M412 338 H488 L476 364 H424 Z" fill="url(#cup)" ${o}/><path d="M437 338 L441 364 M463 338 L459 364" stroke="${OUTL}" stroke-width="1.2"/>
+    <rect x="172" y="250" width="26" height="44" rx="4" fill="#3a3f46" ${o}/><rect x="162" y="244" width="11" height="56" rx="3" fill="#8c8576" ${o}/>
+    <circle cx="167" cy="237" r="3" fill="${MINT}"/><circle cx="167" cy="307" r="3" fill="${MINT}"/>
+    <g transform="translate(774 172) rotate(38)"><path d="M-34 0 Q0 30 34 0 Z" fill="url(#mod)" ${o}/><ellipse cx="0" cy="0" rx="34" ry="7" fill="#cfc5ad" ${o}/><path d="M-26 -1 L0 -26 L26 -1 M0 4 V-26" stroke="#5b544a" stroke-width="1.6" fill="none"/><circle cx="0" cy="-27" r="3.5" fill="${ORANGE}"/></g>
+    <circle cx="450" cy="204" r="6" fill="${IVORY}" stroke="#7f7765" stroke-width="3"/><circle cx="450" cy="204" r="2.6" fill="${MINT}"/>`
+  return { W: 900, H: 420, body, defs }
+}
+
+// Relay antenna seen through the node C window: a fixed boom and a dish the game steers.
+export function relaySvg() {
+  const boom = { w: 130, h: 74, body: `
+    <path d="M126 58 L14 8 M126 70 L14 20" stroke="${OUTL}" stroke-width="5" stroke-linecap="round"/><path d="M126 58 L14 8 M126 70 L14 20" stroke="#b9c2cc" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M110 51 L96 57 L82 38 L68 44 L54 26 L40 32 L26 14" stroke="#8f9aa6" stroke-width="1.6" fill="none"/>
+    <circle cx="14" cy="14" r="9" fill="url(#cream)" ${stroke}/><circle cx="14" cy="14" r="3.4" fill="${CHAR_M}"/>` }
+  const dish = { w: 110, h: 96, body: `
+    <rect x="50" y="66" width="10" height="18" fill="url(#creamH)" ${stroke}/>
+    <g transform="translate(55 50)"><path d="M-42 0 Q0 38 42 0 Z" fill="url(#creamH)" ${stroke}/><path d="M-27 14 Q0 28 27 14" stroke="${RED}" stroke-width="3" fill="none"/>
+      <ellipse cx="0" cy="0" rx="42" ry="9" fill="${CREAM_M}" ${stroke}/><ellipse cx="0" cy="1" rx="33" ry="5.5" fill="#8f836a" opacity=".45"/>
+      <path d="M-32 -1 L0 -34 L32 -1 M0 6 V-34" stroke="#5b544a" stroke-width="2" fill="none"/><rect x="-5" y="-43" width="10" height="10" rx="2" fill="url(#char)" ${stroke}/></g>
+    <circle cx="55" cy="84" r="7" fill="url(#char)" ${stroke}/>` }
+  return { boom, dish }
 }
 
 // ------------------------------------------------------------------ Rover (3/4 view, facing right)
@@ -319,6 +537,9 @@ export function roverSvg() {
 
 // ------------------------------------------------------------------ Mars sector
 export function marsSvg(geo) {
+  // The value the shared sequence held here in the first build. Pinned, so station art changes
+  // can never move a crater or a rock on the survey map or in the site illustrations.
+  seed = 206856167
   const { width: W, height: H, base, ice, ridge, basin } = geo.mars
   const defs = commonDefs + `
   <radialGradient id="ground" cx="40%" cy="35%" r="85%"><stop offset="0" stop-color="#c98455"/><stop offset=".55" stop-color="#ad6440"/><stop offset="1" stop-color="#7a3c25"/></radialGradient>

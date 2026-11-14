@@ -2,11 +2,12 @@
 // and reopening keeps work in progress.
 import { INSTRUMENTS, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
 import type { Mission } from '../core/mission'
-import { fastRelay, powerBlock, researchFilter, signalLeg, unassigned, type Power } from '../core/power'
+import { fastRelay, powerBlock, researchFilter, unassigned, type Power } from '../core/power'
 import * as T from '../core/tasks'
 import type { TaskId } from '../core/tasks'
 import { sound } from '../audio'
 import { $, $$, el, esc } from './dom'
+import { opsTabs } from './ops'
 
 export interface PanelCtx {
   m: Mission
@@ -19,7 +20,7 @@ export interface PanelCtx {
   close: () => void
 }
 
-type Tab = { id: string; label: string; task?: TaskId; render: (body: HTMLElement, rerender: () => void) => void }
+export type Tab = { id: string; label: string; task?: TaskId; render: (body: HTMLElement, rerender: () => void) => void }
 
 let current: { root: HTMLElement; id: string } | null = null
 export const panelOpen = () => !!current
@@ -49,11 +50,12 @@ export function openPanel(id: string, ctx: PanelCtx, tabId?: string) {
   const m = ctx.m
   const tabs = tabsFor(id, ctx)
   const meta: Record<string, [string, string]> = {
-    power: ['Power Grid', 'Rear left · Station power'],
-    calibration: ['Calibration', 'Rear center · Instrument bench'],
-    comms: ['Rover Comms', 'Rear right · Mars relay'],
-    hab: ['Hab Systems', 'Lower left · Life support & medical'],
-    payload: ['Payload', 'Center · Rover instrument bay'],
+    ops: ['Mission Ops', 'Node B · Under the cupola'],
+    power: ['Power Grid', 'Node A · Rear left · Station power'],
+    calibration: ['Calibration', 'Node C · Front right · Instrument bench'],
+    comms: ['Rover Comms', 'Node C · Rear right · Mars relay'],
+    hab: ['Hab Systems', 'Node A · Front left · Life support & medical'],
+    payload: ['Payload', 'Node B · Rover bay'],
   }
   const [title, loc] = meta[id]
   closePanel()
@@ -85,6 +87,7 @@ export function openPanel(id: string, ctx: PanelCtx, tabId?: string) {
 function tabsFor(id: string, ctx: PanelCtx): Tab[] {
   const m = ctx.m
   switch (id) {
+    case 'ops': return opsTabs(ctx)
     case 'power': return [{ id: 'alloc', label: 'Allocation', render: (b, r) => powerTab(b, r, ctx) }, { id: 'battery', label: 'Battery balancing', task: 'battery', render: (b, r) => batteryTab(b, r, ctx) }]
     case 'calibration': return [{ id: 'cal', label: 'Two-point calibration', task: 'calibration', render: (b, r) => calibrationTab(b, r, ctx) }]
     case 'comms': {
@@ -163,7 +166,8 @@ function powerTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
   const p = m.power
   const free = unassigned(p)
   const rows: [keyof Power, string, number][] = [['life', 'Life support', 3], ['comms', 'Communications', 4], ['research', 'Research', 3]]
-  const leg = signalLeg(m.ship.relayMin, p)
+  const d = m.ops
+  const hand = m.ship.handoffMin
   const block = powerBlock(p)
   body.innerHTML = `<p class="lead">Route ${POWER_TOTAL} units. Faster transmission (communications) competes with cheaper rover drilling (research). ${ctx.coopOn() ? `<b style="color:#5fd8f0">Shared with your crewmate · revision ${ctx.powerRevision()}</b>` : ''}</p>
     <div class="power-rows">${rows.map(([k, label, need]) => `<div class="prow">
@@ -175,7 +179,7 @@ function powerTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
     <div class="effects">
       <div class="${p.life >= 3 ? 'on' : 'bad'}">${p.life >= 3 ? '✓' : '✗'} Life support ≥ 3 (required to transmit)</div>
       <div class="${p.comms >= 4 ? 'on' : 'bad'}">${p.comms >= 4 ? '✓' : '✗'} Communications ≥ 4 (required to transmit)</div>
-      <div class="${fastRelay(p) ? 'on' : 'off'}">${fastRelay(p) ? '✓' : '○'} Communications ≥ 5: each signal leg −2 min → <b>${leg} min</b> one-way (baseline ${m.ship.relayMin})</div>
+      <div class="${fastRelay(p) ? 'on' : 'off'}">${fastRelay(p) ? '✓' : '○'} Communications ≥ 5: direct link skips the ${hand} min relay hand-off → <b>${m.signalMin} min</b> one-way on ${d.label}. The light time cannot be shortened.</div>
       <div class="${researchFilter(p) ? 'on' : 'off'}">${researchFilter(p) ? '✓' : '○'} Research ≥ 3: rover drilling uses 30 % less battery</div>
     </div>
     <div class="feedback ${block ? 'warn' : 'ok'}">${block ? esc(block) : 'Power ready for transmission.'}</div>`
@@ -287,7 +291,7 @@ function roverTab(body: HTMLElement, ctx: PanelCtx) {
   const status = m.base ? 'Base decided. Open the planner for the report.' : m.rover ? `${m.rover.name}: ${m.spots.length} spot${m.spots.length === 1 ? '' : 's'} visited, ${m.photos.length} photo spot${m.photos.length === 1 ? '' : 's'} found, day ${m.sol} of the mission.` : 'First you choose your rover: Perseverance (Jezero Crater) or Curiosity (Gale Crater). You keep it for the whole mission.'
   body.innerHTML = `<p class="lead">Choose a real NASA rover, drive it across a real picture of its surroundings, test the ground, and pick where the crew's base goes. Every command travels at light speed through an orbiter relay.</p>
     <div class="ledger"><span>Instrument</span><b>${m.instrumentInfo ? esc(m.instrumentInfo.code) : '—'}</b><span>Calibration</span><b>${m.calibrated ? 'Locked: samples analysed' : 'Uncalibrated: samples flagged'}</b>
-    <span>Power</span><b>${m.power.life}/${m.power.comms}/${m.power.research}</b><span>Signal leg</span><b>${signalLeg(m.ship.relayMin, m.power)} min one-way</b></div>
+    <span>Power</span><b>${m.power.life}/${m.power.comms}/${m.power.research}</b><span>Signal leg</span><b>${m.signalMin} min one-way</b></div>
     <div class="feedback ${block ? 'bad' : pb && !m.base ? 'warn' : 'ok'}">${esc(block ?? (pb && !m.base ? `${pb} You can open the planner, but starting a deployment stays blocked.` : status))}</div>
     <div class="actions"><button class="btn primary" id="go" ${block ? 'disabled' : ''}>Open rover planner</button></div>`
   $('#go', body).addEventListener('click', () => ctx.openRover())

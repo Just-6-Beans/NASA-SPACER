@@ -1,0 +1,107 @@
+/* Title screen. A WebGL Mars scene (src/ui/titleScene.ts) sits behind a menu that is tilted in real
+   CSS 3D and follows the pointer through --tx / --ty (-1..1), which the scene loop writes.
+
+   Rule for the 3D rig: an element whose children use translateZ must not have clip-path, overflow,
+   filter or opacity, because each of those flattens its subtree. Cut corners and glass fills live on
+   ::before layers instead. Classes here are prefixed (t3d-, t-, lz, lf) so they cannot collide with
+   the panel styles. The narrow breakpoint below is mirrored by NARROW in titleScene.ts. */
+.title { overflow: hidden; background: radial-gradient(120% 100% at 72% 46%, #0b1c36 0%, #050c1a 42%, #010409 100%); --tx: 0; --ty: 0; --pcx: 72vw; --pcy: 50vh; --pr: 40vh; }
+
+/* Static planet shown until the WebGL canvas has its first frame, and kept if WebGL2 is missing. */
+.t3d-planet { position: absolute; left: calc(var(--pcx) - var(--pr)); top: calc(var(--pcy) - var(--pr)); width: calc(var(--pr) * 2); height: calc(var(--pr) * 2); border-radius: 50%; background: radial-gradient(circle at 28% 30%, #f0b185 0%, #d0703d 26%, #96411d 50%, #3a160a 72%, #0a0403 92%); box-shadow: 0 0 calc(var(--pr) * .12) rgba(255,150,90,.22); }
+.t3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 1.4s ease; }
+.t3d-canvas.on { opacity: 1; }
+.t3d-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(1,5,12,.74) 0%, rgba(1,5,12,.4) 36%, rgba(1,5,12,0) 62%), repeating-linear-gradient(rgba(63,208,255,.028) 0 1px, transparent 1px 3px); }
+
+.t3d-stage { position: absolute; inset: 0; display: grid; align-items: center; padding: 0 clamp(20px, 7vw, 120px) 28px; perspective: 1200px; perspective-origin: 28% 50%; animation: t3d-fade .9s ease backwards; }
+.t3d-rig { width: min(620px, 100%); transform-style: preserve-3d; transform-origin: 0 50%; transform: rotateX(calc(3deg - var(--ty) * 5deg)) rotateY(calc(11deg + var(--tx) * 7deg)); animation: t3d-rig-in 1.3s cubic-bezier(.2,.8,.2,1) backwards; }
+
+/* Logo: a bright face (.lf) over a stack of darker copies (.lz) pushed back in Z, so tilting shows real side walls. */
+.logo3d { position: relative; width: max-content; max-width: none; margin: 0; font-family: var(--display); font-weight: 700; font-style: italic; font-size: clamp(56px, 9.4vw, 148px); letter-spacing: .2em; line-height: .92; white-space: nowrap; transform-style: preserve-3d; user-select: none; }
+.logo3d span { display: block; }
+.logo3d i { font-size: .5em; letter-spacing: -.1em; vertical-align: middle; }
+.logo3d .lz { position: absolute; inset: 0; transform: translateZ(calc(var(--i) * -3px)); color: hsl(199 78% calc(40% - var(--i) * 2.5%)); }
+.logo3d .lz i { color: hsl(18 82% calc(42% - var(--i) * 2.2%)); }
+.logo3d .lz.last { text-shadow: 0 0 34px rgba(63,208,255,.6), 0 0 90px rgba(63,208,255,.28); }
+.logo3d .lf { position: relative; color: #eefbff; background: linear-gradient(180deg, #fff 8%, #d6f3ff 48%, #86d9ff 96%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.logo3d .lf i { -webkit-text-fill-color: var(--orange); }
+.title .tag { margin: 18px 0 28px; font-family: var(--mono); color: var(--cyan); letter-spacing: .2em; font-size: clamp(11px, 1.25vw, 14px); text-transform: uppercase; text-shadow: 0 0 10px rgba(63,208,255,.5); transform: translateZ(10px); }
+
+/* Mode cards on the front, co-op lobby on the back. The pair flips about its horizontal axis. */
+.t-flip { position: relative; display: grid; transform-style: preserve-3d; transition: transform .75s cubic-bezier(.3,.75,.25,1); }
+.t-flip.t-flipped { transform: rotateX(180deg); }
+.t-face { grid-area: 1 / 1; align-self: start; transform-style: preserve-3d; transition: visibility 0s .37s; }
+.t-face, .t-face *, .t-face *::before, .t-face *::after { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.t-face.t-back { transform: rotateX(180deg); visibility: hidden; }
+.t-flipped .t-face.t-front { visibility: hidden; }
+.t-flipped .t-face.t-back { visibility: visible; }
+
+.t-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; transform-style: preserve-3d; }
+.t-mode { position: relative; display: block; padding: 16px 18px 14px; border: 0; background: none; color: var(--ivory); text-align: left; font-family: var(--sans); transform-style: preserve-3d; transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+.t-mode::before, .t-lobby::before { content: ""; position: absolute; inset: 0; background: linear-gradient(165deg, rgba(14,50,84,.88), rgba(4,16,30,.92)); border: 1px solid rgba(63,208,255,.5); clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px); transition: border-color .2s, background .2s; }
+.t-mode::after, .t-lobby::after { content: ""; position: absolute; inset: 8px; background: rgba(0,0,0,.6); filter: blur(16px); transform: translateZ(-36px); } /* shadow floating behind the card */
+.t-mode > span { position: relative; display: block; }
+.t-mode:hover, .t-mode:focus-visible { transform: translateZ(28px); }
+.t-mode:hover::before, .t-mode:focus-visible::before { border-color: var(--mint); background: linear-gradient(165deg, rgba(16,66,92,.94), rgba(5,26,36,.95)); }
+.t-mode:active { transform: translateZ(12px); }
+.t-ico { width: 40px; height: 40px; margin-bottom: 8px; color: var(--mint); transform: translateZ(32px); }
+.t-ico svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 0 8px rgba(95,242,197,.65)); }
+.t-k { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--cyan); transform: translateZ(12px); }
+.t-t { font-family: var(--display); font-weight: 700; font-size: clamp(26px, 2.6vw, 34px); letter-spacing: .05em; line-height: 1.05; text-transform: uppercase; transform: translateZ(20px); }
+.t-d { margin-top: 6px; font-size: 13.5px; line-height: 1.4; color: #a9c8dc; transform: translateZ(12px); }
+.t-go { margin-top: 12px; font-family: var(--display); font-size: 18px; letter-spacing: .08em; text-transform: uppercase; color: var(--mint); transform: translateZ(24px); }
+
+.t-chip { display: inline-block; margin-left: 6px; padding: 3px 6px; border: 1px solid currentColor; border-radius: 2px; font: 600 10px/1 var(--mono); font-style: normal; letter-spacing: .1em; text-transform: uppercase; vertical-align: 1px; color: var(--ivory-dim); }
+.t-chip:empty { display: none; }
+.t-chip.connected { color: var(--mint); }
+.t-chip.connecting { color: var(--warn); }
+.t-chip.error { color: var(--danger); }
+.t-chip.connected::before, .t-chip.connecting::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: currentColor; animation: t3d-pulse 1.2s ease-in-out infinite; }
+
+.t-lobby { position: relative; padding: 16px 18px; transform-style: preserve-3d; }
+.t-lobby::before { border-color: rgba(95,242,197,.55); }
+.t-lobby > * { position: relative; transform: translateZ(14px); }
+.t-lobby > .t-t { transform: translateZ(20px); }
+.t-lobby-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.t-seats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 10px; }
+.t-seat { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border: 1px dashed rgba(134,170,196,.5); background: rgba(2,10,20,.5); }
+.t-seat i { flex: none; width: 12px; height: 12px; border: 2px solid var(--ivory-dim); border-radius: 50%; }
+.t-seat.on { border: 1px solid var(--mint); background: rgba(95,242,197,.08); }
+.t-seat.on i { border-color: var(--mint); background: var(--mint); box-shadow: 0 0 10px var(--mint); }
+.t-seat b { display: block; font-family: var(--display); font-size: 19px; letter-spacing: .06em; text-transform: uppercase; }
+.t-seat small { font-family: var(--mono); font-size: 11px; color: var(--ivory-dim); }
+.t-link { font-family: var(--mono); font-size: 11.5px; line-height: 1.5; color: var(--ivory-dim); overflow-wrap: anywhere; }
+.t-link b { color: var(--ivory); }
+.t-lobby .feedback { margin-top: 10px; font-size: 13px; }
+.t-lobby .feedback code { font-family: var(--mono); color: var(--ivory); }
+.t-lobby .actions { gap: 10px; }
+
+.title .foot { position: absolute; left: clamp(20px, 7vw, 120px); right: 28px; bottom: 24px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 20px; font-size: 12px; color: var(--ivory-dim); }
+
+@keyframes t3d-fade { from { opacity: 0; } }
+@keyframes t3d-rig-in { from { transform: translate3d(-40px, 0, -260px) rotateX(8deg) rotateY(46deg); } }
+@keyframes t3d-pulse { 50% { opacity: .35; } }
+
+/* Narrow or tall windows: planet at the top, menu at the bottom, facing the viewer. */
+@media (max-width: 859px), (max-aspect-ratio: 115/100) {
+  .t3d-shade { background: linear-gradient(0deg, rgba(1,5,12,.86) 0%, rgba(1,5,12,.45) 52%, rgba(1,5,12,0) 74%), repeating-linear-gradient(rgba(63,208,255,.028) 0 1px, transparent 1px 3px); }
+  .t3d-stage { align-items: end; padding: 0 18px 88px; perspective-origin: 50% 72%; }
+  .t3d-rig { width: 100%; max-width: 560px; margin: 0 auto; transform-origin: 50% 100%; transform: rotateX(calc(7deg - var(--ty) * 4deg)) rotateY(calc(var(--tx) * 5deg)); }
+  .logo3d { font-size: clamp(44px, 14.5vw, 92px); letter-spacing: .14em; }
+  .title .tag { margin: 12px 0 18px; letter-spacing: .12em; }
+  .title .foot { left: 22px; right: 22px; bottom: 22px; font-size: 11px; }
+  @keyframes t3d-rig-in { from { transform: translate3d(0, 30px, -220px) rotateX(38deg); } }
+}
+@media (max-width: 520px) {
+  .t-modes, .t-seats { grid-template-columns: 1fr; gap: 10px; }
+  .t-mode { padding: 12px 14px; }
+  .t-ico { position: absolute !important; right: 14px; top: 12px; width: 30px; height: 30px; }
+  .t-go { margin-top: 8px; }
+}
+/* Reduced motion makes the flip instant (see style.css), so the faces must swap at once too. */
+@media (prefers-reduced-motion: reduce) { .t-face { transition-delay: 0s; } }
+@media (max-height: 600px) {
+  .logo3d { font-size: clamp(40px, 17vh, 104px); }
+  .title .tag { margin: 10px 0 14px; }
+  .t-d { display: none; }
+}

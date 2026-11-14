@@ -1,3 +1,4 @@
+import { OPS_DATES, opsDate as findOpsDate } from '../data/opsDates'
 // Mission state and rules. Plain TypeScript: runs in Node tests, the browser, and shares
 // validation with the co-op server.
 import { CARGO_REWARD, INSTRUMENTS, SHIPS, byId, type InstrumentId, type ShipId, type SuitId } from './data'
@@ -40,6 +41,14 @@ export const TASK_INFO: Record<TaskId, { name: string; group: 'Routine' | 'Missi
 }
 
 export class Mission {
+  opsDate = OPS_DATES[0].id
+  get ops() { return findOpsDate(this.opsDate) }
+  selectOpsDate(id: string): string | null {
+    if (this.drives.length || this.base) return 'Operations date is locked after the first deployment.'
+    if (!OPS_DATES.some(d => d.id === id)) return 'Unknown operations date.'
+    this.opsDate = id
+    return null
+  }
   profile: Profile
   instrumentDraft: InstrumentId | null = null
   instrument: InstrumentId | null = null
@@ -155,7 +164,7 @@ export class Mission {
     if (this.relayFault) return 'Relay fault: repair the relay before the planner can reach Mars.'
     return null
   }
-  get signalMin() { return signalLeg(this.ship.relayMin, this.power) }
+  get signalMin() { return signalLeg(this.ops.lightMin, this.ship.handoffMin, this.power) }
 
   // ---- The rover -----------------------------------------------------------
   get rover(): RoverSpec | null { return this.region ? ROVERS[region(this.region).rover] : null }

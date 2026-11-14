@@ -5,6 +5,7 @@ export const ICONS = {
   leaf: svg('<path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19l8-8"/>'),
   signal: svg('<circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8"/>'),
   flask: svg('<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/><path d="M7.5 15h9"/>'),
+  pilot: svg('<circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c0-4.2 3.3-7 7.5-7s7.5 2.8 7.5 7"/>'),
   crew: svg('<circle cx="9" cy="8" r="3"/><path d="M3 19c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 13.2c3 .2 5.5 2.4 5.5 5.8"/>'),
   rover: svg('<rect x="4" y="9" width="14" height="5" rx="1"/><circle cx="6" cy="17" r="2"/><circle cx="11" cy="17" r="2"/><circle cx="16" cy="17" r="2"/><path d="M14 9V5h3M2 11h2M1 13.5h2"/>'),
   scan: svg('<circle cx="5" cy="12" r="1.5" fill="currentColor"/><path d="M9 8.5a5 5 0 0 1 0 7M12.5 6a8.5 8.5 0 0 1 0 12M16 3.5a12 12 0 0 1 0 17"/>'),

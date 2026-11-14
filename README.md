@@ -82,7 +82,7 @@ On the rover screen, tap the map to place points for the rover to drive to. Use 
 1. **Start mission** → choose a spacecraft → enter a call sign and pick a suit → **Launch** (or **Skip animation**).
 2. You dock at the station. Walk up to **Payload**, just ahead of you. Pick an instrument and **Activate payload**. The relay faults.
 3. Go to **Rover Comms** (rear right) and rotate the receiver segments to match the reference. **Confirm match**.
-4. At **Power Grid** (rear left), raise Communications to at least 4. At 5, each signal leg is 2 minutes faster. Research at 3 or more makes rover drilling use 30 % less battery.
+4. At **Power Grid** (rear left), raise Communications to at least 4. At 5, the direct link skips the spacecraft relay hand-off; the real light time stays unchanged. Research at 3 or more makes rover drilling use 30 % less battery.
 5. Optional: at **Calibration** (rear centre), tune gain and offset until both standards turn green so drilled samples are analysed. Optional routine tasks: battery balancing (driving draws 30 W less), cargo, water (+5 to the base score), medical.
 6. Back at **Rover Comms**, open the planner. First you **choose your rover**: Perseverance in Jezero Crater or Curiosity in Gale Crater. Each card shows a real selfie, what that rover is good and not so good at, and a button to look at its parts. You keep the rover you choose for the whole mission.
 7. **Tap the map** to place points. The rover drives them in order and the last point ⚑ is the spot it checks. Watch the battery and Mars-days forecast, then **▶ Start deployment**. The rover moves along your path while its camera plays a real drive film. When it drives into the ring around a camera mark, **Take photo** lights up: tap it to save a real NASA photo to your album and add to your score.
@@ -133,11 +133,14 @@ If the service is offline, the Co-op panel says so and offers **Retry**. Solo pl
 
 ## Station rules in brief
 
-| Ship | Payload | Budget | Rover battery | One-way relay |
+Mission Ops contains the mission brief, live status, NASA sources and operations-date selection. The station guide and deck map point to the next terminal. Operations dates use the bundled JPL Horizons light time; the date locks after the first deployment. Historical Gale weather shown beside each date is context; expedition weather tests retain their own source.
+
+
+| Ship | Payload | Budget | Rover battery | Relay hand-off |
 | --- | ---: | ---: | ---: | ---: |
-| Odyssey | 18 kg | 100 cr | 100% | 8 min |
-| Atlas | 25 kg | 113 cr | 92% | 8 min |
-| Vector | 12 kg | 88 cr | 100% | 7 min |
+| Odyssey | 18 kg | 100 cr | 100% | 3 min |
+| Atlas | 25 kg | 113 cr | 92% | 3 min |
+| Vector | 12 kg | 88 cr | 100% | 2 min |
 
 - **Instruments:** IR-S1 costs 42 cr and weighs 7 kg; the rover's drill draws 160 W with it. GPR-2 costs 68 cr and weighs 13 kg; drilling draws 200 W.
 

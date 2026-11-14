@@ -15,8 +15,12 @@ This file is a checklist. Complete the TODO items before sharing or submitting S
 
 ## Data and NASA material
 
-- Terrain, ice readings, timing, costs, and mission numbers in the game are simulated, and the game says so on screen.
-- No NASA dataset is included in this repository yet. The original repo ([Space-Mission-Design-Game](https://github.com/Just-6-Beans/Space-Mission-Design-Game)) holds snapshots of Curiosity REMS weather (NASA/JPL-Caltech and Centro de Astrobiología) and Earth–Mars geometry from JPL Horizons, each recording its source and retrieval date. Update this section when they are wired in here.
+Two NASA datasets drive the rover pass. Snapshots are committed in `data/nasa/`, each recording its source URL, provider and retrieval date (14 November 2026). The game reads the snapshots and never calls an API.
+
+- **Earth to Mars light time: JPL Horizons** (NASA/JPL Solar System Dynamics), https://ssd.jpl.nasa.gov/api/horizons.api. Mars observed from Earth's centre, daily, 2026 to 2030. The game uses the one-way light time on the player's operations date as the signal delay. Horizons gives geometry only; the game makes no launch-window claim from it.
+- **Night temperature: Curiosity REMS weather feed** (NASA/JPL-Caltech and Centro de Astrobiología, CSIC-INTA), https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json. This is an outreach product, not calibrated science data, and it covers one place, Gale Crater. The game uses the minimum air temperature of one sol per operations date and shows the sol number and date beside it.
+- **What is our model, not NASA data:** using a past sol from the same Mars season (two Mars years earlier) as a stand-in for a 2029 operations date; the heater draw (1 battery point per °C below −65 °C); the relay hand-off; drive and scan times; battery points; the dust front; the ice reading; all costs. The game labels these on screen.
+- Terrain, the survey sector, the landing sites and the station are invented.
 - No NASA logos or branding are used. Do not add any.
 
 ## Third-party software
