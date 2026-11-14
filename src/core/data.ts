@@ -60,12 +60,12 @@ export const INSTRUMENTS: Instrument[] = [
   {
     id: 'ir', name: 'IR Spectrometer', code: 'IR-S1', cost: 42, massKg: 7, quickDraw: 6, baseUncertainty: 19,
     calibration: { raw: [20, 60], target: [27, 77] },
-    note: 'Light and frugal. Reads surface hydration bands.',
+    note: 'Light and frugal. Analyses drilled rock for hydrated minerals. Drilling uses 300 Wh of rover battery.',
   },
   {
     id: 'gpr', name: 'Ground Radar', code: 'GPR-2', cost: 68, massKg: 13, quickDraw: 18, baseUncertainty: 11,
     calibration: { raw: [16, 56], target: [22, 82] },
-    note: 'Sees buried ice directly, but heavy and power hungry.',
+    note: 'Heavy and power hungry. Sounds the drill hole for buried layers. Drilling uses 380 Wh of rover battery.',
   },
 ]
 

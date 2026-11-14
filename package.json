@@ -16,6 +16,7 @@
     "art": "node scripts/gen-art.mjs",
     "data": "node scripts/fetch-nasa-data.mjs && node scripts/build-ops-dates.mjs",
     "data:ops": "node scripts/build-ops-dates.mjs",
+    "data:rovers": "node scripts/fetch-rover-data.mjs",
     "check": "tsc --noEmit && npm test",
     "lane-check": "node scripts/lane-check.mjs",
     "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath .githooks',{stdio:'ignore'})}catch{}\""

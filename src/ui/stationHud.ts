@@ -4,14 +4,14 @@ import '../station.css'
 import { SUITS, byId } from '../core/data'
 import type { Mission } from '../core/mission'
 import { fastRelay, powerBlock, type Power } from '../core/power'
-import { fmt } from '../core/rover'
-import { opsDate } from '../data/opsDates'
+import { MISSION_SOLS, spendPct } from '../core/survey'
 import { DECK, MODULES, SOLIDS, TERMINALS, moduleAt, terminal, type TerminalId } from '../game/deck'
 import type { StationView } from '../game/stationFx'
 import { el } from './dom'
-import { linkMinutes } from './forecast'
 
-/** Units each bus needs before the plan can be transmitted. Mirrors powerBlock() in core/power. */
+const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
+
+/** Units each bus needs before the rover can be sent out. Mirrors powerBlock() in core/power. */
 export const NEED: Power = { life: 3, comms: 4, research: 0 }
 
 export interface Objective { text: string; target: TerminalId | null; urgent: boolean }
@@ -23,22 +23,24 @@ export function objectiveFor(m: Mission, briefed: boolean): Objective {
   if (!briefed && !m.instrumentDraft && !m.payloadActive) return at('ops', 'Read the mission brief at the Mission Ops table (centre, under the cupola).')
   if (!m.payloadActive) return at('payload', m.instrumentDraft ? 'Activate the payload at the Payload terminal in the rover bay.' : 'Choose a rover instrument at the Payload terminal in the rover bay (centre).')
   if (m.relayFault) return at('comms', 'EMERGENCY: repair the relay at Rover Comms (node C, rear right).', true)
-  if (!m.pass) {
-    const pb = powerBlock(m.power)
-    if (pb) return at('power', `Route power at the Power Grid (node A, rear left): ${pb}`)
-    if (!m.calibrated) return at('comms', 'Optional: calibrate at the Calibration bench (node C, front right). Then plan and transmit at Rover Comms.')
-    return at('comms', 'Pick an operations date, a route and a scan at Rover Comms, then transmit.')
-  }
-  if (!m.passDone) return at('comms', `Rover pass under way (T+${fmt(m.clock)}). Follow telemetry at Rover Comms.`)
-  if (!m.landing) return at('comms', 'Final telemetry received. Choose a landing site at Rover Comms.')
-  return { text: 'Mission decided. Review the report.', target: null, urgent: false }
+  if (m.base) return { text: 'Mission decided. Review the report.', target: null, urgent: false }
+  const pb = powerBlock(m.power)
+  const rv = m.rover
+  if (!rv) return pb ? at('power', `Route power at the Power Grid (node A, rear left): ${pb}`) : at('comms', 'Open Rover Comms (node C, rear right) and choose your rover.')
+  if (pb) return at('power', `Route power at the Power Grid (node A, rear left): ${pb}`)
+  if (m.charging) return at('comms', `${rv.name} is recharging (${spendPct(rv, m.batteryWh)}%). Do station tasks meanwhile, or watch the timer at Rover Comms.`)
+  if (m.timeUp) return at('comms', `The ${MISSION_SOLS} Mars days are over. Choose the base at Rover Comms.`)
+  if (m.stranded || !m.canDrive) return at('comms', `${rv.name} is low on battery. Recharge it or choose the base at Rover Comms.`)
+  if (!m.calibrated && !m.drives.length) return at('comms', 'Optional: calibrate at the Calibration bench (node C, front right). Then drive your rover at Rover Comms.')
+  return at('comms', `Plan ${rv.name}'s drive on the map at Rover Comms (day ${m.sol} of ${MISSION_SOLS}).`)
 }
 
 /** Mission state in the shape the live deck layer draws. */
 export function stationView(m: Mission, o: Objective, guide: boolean): StationView {
   // The Rover Comms screen splits the delay into its real part and our model's part.
-  const d = m.plan ? opsDate(m.plan.date) : m.ops
-  const direct = fastRelay(m.plan?.power ?? m.power)
+  const d = m.ops
+  const direct = fastRelay(m.power)
+  const rv = m.rover
   return {
     ship: m.ship.id,
     power: { ...m.power },
@@ -47,11 +49,13 @@ export function stationView(m: Mission, o: Objective, guide: boolean): StationVi
     instrument: m.instrument,
     instrumentDraft: m.instrumentDraft,
     calibrated: m.calibrated,
-    battery: m.ship.battery,
-    linkMin: linkMinutes(m),
-    linkNote: d ? `${fmt(d.lightMin)} JPL HORIZONS ${direct ? '· DIRECT' : `+ ${m.ship.handoffMin} RELAY`}` : 'NO OPERATIONS DATE YET',
-    passClock: m.pass ? m.clock : null,
-    passDone: m.passDone,
+    // The rover bay screen: the rover's battery gauge once a rover is chosen, the cradle charge before.
+    battery: rv ? spendPct(rv, m.batteryWh) : m.ship.battery,
+    linkMin: m.signalMin,
+    linkNote: `${fmt(d.lightMin)} JPL HORIZONS ${direct ? '· DIRECT' : `+ ${m.ship.handoffMin} RELAY`}`,
+    // The rover expedition has no timed pass, so the deck never shows one in progress.
+    passClock: null,
+    passDone: false,
     water: m.completed.has('water'),
     medical: m.completed.has('medical'),
     target: o.target,

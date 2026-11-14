@@ -1,0 +1,33 @@
+{
+ "rover": "Curiosity",
+ "source": "https://mars.nasa.gov/mmgis-maps/MSL/Layers/MSL_Gale_HiRISE-LRGB_78quads/{z}/{x}/{y}.png",
+ "layer": "MSL_Gale_HiRISE-LRGB_78quads",
+ "provider": "NASA/JPL-Caltech: colour basemap of NASA's Curiosity location map (Mars Reconnaissance Orbiter HiRISE images, University of Arizona)",
+ "credit": "NASA/JPL-Caltech/University of Arizona",
+ "page": "https://science.nasa.gov/mission/msl-curiosity/location-map/",
+ "retrieved": "2026-11-14",
+ "note": "Real pictures of the ground taken from orbit, saved as the unchanged 256-pixel map tiles NASA serves. Tile \"col_row\" counts from the top-left tile of the block. The game square is the part of the block given in \"square\".",
+ "centre": {
+  "lat": -4.82602331,
+  "lon": 137.388886,
+  "sol": 5073
+ },
+ "sizeM": 3000,
+ "zoom": 16,
+ "tilePx": 256,
+ "cols": 10,
+ "rows": 11,
+ "firstTile": {
+  "x": 57774,
+  "y": 31893
+ },
+ "files": "nasa/map/curiosity/{col}_{row}.png",
+ "missing": [],
+ "square": {
+  "left": 66.62,
+  "top": 247.89,
+  "width": 2367.07,
+  "height": 2367.07
+ },
+ "metresPerPixel": 1.27
+}

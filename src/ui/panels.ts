@@ -1,8 +1,9 @@
 // Terminal task panels. Every panel re-renders from mission state + its saved draft, so closing
 // and reopening keeps work in progress.
-import { FILTER_CUT, INSTRUMENTS, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
+import { INSTRUMENTS, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
 import type { Mission } from '../core/mission'
 import { fastRelay, powerBlock, researchFilter, signalLeg, unassigned, type Power } from '../core/power'
+import { spendPct } from '../core/survey'
 import * as T from '../core/tasks'
 import type { TaskId } from '../core/tasks'
 import { sound } from '../audio'
@@ -91,7 +92,7 @@ function tabsFor(id: string, ctx: PanelCtx): Tab[] {
     case 'power': return [{ id: 'alloc', label: 'Allocation', render: (b, r) => powerTab(b, r, ctx) }, { id: 'battery', label: 'Battery balancing', task: 'battery', render: (b, r) => batteryTab(b, r, ctx) }]
     case 'calibration': return [{ id: 'cal', label: 'Two-point calibration', task: 'calibration', render: (b, r) => calibrationTab(b, r, ctx) }]
     case 'comms': {
-      const rover: Tab = { id: 'rover', label: 'Rover planner', render: b => roverTab(b, ctx) }
+      const rover: Tab = { id: 'rover', label: 'Rover', render: b => roverTab(b, ctx) }
       const relay: Tab = { id: 'relay', label: m.relayFault ? '⚠ Relay repair' : 'Relay', task: 'relay', render: (b, r) => relayTab(b, r, ctx) }
       if (m.relayFault) return [relay, rover]
       return m.completed.has('relay') ? [rover, relay] : [rover]
@@ -113,7 +114,7 @@ function payloadTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
       const block = m.instrumentBlock(i.id)
       return `<button class="card" data-id="${i.id}" aria-pressed="${sel === i.id}" ${block || m.payloadActive ? 'disabled' : ''}>
         <h4>${i.name}</h4><div class="mono" style="color:#ff8f45">${i.code}</div><div style="margin-top:4px">${i.note}</div>
-        <div class="stats">Cost ${i.cost} cr · Mass ${i.massKg} kg<br/>Quick-scan draw ${i.quickDraw} battery pts<br/>Base uncertainty ±${i.baseUncertainty} pts</div>
+        <div class="stats">Cost ${i.cost} cr · Mass ${i.massKg} kg<br/>Rover drilling uses ${i.id === 'gpr' ? 380 : 300} Wh (game model)</div>
         ${block ? `<div class="why">Blocked: ${esc(block)}</div>` : ''}</button>`
     }).join('')}</div>
     <div class="ledger">
@@ -169,7 +170,7 @@ function powerTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
   const d = m.ops
   const hand = m.ship.handoffMin
   const block = powerBlock(p)
-  body.innerHTML = `<p class="lead">Route ${POWER_TOTAL} units. Faster transmission (communications) competes with cleaner evidence (research). ${ctx.coopOn() ? `<b style="color:#5fd8f0">Shared with your crewmate · revision ${ctx.powerRevision()}</b>` : ''}</p>
+  body.innerHTML = `<p class="lead">Route ${POWER_TOTAL} units. A shorter signal delay (communications) competes with cheaper rover drilling (research). ${ctx.coopOn() ? `<b style="color:#5fd8f0">Shared with your crewmate · revision ${ctx.powerRevision()}</b>` : ''}</p>
     <div class="power-rows">${rows.map(([k, label, need]) => `<div class="prow">
       <span class="lbl">${label}</span><button class="btn small" data-k="${k}" data-d="-1" aria-label="Decrease ${label}" ${p[k] <= 0 ? 'disabled' : ''}>−</button>
       <div class="cells">${Array.from({ length: POWER_TOTAL }, (_, i) => `<i class="${i < p[k] ? 'on' : ''} ${i === need - 1 ? 'need' : ''}"></i>`).join('')}</div>
@@ -177,12 +178,12 @@ function powerTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
     </div>
     <div class="ledger"><span>Unassigned</span><b>${free} unit${free === 1 ? '' : 's'}</b><span>Total</span><b>${POWER_TOTAL - free} / ${POWER_TOTAL}</b></div>
     <div class="effects">
-      <div class="${p.life >= 3 ? 'on' : 'bad'}">${p.life >= 3 ? '✓' : '✗'} Life support ≥ 3 (required to transmit)</div>
-      <div class="${p.comms >= 4 ? 'on' : 'bad'}">${p.comms >= 4 ? '✓' : '✗'} Communications ≥ 4 (required to transmit)</div>
-      <div class="${fastRelay(p) ? 'on' : 'off'}">${fastRelay(p) ? '✓' : '○'} Communications ≥ 5: direct link, skips the ${hand} min relay hand-off on each signal leg${d ? ` → <b>${signalLeg(d.lightMin, hand, p)} min</b> one-way on ${d.label}` : ''}. The light time itself cannot be shortened.</div>
-      <div class="${researchFilter(p) ? 'on' : 'off'}">${researchFilter(p) ? '✓' : '○'} Research ≥ 3: scan uncertainty −${FILTER_CUT} points</div>
+      <div class="${p.life >= 3 ? 'on' : 'bad'}">${p.life >= 3 ? '✓' : '✗'} Life support ≥ 3 (required to send the rover out)</div>
+      <div class="${p.comms >= 4 ? 'on' : 'bad'}">${p.comms >= 4 ? '✓' : '✗'} Communications ≥ 4 (required to send the rover out)</div>
+      <div class="${fastRelay(p) ? 'on' : 'off'}">${fastRelay(p) ? '✓' : '○'} Communications ≥ 5: direct link, skips the ${hand} min relay hand-off → <b>${signalLeg(d.lightMin, hand, p)} min</b> signal delay one-way on ${d.label}. The light time itself cannot be shortened.</div>
+      <div class="${researchFilter(p) ? 'on' : 'off'}">${researchFilter(p) ? '✓' : '○'} Research ≥ 3: rover drilling uses 30 % less battery</div>
     </div>
-    <div class="feedback ${block ? 'warn' : 'ok'}">${block ? esc(block) : 'Power ready for transmission.'}</div>`
+    <div class="feedback ${block ? 'warn' : 'ok'}">${block ? esc(block) : 'Power ready: the rover can be sent out.'}</div>`
   $$('button[data-k]', body).forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.k as keyof Power
     const next = { ...m.power, [k]: m.power[k] + Number(b.dataset.d) }
@@ -197,10 +198,10 @@ function batteryTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
   const d = (m.drafts.battery ??= { cells: [...T.BATTERY_START], sel: -1 }) as { cells: number[]; sel: number }
   const done = m.completed.has('battery')
   const even = T.batteryBalanced(d.cells)
-  body.innerHTML = `<p class="lead">Rover pack cells are uneven, which wastes charge. Select a <b>source</b> cell, then a <b>destination</b>, to move one unit. Total charge stays ${T.batteryTotal(T.BATTERY_START)}.</p>
+  body.innerHTML = `<p class="lead">The rover battery model's cells are uneven, which wastes charge. Select a <b>source</b> cell, then a <b>destination</b>, to move one unit. Total charge stays ${T.batteryTotal(T.BATTERY_START)}.</p>
     <div class="cells4" style="margin-top:28px">${d.cells.map((c, i) => `<button class="cell ${d.sel === i ? 'sel' : ''} ${even ? 'even' : ''}" data-i="${i}" ${done ? 'disabled' : ''} aria-label="Cell ${i + 1}: ${c} units"><span>C${i + 1} · ${c}</span>${'<i></i>'.repeat(c)}</button>`).join('')}</div>
-    <div class="ledger"><span>Total charge</span><b>${T.batteryTotal(d.cells)} units</b><span>Reward</span><b>−3 battery pts per driving leg</b></div>
-    <div class="feedback ${done ? 'ok' : ''}">${done ? 'Pack balanced: each driving leg now draws 3 fewer battery points. The rover forecast has updated.' : d.sel >= 0 ? `Source C${d.sel + 1} selected. Pick a destination.` : 'Pick a source cell.'}</div>
+    <div class="ledger"><span>Total charge</span><b>${T.batteryTotal(d.cells)} units</b><span>Reward</span><b>Driving draws 30 W less</b></div>
+    <div class="feedback ${done ? 'ok' : ''}">${done ? 'Pack balanced: rover driving now draws 30 W less. The drive forecast has updated.' : d.sel >= 0 ? `Source C${d.sel + 1} selected. Pick a destination.` : 'Pick a source cell.'}</div>
     <div class="actions">${done ? '<span class="donebadge">COMPLETE</span>' : '<button class="btn primary" id="ok">Validate balance</button><button class="btn" id="rs">Reset</button>'}</div>`
   $$('.cell', body).forEach(c => c.addEventListener('click', () => {
     const i = Number(c.dataset.i)
@@ -213,7 +214,7 @@ function batteryTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
   $('#rs', body)?.addEventListener('click', () => { d.cells = [...T.BATTERY_START]; d.sel = -1; rerender() })
   $('#ok', body)?.addEventListener('click', () => {
     if (!T.batteryBalanced(d.cells)) { sound.play('fail'); fb(body, `Not balanced yet: [${d.cells.join(', ')}]. Every cell should hold the same charge.`, 'bad'); return }
-    ctx.done('battery', 'cells balanced to [3, 3, 3, 3], −3 battery pts per driving leg')
+    ctx.done('battery', 'cells balanced to [3, 3, 3, 3], driving draws 30 W less')
     rerender()
   })
 }
@@ -229,7 +230,7 @@ function calibrationTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) 
   const { raw, target } = inst.calibration
   const r = T.calibrationCheck(raw, target, d.gain, d.offset)
   const scale = (v: number) => Math.max(0, Math.min(100, v))
-  body.innerHTML = `<p class="lead">Two reference standards check the <b>${inst.name} (${inst.code})</b>. Tune gain and offset until both adjusted readings land within ±1 of their references. You may skip this, but uncalibrated scans carry <b>+9</b> uncertainty instead of −5.</p>
+  body.innerHTML = `<p class="lead">Two reference standards check the <b>${inst.name} (${inst.code})</b>. Tune gain and offset until both adjusted readings land within ±1 of their references. You may skip this, but samples the rover drills are then <b>flagged</b> as unanalysed in the report.</p>
     <div class="formula">adjusted = raw × gain / 100 + offset</div>
     <div class="cal-grid">${[0, 1].map(i => `<div class="std ${r.within[i] ? 'ok' : ''}">
       <div>Standard ${i === 0 ? 'A (low)' : 'B (high)'}</div>
@@ -240,7 +241,7 @@ function calibrationTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) 
     <div class="row" style="justify-content:flex-end;gap:6px"><button class="btn small" data-f="gain" data-d="-1" ${done ? 'disabled' : ''}>Gain −1</button><button class="btn small" data-f="gain" data-d="1" ${done ? 'disabled' : ''}>Gain +1</button></div>
     <div class="slider"><label for="off">Offset</label><input type="range" id="off" min="${T.OFFSET_RANGE[0]}" max="${T.OFFSET_RANGE[1]}" step="1" value="${d.offset}" ${done ? 'disabled' : ''}/><span><b>${d.offset > 0 ? '+' : ''}${d.offset}</b></span></div>
     <div class="row" style="justify-content:flex-end;gap:6px"><button class="btn small" data-f="offset" data-d="-1" ${done ? 'disabled' : ''}>Offset −1</button><button class="btn small" data-f="offset" data-d="1" ${done ? 'disabled' : ''}>Offset +1</button></div>
-    <div class="feedback ${done ? 'ok' : ''}">${done ? `Calibration locked at gain ${d.gain}, offset ${d.offset >= 0 ? '+' : ''}${d.offset}: −5 uncertainty.` : 'Adjust, then lock calibration.'}</div>
+    <div class="feedback ${done ? 'ok' : ''}">${done ? `Calibration locked at gain ${d.gain}, offset ${d.offset >= 0 ? '+' : ''}${d.offset}: drilled samples will be analysed.` : 'Adjust, then lock calibration.'}</div>
     <div class="actions">${done ? '<span class="donebadge">COMPLETE</span>' : '<button class="btn primary" id="ok">Lock calibration</button><button class="btn" id="rs">Reset to defaults</button>'}</div>`
   const set = (f: 'gain' | 'offset', v: number) => {
     const [lo, hi] = f === 'gain' ? T.GAIN_RANGE : T.OFFSET_RANGE
@@ -255,7 +256,7 @@ function calibrationTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) 
   $('#ok', body)?.addEventListener('click', () => {
     const c = T.calibrationCheck(raw, target, d.gain, d.offset)
     if (!c.ok) { sound.play('fail'); fb(body, c.message, 'bad'); return }
-    ctx.done('calibration', `${inst.code} at gain ${d.gain}, offset ${d.offset >= 0 ? '+' : ''}${d.offset} (−5 uncertainty)`)
+    ctx.done('calibration', `${inst.code} at gain ${d.gain}, offset ${d.offset >= 0 ? '+' : ''}${d.offset} (samples analysed)`)
     rerender()
   })
 }
@@ -271,7 +272,7 @@ function relayTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
       <span class="lab">REFERENCE</span>${T.RELAY_TARGET.map(i => `<div class="seg ref" aria-label="Reference ${T.RELAY_SYMBOLS[i]}">${T.RELAY_SYMBOLS[i]}</div>`).join('')}
       <span class="lab">RECEIVER<br/>(tap to rotate)</span>${idx.map((v, i) => `<button class="seg ${v === T.RELAY_TARGET[i] ? 'match' : ''}" data-i="${i}" ${done ? 'disabled' : ''} aria-label="Receiver segment ${i + 1}: ${T.RELAY_SYMBOLS[v]}">${T.RELAY_SYMBOLS[v]}</button>`).join('')}
     </div>
-    <div class="feedback ${done ? 'ok' : ''}">${done ? 'Carrier lock. The rover planner is reachable.' : 'Rotation order: — ╱ │ ╲'}</div>
+    <div class="feedback ${done ? 'ok' : ''}">${done ? 'Carrier lock. The rover is reachable.' : 'Rotation order: — ╱ │ ╲'}</div>
     <div class="actions">${done ? '<span class="donebadge">COMPLETE</span>' : '<button class="btn primary" id="ok">Confirm match</button><button class="btn" id="rs">Reset</button>'}</div>`
   $$('button.seg', body).forEach(b => b.addEventListener('click', () => { d.idx = T.rotateRelay(d.idx, Number(b.dataset.i)); sound.play('ui'); rerender() }))
   $('#rs', body)?.addEventListener('click', () => { d.idx = [...T.RELAY_START]; rerender() })
@@ -289,17 +290,22 @@ function roverTab(body: HTMLElement, ctx: PanelCtx) {
   const block = m.roverAccess()
   const pb = powerBlock(m.power)
   const d = m.ops
-  body.innerHTML = `<p class="lead">Plan one Drive → Scan → Return pass in three steps: pick an operations date, a route and a scan. Commands travel at light speed, so every order and every reading is delayed by the real Earth to Mars light time for that date.</p>
-    <div class="ledger"><span>Instrument</span><b>${m.instrumentInfo ? esc(m.instrumentInfo.code) : '—'}</b><span>Calibration</span><b>${m.calibrated ? 'Locked (−5)' : 'Uncalibrated (+9)'}</b>
-    <span>Power</span><b>${m.power.life}/${m.power.comms}/${m.power.research}</b><span>Signal leg</span><b>${d ? `${signalLeg(d.lightMin, m.ship.handoffMin, m.power)} min one-way` : 'Set by the operations date'}</b></div>
-    <div class="feedback ${block ? 'bad' : pb ? 'warn' : 'ok'}">${esc(block ?? (m.pass ? 'Plan transmitted. Follow the pass in the planner.' : pb ? `${pb} You can open the planner, but transmission stays blocked.` : 'Relay nominal. Ready to plan.'))}</div>
-    <div class="actions"><button class="btn primary" id="go" ${block ? 'disabled' : ''}>Open rover planner</button></div>`
+  const rv = m.rover
+  const status = m.base ? 'Base decided. Open the rover screen for the report.'
+    : !rv ? 'First you choose your rover: Perseverance (Jezero Crater) or Curiosity (Gale Crater). You keep it for the whole mission.'
+      : m.charging ? `${rv.name} is recharging: ${spendPct(rv, m.batteryWh)}% now. Open the rover screen to see the timer.`
+        : `${rv.name}: battery ${spendPct(rv, m.batteryWh)}%, ${m.spots.length} spot${m.spots.length === 1 ? '' : 's'} visited, ${m.photos.length} photo spot${m.photos.length === 1 ? '' : 's'} found, day ${m.sol} of the mission.`
+  body.innerHTML = `<p class="lead">Choose a real NASA rover, drive it across a real picture of its surroundings, test the ground, and pick where the crew's base goes. Commands travel at light speed, so every order is delayed by the real Earth to Mars light time.</p>
+    <div class="ledger"><span>Instrument</span><b>${m.instrumentInfo ? esc(m.instrumentInfo.code) : '—'}</b><span>Calibration</span><b>${m.calibrated ? 'Locked: samples analysed' : 'Uncalibrated: samples flagged'}</b>
+    <span>Power</span><b>${m.power.life}/${m.power.comms}/${m.power.research}</b><span>Signal delay</span><b>${signalLeg(d.lightMin, m.ship.handoffMin, m.power)} min one-way on ${d.label}</b></div>
+    <div class="feedback ${block ? 'bad' : pb && !m.base ? 'warn' : 'ok'}">${esc(block ?? (pb && !m.base ? `${pb} You can open the rover screen, but starting a deployment stays blocked.` : status))}</div>
+    <div class="actions"><button class="btn primary" id="go" ${block ? 'disabled' : ''}>Open the rover screen</button></div>`
   $('#go', body).addEventListener('click', () => ctx.openRover())
 }
 
 // ------------------------------------------------------------------ Sequence builders (water, medical, habitat)
 const SEQ = {
-  water: { items: T.WATER_STAGES, pool: ['uv', 'screen', 'carbon'], check: T.waterCheck, start: 'Dirty intake', end: 'Potable output', reward: 'Imported water costs 8 cr less', detail: 'screen → carbon → UV, imported water −8 cr', lead: 'Assemble the purification train from dirty intake to potable output. Read what each stage does.' },
+  water: { items: T.WATER_STAGES, pool: ['uv', 'screen', 'carbon'], check: T.waterCheck, start: 'Dirty intake', end: 'Potable output', reward: '+5 to the base score', detail: 'screen → carbon → UV, +5 to the base score', lead: 'Assemble the purification train from dirty intake to potable output. Read what each stage does.' },
   medical: { items: T.MEDICAL_STEPS, pool: ['recovery', 'baseline', 'exertion'], check: T.medicalCheck, start: 'Crew member', end: 'Clearance', reward: 'Clearance for habitat commissioning', detail: 'baseline → exertion → recovery, crew cleared for habitat', lead: 'Order the cardiovascular check. Each step only means something if the step it depends on came first.' },
   habitat: { items: T.HABITAT_STEPS, pool: ['energize', 'anchor', 'seal'], check: T.habitatCheck, start: 'Landed module', end: 'Habitable', reward: 'Crew quarters on Mars', detail: 'anchor → seal → energize', lead: 'Commission the surface habitat in a safe order.' },
 } as const

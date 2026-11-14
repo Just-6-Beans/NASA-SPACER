@@ -1,0 +1,380 @@
+/* Rover expedition screen. Built to be read at a glance: large type, one idea per block, and
+   space between blocks so nothing runs into its neighbour.
+   Every rule is scoped to the rover screen (.rover) so it cannot restyle the title, the station
+   or the panels; the bars, stars and source list are also allowed in the mission report.
+   Loaded by src/ui/roverView.ts. */
+.rover { --gold: #ffd23f; --soft: #c9dbe8; background: radial-gradient(ellipse at 30% 20%, #241812, #05070d 75%); grid-template-columns: minmax(0, 1fr) clamp(380px, 34vw, 540px); font-size: 16px; }
+
+/* ---------------- left: viewer */
+.rover .viewer { position: relative; overflow-y: auto; padding: 18px 22px 30px; min-width: 0; }
+.rover .vtabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.rover .vtabs .tab { font-size: 18px; padding: 8px 18px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--ivory-dim); }
+.rover .vtabs .tab[aria-selected=true] { background: #0f3550; color: var(--ivory); border-color: var(--cyan); }
+.rover .vhead { margin-bottom: 14px; }
+.rover .vhead b { display: block; font-family: var(--display); font-size: 26px; letter-spacing: .04em; text-transform: uppercase; }
+.rover .vhead p { margin: 4px 0 0; color: var(--soft); font-size: 15.5px; line-height: 1.5; max-width: 70ch; }
+
+/* map + camera */
+.rover .mapgrid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 22px; align-items: start; }
+.rover .mapbox { min-width: 0; }
+.rover .maptop { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 12px; }
+.rover .maphint { flex: 1 1 100%; font-size: 18px; font-weight: 700; padding: 10px 16px; border-radius: 12px; background: rgba(255,179,71,.12); border: 1px solid rgba(255,179,71,.5); color: #ffe2b0; }
+.rover .mapcredit { margin: 8px 0 0; font-size: 12.5px; color: var(--ivory-dim); text-align: center; }
+/* The whole map stays on screen: its side is limited by the height available, and it stays square.
+   Inside it: the picture (which zooms and moves), the game's drawing on top, then labels that stay put. */
+.rover .mapview { position: relative; width: min(100%, calc(100vh - 264px)); min-width: 200px; aspect-ratio: 1; margin: 0 auto; overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: #4a2216; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.rover .mapview.zoomed { cursor: grab; touch-action: none; }
+.rover .mapview.dragging { cursor: grabbing; }
+.rover .maplayer { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+.rover .mapbg { display: block; width: 100%; height: 100%; }
+.rover #mapsvg { position: absolute; inset: 0; }
+.rover .expmap { display: block; width: 100%; height: 100%; }
+.rover .expmap.planning { cursor: crosshair; }
+.rover .expmap text { font-family: var(--mono); }
+.rover .expmap .mspot { cursor: pointer; }
+.rover .expmap .mspot.focus circle { stroke: #fff; stroke-width: 3.5; }
+.rover .mcam .mring { fill: rgba(255,210,63,.08); stroke: var(--gold); opacity: .9; }
+.rover .mcam .mbody { fill: #04101c; stroke: var(--gold); stroke-width: 1.6; }
+.rover .mcam .mlens { fill: var(--gold); }
+.rover .mcam .mtick { fill: none; stroke: var(--mint); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.rover .mcam.got .mbody { stroke: var(--mint); }
+.rover .mcam.hot .mring { fill: rgba(255,210,63,.3); stroke: #fff; animation: ringpulse .9s ease-in-out infinite; }
+@keyframes ringpulse { 50% { opacity: .55; } }
+.rover .mapui { position: absolute; inset: 0; pointer-events: none; font-family: var(--mono); color: #fff; }
+.rover .mu-n { position: absolute; right: 12px; top: 10px; font-size: 12px; text-align: center; text-shadow: 0 1px 3px #000; }
+.rover .mu-n i { display: block; width: 0; height: 0; margin: 0 auto 2px; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 18px solid #fff; filter: drop-shadow(0 1px 2px #000); }
+.rover .mu-scale { position: absolute; left: 0; right: 0; bottom: 12px; }
+.rover .mu-scale i { display: block; margin-left: 12px; height: 5px; background: #fff; outline: 1px solid #04101c; }
+.rover .mu-scale span { display: inline-block; margin: 4px 0 0 12px; font-size: 11.5px; background: rgba(4,16,28,.78); padding: 1px 6px; border-radius: 5px; }
+.rover .mu-note { position: absolute; left: 8px; top: 8px; font-size: 10.5px; background: rgba(4,16,28,.78); padding: 3px 8px; border-radius: 6px; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.rover .mu-note i { display: inline-block; width: 56px; height: 7px; border-radius: 3px; }
+.rover .mapbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; flex: 1 1 100%; }
+.rover .modesw { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.rover .msw { border: 0; background: #081a2c; color: var(--soft); font-size: 15px; padding: 8px 13px; white-space: nowrap; }
+.rover .msw[aria-pressed=true] { background: #0f3550; color: var(--ivory); box-shadow: inset 0 -3px 0 var(--cyan); }
+.rover .zoomctl { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px; font-size: 14.5px; color: var(--soft); }
+.rover .zoomctl span { white-space: nowrap; }
+.rover .zoomctl input[type=range] { flex: 1; min-width: 70px; height: 26px; accent-color: var(--orange); }
+.rover .zb { width: 34px; height: 34px; flex: none; border-radius: 8px; border: 1px solid var(--line); background: #081a2c; color: var(--ivory); font-size: 22px; line-height: 1; padding: 0; }
+.rover .zoomctl b { font-family: var(--display); font-size: 22px; min-width: 40px; text-align: right; color: var(--ivory); }
+.rover .legend .cam-ic { display: inline-block; position: relative; width: 19px; height: 14px; border-radius: 3px; border: 2px solid var(--gold); background: #04101c; margin-right: 7px; vertical-align: -2px; }
+.rover .legend .cam-ic::after { content: ''; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--gold); }
+.rover .readout { font-size: 14.5px; line-height: 1.4; margin-top: 12px; padding: 9px 14px; border-radius: 10px; background: #061321; border: 1px solid var(--line); color: var(--ivory); min-height: 40px; }
+.rover .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 14.5px; color: var(--ivory); margin-top: 14px; }
+.rover .legend .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 7px; vertical-align: -2px; box-shadow: 0 0 0 2px #04101c, 0 0 0 3px rgba(255,255,255,.25); }
+.rover .legend .dot.num { background: var(--cyan); color: #04101c; font-size: 10px; font-weight: 700; font-style: normal; text-align: center; line-height: 14px; }
+.rover .parts-legend { margin: 12px 0 4px; }
+.rover details.about { margin-top: 14px; font-size: 15px; color: var(--soft); }
+.rover details.about summary { cursor: pointer; color: var(--cyan); font-size: 15.5px; }
+.rover details.about p { margin: 8px 0; line-height: 1.55; max-width: 70ch; }
+
+.rover .cam { background: #050b12; border: 1px solid rgba(63,208,255,.4); border-radius: 14px; padding: 16px; min-width: 0; }
+.rover .cam-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.rover .cam-h b { font-family: var(--display); font-size: 21px; letter-spacing: .04em; text-transform: uppercase; }
+.rover .tag { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 4px 11px; border-radius: 999px; background: rgba(95,242,197,.14); color: var(--mint); border: 1px solid rgba(95,242,197,.5); white-space: nowrap; }
+.rover .tag.live { background: rgba(255,90,74,.16); color: #ffb3a8; border-color: rgba(255,90,74,.6); }
+.rover .tag.live i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); margin-right: 6px; animation: recblink 1s steps(2) infinite; }
+.rover .cam-screen { border-radius: 10px; overflow: hidden; background: #000; }
+.rover .media { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; }
+.rover .cam-screen video.media { object-fit: contain; }
+.rover .media.wide { aspect-ratio: 16 / 9; object-fit: contain; border-radius: 10px; }
+.rover .cam-cap { font-size: 15.5px; line-height: 1.45; margin: 12px 0 4px; color: var(--ivory); }
+.rover .cam-credit { font-size: 13px; color: var(--ivory-dim); margin: 0 0 10px; line-height: 1.5; }
+.rover .cam-credit a, .rover .partcard a, .rover .xsrcs a, .report .xsrcs a, .rover .vhead a { color: var(--cyan); }
+.rover .learngrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+/* The "signal from Mars" look over the drive film: grain, scan lines, a slow bright band, and labels. */
+.rover .fxwrap { position: relative; overflow: hidden; }
+.rover .fxwrap .media { transition: transform .08s, filter .08s; }
+.rover .fx-noise { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; pointer-events: none; mix-blend-mode: screen; }
+.rover .fx-lines { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,.3) 0 1px, transparent 1px 3px); }
+.rover .fx-bar { position: absolute; left: 0; right: 0; height: 22%; top: -25%; pointer-events: none; background: linear-gradient(180deg, transparent, rgba(255,255,255,.1), transparent); animation: fxbar 3.6s linear infinite; }
+@keyframes fxbar { to { top: 105%; } }
+.rover .fxwrap.live::after { content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 60px rgba(0,0,0,.7); }
+.rover .cam-screen.burst .media { transform: translateX(7px) skewX(-2deg); filter: saturate(1.7) contrast(1.25) hue-rotate(12deg); }
+.rover .camhud { position: absolute; inset: 0; z-index: 2; pointer-events: none; font-family: var(--mono); font-size: 12px; letter-spacing: .08em; color: #eaffea; text-shadow: 0 0 6px rgba(0,0,0,.9), 0 1px 2px #000; }
+.rover .camhud span { position: absolute; padding: 8px 10px; white-space: nowrap; }
+.rover .ch-tl { left: 0; top: 0; } .rover .ch-tr { right: 0; top: 0; } .rover .ch-bl { left: 0; bottom: 0; } .rover .ch-br { right: 0; bottom: 0; }
+.rover .fx-flash { position: absolute; inset: 0; z-index: 3; background: #fff; opacity: 0; pointer-events: none; }
+.rover .fx-flash.go { animation: camflash .45s ease-out; }
+@keyframes camflash { 0% { opacity: .95; } 100% { opacity: 0; } }
+/* Camera button and the strip of real photos found so far. */
+.rover .shoot { width: 100%; display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 10px 14px; border-radius: 12px; border: 2px solid #3a4655; background: #0a1420; color: #8fa2b3; text-align: left; }
+.rover .shoot-i { font-size: 30px; line-height: 1; filter: grayscale(1); opacity: .6; }
+.rover .shoot-t b { display: block; font-family: var(--display); font-size: 23px; letter-spacing: .04em; text-transform: uppercase; }
+.rover .shoot-t small { display: block; font-size: 14px; line-height: 1.3; }
+.rover .shoot:disabled { cursor: default; }
+.rover .shoot.ready { border-color: var(--gold); background: #2a2206; color: var(--ivory); cursor: pointer; animation: shootpulse 1s ease-in-out infinite; }
+.rover .shoot.ready .shoot-i { filter: none; opacity: 1; }
+.rover .shoot.ready small { color: var(--gold); font-weight: 700; }
+@keyframes shootpulse { 50% { box-shadow: 0 0 0 6px rgba(255,210,63,.3); } }
+.rover .album-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 14px 0 8px; }
+.rover .album-h b { font-family: var(--display); font-size: 19px; letter-spacing: .04em; text-transform: uppercase; }
+.rover .album-h span { font-size: 13.5px; color: var(--soft); white-space: nowrap; }
+.rover .album-h em { font-style: normal; color: var(--gold); font-weight: 700; }
+.rover .album { display: flex; flex-wrap: wrap; gap: 8px; }
+.rover .thumb { flex: 0 0 auto; width: 64px; height: 48px; border-radius: 8px; overflow: hidden; border: 2px solid var(--mint); padding: 0; background: #000; cursor: zoom-in; }
+.rover .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rover .thumb:hover { border-color: #fff; }
+.rover .thumb.empty { display: grid; place-items: center; border: 2px dashed #3a4655; color: #8fa2b3; font-family: var(--display); font-size: 26px; background: #0a1420; cursor: default; }
+.rover .album-tip { font-size: 14px; line-height: 1.45; color: var(--soft); margin: 8px 0 0; }
+.lightbox { position: fixed; inset: 0; z-index: 60; background: rgba(2,6,12,.92); display: grid; place-items: center; padding: 20px; }
+.lb-inner { position: relative; width: min(1000px, 100%); max-height: 100%; overflow: auto; background: #050b12; border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+.lb-inner img { display: block; width: 100%; max-height: 56vh; object-fit: contain; background: #000; border-radius: 10px; }
+.lb-x { position: absolute; right: 22px; top: 22px; z-index: 2; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: #04101c; color: var(--ivory); font-size: 20px; }
+.lb-cap { display: grid; gap: 4px; margin-top: 12px; font-size: 15.5px; line-height: 1.45; }
+.lb-cap b { font-family: var(--display); font-size: 24px; letter-spacing: .04em; text-transform: uppercase; }
+.lb-cap span { color: var(--soft); }
+.lb-cap a { color: var(--cyan); }
+.lb-nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; font-size: 15px; color: var(--soft); }
+.rover .rec { width: 9px; height: 9px; border-radius: 50%; background: #444; display: inline-block; margin-right: 8px; }
+.rover .rec.on { background: var(--danger); animation: recblink 1s steps(2) infinite; }
+@keyframes recblink { 50% { opacity: .2; } }
+
+/* photo gallery */
+.rover .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin: 10px 0; }
+.rover .photo { margin: 0; background: #061321; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.rover .photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #111; }
+.rover .photo figcaption { padding: 8px 10px; font-size: 14px; line-height: 1.4; }
+.rover .photo figcaption span { font-size: 12px; color: var(--ivory-dim); }
+.rover .pbtn { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.rover .photo.locked { border-style: dashed; }
+.rover .lockbox { aspect-ratio: 4 / 3; display: grid; place-content: center; justify-items: center; gap: 4px; text-align: center; padding: 12px; color: #8fa2b3; }
+.rover .lockbox span { font-size: 32px; filter: grayscale(1); opacity: .5; }
+.rover .lockbox b { font-family: var(--display); font-size: 20px; letter-spacing: .04em; text-transform: uppercase; }
+.rover .lockbox small { font-size: 13px; }
+
+/* rover parts: NASA's picture with dots to tap */
+.rover .partspic { margin: 0; max-width: 980px; }
+.rover .pp-frame { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #1a0f0a; container-type: inline-size; }
+.rover .pp-frame img { position: absolute; display: block; max-width: none; }
+.rover .pp-tag { position: absolute; right: 10px; bottom: 10px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: rgba(4,16,28,.85); color: var(--gold); border: 1px solid rgba(255,210,63,.5); }
+.rover .partspic figcaption { margin-top: 8px; }
+.rover .hot { position: absolute; width: clamp(22px, 4.2cqw, 38px); aspect-ratio: 1; transform: translate(-50%, -50%); padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.rover .hot .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--cyan); opacity: .8; animation: hotpulse 1.8s ease-in-out infinite; }
+.rover .hot .dot { position: relative; width: 56%; aspect-ratio: 1; display: grid; place-items: center; border-radius: 50%; background: var(--cyan); border: 2px solid #04101c; box-shadow: 0 0 0 2px rgba(255,255,255,.4), 0 2px 6px rgba(0,0,0,.7); font-style: normal; font-size: clamp(9px, 1.4cqw, 12px); font-weight: 700; color: #04101c; line-height: 1; }
+.rover .hot:hover .dot, .rover .hot:focus-visible .dot { background: var(--ivory); }
+.rover .hot.lit .dot { background: var(--gold); } .rover .hot.lit .ring { border-color: var(--gold); opacity: 1; }
+.rover .hot.sel .dot { background: var(--mint); } .rover .hot.sel .ring { border-color: var(--mint); opacity: 1; }
+@keyframes hotpulse { 0%, 100% { transform: scale(.8); } 50% { transform: scale(1.15); } }
+
+/* choose your rover: the first thing in the rover room */
+.rover.choosing { grid-template-columns: minmax(0, 1fr); }
+.rover.choosing .side { display: none; }
+.rover .choose { max-width: 1280px; margin: 0 auto; }
+.rover .choose-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+.rover .choose-h h2 { font-size: 40px; }
+.rover .choose-h p { margin: 6px 0 0; font-size: 17px; line-height: 1.5; color: var(--soft); max-width: 70ch; }
+.rover .choose-h p b { color: var(--ivory); }
+.rover .rvcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: start; }
+.rover .rvcard { background: rgba(6,19,33,.94); border: 2px solid var(--line); border-radius: 18px; overflow: hidden; }
+.rover .rvcard.picking { border-color: var(--orange); box-shadow: 0 0 0 4px rgba(255,106,43,.25); }
+.rover .rvpic { position: relative; aspect-ratio: 16 / 8; overflow: hidden; background: #000; }
+.rover .rvpic img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: var(--fx) var(--fy); transform: scale(1.55); transform-origin: var(--fx) var(--fy); }
+.rover .rvpic .tag { position: absolute; left: 12px; top: 12px; background: rgba(4,16,28,.88); }
+.rover .rvbody { padding: 16px 20px 18px; display: grid; gap: 12px; }
+.rover .rvname { display: flex; align-items: center; gap: 12px; }
+.rover .rvname h3 { font-size: 38px; line-height: 1; }
+.rover .badge { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 4px 12px; border-radius: 999px; }
+.rover .badge.easy { background: rgba(95,242,197,.16); color: var(--mint); border: 1px solid rgba(95,242,197,.5); }
+.rover .badge.hard { background: rgba(255,179,71,.16); color: var(--warn); border: 1px solid rgba(255,179,71,.5); }
+.rover .rvsub { margin: -6px 0 0; font-size: 16px; color: var(--soft); }
+.rover .rvstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.rover .rvstats div { background: #0a1c2e; border: 1px solid #1c3e5a; border-radius: 10px; padding: 8px 10px; }
+.rover .rvstats small { display: block; font-size: 12.5px; color: var(--ivory-dim); }
+.rover .rvstats b { font-family: var(--display); font-size: 21px; letter-spacing: .02em; }
+.rover .pc { border-radius: 12px; padding: 12px 14px; }
+.rover .pc h4 { margin: 0 0 6px; font-family: var(--display); font-size: 21px; letter-spacing: .04em; text-transform: uppercase; }
+.rover .pc ul { margin: 0; padding-left: 20px; font-size: 15.5px; line-height: 1.5; }
+.rover .pc li { margin: 4px 0; }
+.rover .pc.pros { background: rgba(95,242,197,.07); border: 1px solid rgba(95,242,197,.4); } .rover .pc.pros h4 { color: var(--mint); }
+.rover .pc.cons { background: rgba(255,179,71,.07); border: 1px solid rgba(255,179,71,.4); } .rover .pc.cons h4 { color: var(--warn); }
+.rover .rvbtns { display: grid; grid-template-columns: 1fr 1.3fr; gap: 10px; }
+.rover .rvbtns .btn { font-size: 19px; padding: 13px 10px; }
+.rover .choose-h .rvbtns { min-width: min(100%, 460px); }
+.rover .rvcard .reason, .rover .rvcard .cam-credit { margin: 0; }
+.rover .partcard { margin-top: 14px; max-width: 900px; background: #061321; border: 1px solid var(--line); border-left: 5px solid var(--mint); border-radius: 12px; padding: 14px 18px; }
+.rover .partcard.empty { border-left-color: var(--line); color: var(--soft); font-size: 16px; }
+.rover .partcard h4 { margin: 0; font-family: var(--display); font-size: 28px; letter-spacing: .04em; text-transform: uppercase; }
+.rover .partcard .where { font-size: 14px; color: var(--cyan); margin-top: 2px; }
+.rover .partcard p { margin: 10px 0; font-size: 16.5px; line-height: 1.55; max-width: 70ch; }
+.rover .partcard ul { margin: 0 0 10px; padding-left: 20px; font-size: 15px; line-height: 1.6; }
+.rover .partcard .used { font-size: 15px; color: var(--soft); margin-bottom: 8px; }
+.rover .partlist { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; max-width: 900px; }
+.rover .pchip { border: 1px solid var(--line); background: #081a2c; color: var(--soft); border-radius: 10px; padding: 6px 12px; font-size: 14px; }
+.rover .pchip.on { border-color: var(--mint); color: var(--ivory); }
+.rover .pchip.lit { border-color: var(--gold); color: var(--ivory); }
+.rover .chip-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+.rover .chip-tab { border: 1px solid var(--line); background: #081a2c; color: var(--soft); border-radius: 999px; padding: 6px 14px; font-size: 15px; }
+.rover .chip-tab[aria-pressed=true] { border-color: var(--cyan); color: var(--ivory); background: #0f3550; }
+.rover .linklist { display: flex; flex-wrap: wrap; gap: 10px; }
+.rover .linklist a { text-decoration: none; }
+.rover iframe.eyes { width: 100%; height: min(70vh, 640px); border: 1px solid var(--line); border-radius: 14px; background: #000; }
+
+/* ---------------- right: side panel */
+.rover .side { padding: 20px 22px 32px; font-size: 16px; }
+.rover .side-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.rover .side h2 { font-size: 34px; }
+.rover .side p.lead { font-size: 16px; line-height: 1.5; color: var(--soft); margin: 0 0 16px; }
+.rover .blk { background: rgba(6,19,33,.92); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 0 0 16px; }
+.rover .blk-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.rover .blk-h span { font-family: var(--display); font-size: 22px; letter-spacing: .04em; text-transform: uppercase; }
+.rover .blk-h b { font-family: var(--display); font-size: 25px; white-space: nowrap; }
+.rover .blk-h b.low { color: #ff8a7a; }
+.rover .blk-h small { font-size: 13.5px; color: var(--ivory-dim); white-space: nowrap; }
+.rover .hint { font-size: 15.5px; line-height: 1.5; color: var(--soft); margin: 12px 0 0; }
+.rover .hint:first-child { margin-top: 0; }
+.rover .gauge { position: relative; height: 18px; border-radius: 9px; background: #13283d; overflow: hidden; }
+.rover .gauge i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 9px; }
+.rover .gauge i.now { background: rgba(95,242,197,.28); }
+.rover .gauge i.after { background: var(--mint); }
+.rover .gauge i.after.low { background: var(--danger); }
+.rover .reason { font-size: 15.5px; line-height: 1.45; padding: 11px 14px; border-radius: 10px; background: rgba(255,179,71,.12); border-left: 4px solid var(--warn); margin: 12px 0; }
+.rover .reason.bad { background: rgba(255,90,74,.14); border-left-color: var(--danger); color: #ffd9d3; }
+.rover .status { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+.rover .stat > span { display: block; font-family: var(--display); font-size: 19px; letter-spacing: .04em; text-transform: uppercase; color: var(--soft); }
+.rover .stat > b { display: block; font-family: var(--display); font-size: 29px; line-height: 1.1; margin: 2px 0 8px; white-space: nowrap; }
+.rover .stat > b.low { color: #ff8a7a; }
+.rover .status > .hint, .rover .status > .btn.charge, .rover .status > .reason, .rover .status > .row2 { grid-column: 1 / -1; margin: 0; }
+.rover .gauge i.after.sun { background: var(--gold); }
+.rover .gauge i.after.sun.low { background: var(--danger); }
+.rover .btn.charge { width: 100%; margin-top: 12px; font-size: 20px; padding: 11px; border-color: var(--gold); color: var(--gold); background: rgba(255,210,63,.08); }
+.rover .btn.charge small { display: block; font-family: var(--sans); font-size: 13.5px; text-transform: none; letter-spacing: 0; color: var(--soft); margin-top: 2px; }
+.rover .btn.charge:hover:not(:disabled) { background: rgba(255,210,63,.18); border-color: var(--gold); }
+.rover .daychip { font-family: var(--display); font-size: 20px; letter-spacing: .08em; white-space: nowrap; padding: 2px 12px; border-radius: 999px; border: 1px solid rgba(255,210,63,.55); color: var(--gold); }
+.rover .daychip:empty { display: none; }
+.rover .daychip.low { border-color: var(--danger); color: #ff8a7a; }
+.rover .chargesky { position: relative; height: 54px; margin-bottom: 14px; border-radius: 10px; overflow: hidden; background: linear-gradient(90deg, #0b1020, #7a3e24, #d9925a, #7a3e24, #0b1020, #7a3e24, #d9925a); background-size: 300% 100%; animation: skymove 2.4s linear infinite; }
+.rover .sunmoon { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: #ffe9a8; box-shadow: 0 0 18px #ffd27a; }
+@keyframes skymove { from { background-position: 0 0; } to { background-position: 100% 0; } }
+.rover .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.rover .row2 .btn { font-size: 17px; padding: 13px 10px; }
+.rover .side .btn.huge { margin-top: 4px; }
+.rover .side .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.rover .legs { display: grid; gap: 8px; }
+.rover .leg { display: grid; grid-template-columns: 38px 1fr auto; gap: 12px; align-items: center; padding: 9px 12px; border-radius: 10px; background: #0a1c2e; border: 1px solid #1c3e5a; }
+.rover .leg .num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--warn); color: #04101c; font-weight: 700; font-size: 16px; }
+.rover .leg b { display: block; font-size: 17px; }
+.rover .leg small { font-size: 14px; color: var(--ivory-dim); }
+.rover .leg em { font-style: normal; font-family: var(--display); font-size: 23px; color: #ffcf8a; }
+.rover .leg.bad { border-color: var(--danger); }
+.rover .leg.bad .num { background: var(--danger); color: #fff; }
+
+.rover .tests { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rover .test { position: relative; }
+.rover .tbtn { width: 100%; min-height: 124px; display: grid; align-content: start; justify-items: start; gap: 3px; text-align: left; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--cyan); background: #0c2742; color: var(--ivory); }
+.rover .tbtn svg { width: 26px; height: 26px; color: var(--cyan); }
+.rover .tbtn b { font-family: var(--display); font-size: 22px; letter-spacing: .03em; text-transform: uppercase; }
+.rover .tbtn small { font-size: 14px; color: var(--soft); }
+.rover .tbtn span { font-size: 14px; font-weight: 700; margin-top: 4px; line-height: 1.3; }
+.rover .tcost { color: #ffcf8a; } .rover .tdone { color: var(--mint); } .rover .tno { color: #ff9c90; }
+.rover .tbtn:hover:not(:disabled) { background: #12385c; }
+.rover .tbtn:disabled { cursor: default; }
+.rover .test.done .tbtn { border-color: rgba(95,242,197,.6); background: rgba(95,242,197,.07); }
+.rover .test.done .tbtn svg { color: var(--mint); }
+.rover .test.off .tbtn { border-color: #3a4655; background: #0a1420; }
+.rover .test.off .tbtn b, .rover .test.off .tbtn svg, .rover .test.off .tbtn small { color: #8496a6; }
+.rover .qmark { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--cyan); background: #04101c; color: var(--cyan); font-size: 15px; line-height: 1; padding: 0; }
+
+.rover .bars, .report .bars { display: grid; gap: 10px; }
+.rover .sbar, .report .sbar { background: #0a1c2e; border: 1px solid #1c3e5a; border-radius: 12px; }
+.rover .sbar summary, .report .sbar summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 7px 10px; padding: 12px 14px; }
+.rover .sbar summary::-webkit-details-marker, .report .sbar summary::-webkit-details-marker { display: none; }
+.rover .sbar .bn, .report .sbar .bn { font-family: var(--display); font-size: 20px; letter-spacing: .03em; text-transform: uppercase; }
+.rover .sbar .bn em, .report .sbar .bn em { font-style: normal; font-family: var(--sans); font-size: 11.5px; text-transform: none; letter-spacing: 0; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: #13283d; color: var(--ivory-dim); vertical-align: 3px; white-space: nowrap; }
+.rover .sbar .br, .report .sbar .br { font-size: 13px; font-weight: 700; padding: 3px 11px; border-radius: 999px; white-space: nowrap; }
+.rover .br.great, .report .br.great { background: rgba(95,242,197,.16); color: var(--mint); }
+.rover .br.ok, .report .br.ok { background: rgba(255,179,71,.16); color: var(--warn); }
+.rover .br.poor, .report .br.poor { background: rgba(255,90,74,.16); color: #ff9c90; }
+.rover .br.none, .report .br.none { background: #13283d; color: var(--ivory-dim); }
+.rover .sbar .bv, .report .sbar .bv { font-family: var(--display); font-size: 27px; min-width: 36px; text-align: right; }
+.rover .sbar .track, .report .sbar .track { grid-column: 1 / -1; height: 12px; border-radius: 6px; background: #13283d; overflow: hidden; }
+.rover .sbar .track i, .report .sbar .track i { display: block; height: 100%; border-radius: 6px; }
+.rover .sbar .bd, .report .sbar .bd { grid-column: 1 / -1; font-size: 15px; color: var(--soft); line-height: 1.4; }
+.rover .sbar .why, .report .sbar .why { padding: 0 14px 12px; font-size: 14.5px; line-height: 1.5; color: var(--ivory-dim); }
+.rover .sbar .why p, .report .sbar .why p { margin: 6px 0; }
+.rover .sbar .why b, .report .sbar .why b { color: var(--ivory); }
+.rover .sbar.empty .bv, .report .sbar.empty .bv { color: var(--ivory-dim); }
+.rover .sbar.empty .track, .report .sbar.empty .track { background: repeating-linear-gradient(-45deg, #13283d, #13283d 6px, #0c1c2c 6px, #0c1c2c 12px); }
+.rover .sbar.pop, .report .sbar.pop { border-color: var(--mint); animation: barpop .6s ease-out; }
+.rover .sbar.pop .track i, .report .sbar.pop .track i { animation: bargrow .7s ease-out; }
+@keyframes barpop { 0% { transform: scale(1.03); box-shadow: 0 0 0 3px rgba(95,242,197,.35); } 100% { transform: none; box-shadow: none; } }
+@keyframes bargrow { from { width: 0; } }
+
+.rover .verdictbox { border-radius: 14px; border: 2px solid var(--line); background: #061321; padding: 14px 18px; margin: 0 0 16px; }
+.rover .vtop { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
+.rover .vicon { font-size: 34px; line-height: 1; }
+.rover .verdictbox b { display: block; font-family: var(--display); font-size: 29px; letter-spacing: .03em; text-transform: uppercase; line-height: 1.05; }
+.rover .verdictbox p { margin: 5px 0 0; font-size: 15.5px; line-height: 1.4; color: var(--soft); }
+.rover .vscore { text-align: center; }
+.rover .vscore b { font-size: 42px; }
+.rover .vscore small { display: block; font-size: 12.5px; color: var(--ivory-dim); }
+.rover .verdictbox.good { border-color: var(--mint); background: rgba(95,242,197,.07); } .rover .verdictbox.good b { color: var(--mint); }
+.rover .verdictbox.risky { border-color: var(--warn); background: rgba(255,179,71,.07); } .rover .verdictbox.risky b { color: var(--warn); }
+.rover .verdictbox.bad { border-color: var(--danger); background: rgba(255,90,74,.08); } .rover .verdictbox.bad b { color: #ff8a7a; }
+
+.rover .regioncards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.rover .rcard { border: 2px solid var(--line); background: #081a2c; color: var(--ivory); border-radius: 12px; padding: 14px; display: grid; gap: 4px; text-align: left; }
+.rover .rcard b { font-family: var(--display); font-size: 22px; letter-spacing: .03em; text-transform: uppercase; }
+.rover .rcard span { font-size: 15px; color: var(--soft); }
+.rover .rcard.on { border-color: var(--orange); background: #0f2238; box-shadow: inset 0 -4px 0 var(--orange); }
+.rover .spotlist { display: grid; gap: 10px; margin: 0 0 16px; }
+.rover .spotrow { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 12px; text-align: left; border: 1px solid var(--line); border-left: 6px solid #b8c4cf; background: #081a2c; color: var(--ivory); border-radius: 12px; padding: 12px 14px; }
+.rover .spotrow > b { font-family: var(--display); font-size: 32px; text-align: center; }
+.rover .spotrow span { font-family: var(--display); font-size: 21px; letter-spacing: .03em; text-transform: uppercase; }
+.rover .spotrow em { font-style: normal; font-family: var(--display); font-size: 28px; color: var(--cyan); }
+.rover .spotrow.good { border-left-color: var(--mint); } .rover .spotrow.risky { border-left-color: var(--warn); } .rover .spotrow.bad { border-left-color: var(--danger); }
+.rover .stars i, .report .stars i { font-style: normal; color: #3a4655; }
+.rover .stars i.on, .report .stars i.on { color: var(--gold, #ffd23f); text-shadow: 0 0 8px rgba(255,210,63,.6); }
+.rover .bigstars, .report .bigstars { font-size: 52px; text-align: center; margin: 0 0 8px; }
+.rover .bigstars .stars i.on, .report .bigstars .stars i.on { animation: starpop .5s ease-out backwards; }
+.rover .bigstars .stars i:nth-child(2), .report .bigstars .stars i:nth-child(2) { animation-delay: .15s; } .rover .bigstars .stars i:nth-child(3), .report .bigstars .stars i:nth-child(3) { animation-delay: .3s; }
+@keyframes starpop { from { transform: scale(0) rotate(-40deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.rover .verdict-big .stars, .report .verdict-big .stars { margin-left: 8px; }
+.rover .xsrcs li, .report .xsrcs li { font-size: 14px; margin: 5px 0; line-height: 1.5; }
+
+/* ---------------- narrower windows */
+@media (max-width: 1150px) {
+  .rover .mapgrid { grid-template-columns: 1fr; }
+}
+@media (max-width: 980px) {
+  .rover .rvcards { grid-template-columns: 1fr; }
+  .rover .choose-h h2 { font-size: 32px; }
+}
+@media (max-width: 760px) {
+  .rover { grid-template-columns: 1fr; grid-template-rows: 48px 62vh 1fr; font-size: 15px; }
+  .rover .viewer { padding: 10px 12px 18px; }
+  .rover .vtabs { margin-bottom: 10px; }
+  .rover .vtabs .tab { font-size: 15px; padding: 6px 12px; }
+  .rover .maphint { font-size: 15px; padding: 7px 12px; }
+  .rover .maptop { margin-bottom: 8px; gap: 8px; }
+  .rover .mapgrid { grid-template-columns: min(60%, calc(62vh - 150px)) minmax(0, 1fr); gap: 12px; }
+  .rover .readout { font-size: 13px; padding: 7px 10px; }
+  .rover .legend { font-size: 13px; gap: 6px 12px; }
+  .rover .mapview { width: 100%; }
+  .rover .zoomctl { min-width: 0; }
+  .rover .zoomctl span { display: none; }
+  .rover .msw { font-size: 13px; padding: 6px 9px; }
+  .rover.choosing { grid-template-rows: 48px 1fr; }
+  .rover .rvstats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rover .rvname h3 { font-size: 30px; }
+  .rover .rvbtns .btn { font-size: 16px; padding: 11px 8px; }
+  .rover .daychip { font-size: 15px; padding: 1px 8px; }
+  .rover .shoot { padding: 7px 10px; gap: 9px; margin-top: 9px; }
+  .rover .shoot-i { font-size: 24px; }
+  .rover .shoot-t b { font-size: 19px; }
+  .rover .shoot-t small { font-size: 13px; }
+  .rover .camhud { font-size: 10px; }
+  .rover .camhud span { padding: 5px 7px; }
+  .rover .cam { padding: 10px; }
+  .rover .cam-h b { font-size: 16px; }
+  .rover .side { padding: 14px 14px 24px; }
+  .rover .side h2 { font-size: 28px; }
+  .rover .tbtn { min-height: 112px; }
+}
+@media (max-width: 520px) {
+  .rover .mapgrid { grid-template-columns: 1fr; }
+  .rover .mapview { width: min(100%, calc(62vh - 140px)); }
+  .rover .status { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .rover .hot .ring, .rover .rec.on, .rover .tag.live i, .rover .sbar.pop, .report .sbar.pop, .rover .sbar.pop .track i, .report .sbar.pop .track i, .rover .bigstars .stars i.on, .report .bigstars .stars i.on, .rover .fx-bar, .rover .shoot.ready, .rover .mcam.hot .mring, .rover .chargesky, .rover .fx-flash.go { animation: none; } }
