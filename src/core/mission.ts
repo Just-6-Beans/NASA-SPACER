@@ -2,7 +2,8 @@
 // validation with the co-op server.
 import { OPS_DATES, lightTimeSource, opsDate, weatherSource, type OpsDate } from '../data/opsDates'
 import {
-  CARGO_REWARD, DUST_DEADLINE, INSTRUMENTS, KIT_COST, RESERVE_FLOOR, ROUTES, SCANS, SHIPS, SITES, STRONG_LOW_END, WATER_COST, WATER_DISCOUNT, byId,
+  CARGO_REWARD, DUST_DEADLINE, INSTRUMENTS, KIT_COST, PATCH_HANDOFF, PREP_HOURS, RESERVE_FLOOR, ROUTES, SCANS, SHIPS, SITES, STRONG_LOW_END, SURVEY_DRAW,
+  WATER_COST, WATER_DISCOUNT, byId,
   type InstrumentId, type RouteId, type ScanId, type ShipId, type SiteId, type SuitId,
 } from './data'
 import { DEFAULT_POWER, powerBlock, validPower, type Power } from './power'
@@ -39,14 +40,21 @@ export interface SiteAssessment {
 }
 
 export const TASK_INFO: Record<TaskId, { name: string; group: 'Routine' | 'Mission' | 'Emergency'; where: string; reward: string }> = {
-  battery: { name: 'Battery balancing', group: 'Routine', where: 'Power Grid', reward: 'Saves 3 battery points per driving leg' },
-  cargo: { name: 'Cargo reconciliation', group: 'Routine', where: 'Payload', reward: '+5 supply credits' },
+  battery: { name: 'Battery balancing', group: 'Routine', where: 'Power Grid', reward: 'Each drive uses 3% less rover battery' },
+  cargo: { name: 'Cargo reconciliation', group: 'Routine', where: 'Payload', reward: '+5 credits' },
   water: { name: 'Water purification', group: 'Routine', where: 'Hab Systems', reward: 'Imported water costs 8 cr less' },
-  medical: { name: 'Crew medical check', group: 'Routine', where: 'Hab Systems', reward: 'Clearance for habitat commissioning' },
-  calibration: { name: 'Two-point calibration', group: 'Mission', where: 'Calibration', reward: '−5 uncertainty (skip: +9)' },
-  relay: { name: 'Relay repair', group: 'Emergency', where: 'Rover Comms', reward: 'Restores the uplink' },
+  medical: { name: 'Crew medical check', group: 'Routine', where: 'Hab Systems', reward: 'Clears the crew to commission the habitat' },
+  calibration: { name: 'Two-point calibration', group: 'Mission', where: 'Calibration', reward: 'Ice reading ±5 tighter (skipped: ±9 looser)' },
+  relay: { name: 'Full relay repair', group: 'Emergency', where: 'Rover Comms', reward: 'Relay hand-off stays at its normal length' },
   habitat: { name: 'Habitat commissioning', group: 'Mission', where: 'Mission Report', reward: 'Crew quarters on Mars' },
 }
+
+/**
+ * Crew-hours each task takes (our model). The station has PREP_HOURS in all, so the crew cannot
+ * do everything: which preparation to do is a decision. Commissioning the habitat happens on
+ * Mars after landing and takes none.
+ */
+export const PREP_COST: Record<TaskId, number> = { battery: 1, cargo: 1, water: 1, medical: 1, calibration: 1, relay: 1, habitat: 0 }
 
 export class Mission {
   profile: Profile
@@ -56,6 +64,8 @@ export class Mission {
   power: Power = { ...DEFAULT_POWER }
   completed = new Set<TaskId>()
   relayFault = false
+  /** The relay was patched rather than repaired: usable, but its hand-off is PATCH_HANDOFF minutes longer. */
+  relayPatched = false
   calibrated = false
   /** Operations date for the rover pass (YYYY-MM-DD). Null until the player picks one. */
   opsDate: string | null = null
@@ -130,24 +140,52 @@ export class Mission {
   }
 
   // ---- Tasks -------------------------------------------------------------
-  /** Marks a task complete once. Returns false if already rewarded. */
+  /** Crew-hours already spent on preparation tasks. */
+  get prepSpent() { return [...this.completed].reduce((a, t) => a + PREP_COST[t], 0) }
+  /** Crew-hours still free. Each preparation task takes one. */
+  get prepLeft() { return PREP_HOURS - this.prepSpent }
+  /** Why a task cannot be paid for, or null when there are crew-hours for it. */
+  prepBlock(task: TaskId): string | null {
+    if (this.completed.has(task) || PREP_COST[task] <= this.prepLeft) return null
+    return `No crew-hours left: all ${PREP_HOURS} went to other preparation.`
+  }
+  /** Marks a task complete once. Returns false if already rewarded, or if no crew-hours are left for it. */
   complete(task: TaskId, detail: string): boolean {
-    if (this.completed.has(task)) return false
+    if (this.completed.has(task) || this.prepBlock(task)) return false
     this.completed.add(task)
-    if (task === 'relay') this.relayFault = false
+    if (task === 'relay') { this.relayFault = false; this.relayPatched = false }
     if (task === 'calibration') this.calibrated = true
     this.note(`${TASK_INFO[task].name} complete — ${detail}`, 'task')
     return true
   }
   taskAvailable(task: TaskId): string | null {
     if (task === 'calibration' && !this.payloadActive) return 'Activate a payload instrument first.'
-    if (task === 'relay' && !this.relayFault && !this.completed.has('relay')) return 'Relay is nominal.'
+    if (task === 'relay' && !this.completed.has('relay')) {
+      if (!this.relayFault && !this.relayPatched) return 'Relay is nominal.'
+      if (this.pass) return 'The pass was already sent over the patched relay.'
+    }
     if (task === 'habitat') {
       if (!this.landing?.approved) return 'Needs an approved landing.'
-      if (!this.completed.has('medical')) return 'Crew medical clearance was skipped: complete the Hab Systems medical check before commissioning.'
+      if (!this.completed.has('medical')) return 'The crew has no medical clearance: the Hab Systems medical check was not done.'
     }
+    return this.prepBlock(task)
+  }
+
+  // ---- Relay -------------------------------------------------------------
+  /**
+   * The quick fix for the relay fault: free and instant, but a patched relay adds PATCH_HANDOFF
+   * minutes to its hand-off. A direct link never uses the relay, so it loses nothing. The full
+   * repair is the 'relay' task, which takes a crew-hour instead.
+   */
+  patchRelay(): string | null {
+    if (!this.relayFault) return this.relayPatched ? 'The relay is already patched.' : 'Relay is nominal.'
+    this.relayFault = false
+    this.relayPatched = true
+    this.note(`Relay patched: link restored, hand-off ${this.ship.handoffMin + PATCH_HANDOFF} min instead of ${this.ship.handoffMin}.`, 'task')
     return null
   }
+  /** Minutes the relay adds to each signal as it stands: the ship's hand-off, plus the patch if there is one. */
+  get handoffMin() { return this.ship.handoffMin + (this.relayPatched ? PATCH_HANDOFF : 0) }
 
   // ---- Rover plan --------------------------------------------------------
   /** The NASA data for the chosen operations date, or null before the player picks. */
@@ -163,7 +201,7 @@ export class Mission {
     const d = this.ops
     if (!this.instrument || !d) return null
     return {
-      date: d.id, lightMin: d.lightMin, nightLowC: d.weather.minAirTemp, handoffMin: this.ship.handoffMin,
+      date: d.id, lightMin: d.lightMin, nightLowC: d.weather.minAirTemp, handoffMin: this.handoffMin, relayPatched: this.relayPatched,
       startBattery: this.ship.battery, power: { ...this.power },
       instrument: this.instrument, calibrated: this.calibrated, route: this.route, scan: this.scan,
       balanced: this.completed.has('battery'),
@@ -175,11 +213,11 @@ export class Mission {
   }
   roverAccess(): string | null {
     if (!this.payloadActive) return 'Activate the payload at the Payload terminal first.'
-    if (this.relayFault) return 'Relay fault: repair the relay before the planner can reach Mars.'
+    if (this.relayFault) return 'Relay fault: patch or repair the relay before the planner can reach Mars.'
     return null
   }
   transmitBlock(): string | null {
-    if (this.pass) return 'One rover pass per run. Use replay to try another strategy.'
+    if (this.pass) return 'One rover pass per mission. Fly again to try another plan.'
     const access = this.roverAccess()
     if (access) return access
     if (!this.opsDate) return 'Choose an operations date first.'
@@ -194,7 +232,7 @@ export class Mission {
     this.events = timeline(this.pass)
     this.clock = 0
     this.processed = 0
-    this.note(`Plan transmitted at T+0 for ${d.label}: Drive → Scan → Return via ${byId(ROUTES, this.route).name}, ${byId(SCANS, this.scan).name.toLowerCase()}, power ${this.power.life}/${this.power.comms}/${this.power.research}. Signal leg ${fmt(this.pass.uplink)} min (light time ${fmt(d.lightMin)} min: ${lightTimeSource(d)}). Night low ${fmtTemp(d.weather.minAirTemp)} (${weatherSource(d)}): heaters used ${this.pass.heaterDraw} pts.`, 'rover')
+    this.note(`Plan transmitted at T+0 for ${d.label}: Drive → Scan → Return via ${byId(ROUTES, this.route).name}, ${byId(SCANS, this.scan).name.toLowerCase()}, power ${this.power.life}/${this.power.comms}/${this.power.research}. Signal delay ${fmt(this.pass.uplink)} min each way (light time ${fmt(d.lightMin)} min: ${lightTimeSource(d)}). Night low ${fmtTemp(d.weather.minAirTemp)} (${weatherSource(d)}): heaters used ${this.pass.heaterDraw}% of the battery.`, 'rover')
     return null
   }
   /** Which choices caused the rover outcome, with their numbers. Empty before transmission. */
@@ -233,7 +271,19 @@ export class Mission {
   assess(site: SiteId): SiteAssessment {
     const funds = this.funds
     const reading = this.receivedReading
-    if (site === 'hollow') return { site, status: 'held', canLand: false, cost: 0, reason: 'Ice is plausible but unverified, the slopes are loose, and solar power is weak. Landing is held until a slope survey and backup power are available.', action: 'Held' }
+    if (site === 'hollow') {
+      // Our model: shaded, so it runs on a backup power kit and has no dust deadline. The rover
+      // must survey the loose slope with the battery it has left, and only a strong shelf reading
+      // stands in for ice here; otherwise the crew imports water.
+      if (!this.pass?.returned) return { site, status: 'held', canLand: false, cost: 0, reason: `The loose slopes need a rover survey first, and the rover stopped in safe mode at the ${RESERVE_FLOOR}% reserve. A landing at Eos Hollow is held.`, action: 'Held: rover in safe mode' }
+      const spare = this.pass.finalBattery - RESERVE_FLOOR
+      if (spare < SURVEY_DRAW) return { site, status: 'held', canLand: false, cost: 0, reason: `The slope survey needs ${SURVEY_DRAW}% of rover battery above the ${RESERVE_FLOOR}% reserve. The rover came home with ${this.pass.finalBattery}%, only ${spare}% to spare. A landing at Eos Hollow is held.`, action: 'Held: no battery for the slope survey' }
+      const water = reading?.strong ? 0 : this.waterCost
+      const cost = KIT_COST + water
+      const can = cost <= funds
+      const ice = reading?.strong ? `The strong reading at the shelf (low end ${reading.low}%) counts for the ice here` : `Without a strong reading the crew imports water (${water} cr)`
+      return { site, status: 'needs-package', canLand: can, cost, reason: `Shaded, so the dust front does not close it. The rover has ${spare}% to spare for the slope survey. ${ice}. Backup power kit ${KIT_COST} cr${water ? `, ${cost} cr in all` : ''}. ${can ? `Affordable with ${funds} cr.` : `Only ${funds} cr available.`}`, action: `Land with ${water ? 'package' : 'power kit'} · ${cost} cr` }
+    }
     if (site === 'plain') {
       const cost = this.waterCost + KIT_COST
       const can = cost <= funds
@@ -265,7 +315,7 @@ export class Mission {
     }
     const a = this.assess(site)
     if (!a.canLand) return a.reason
-    this.landing = { site, approved: true, reason: a.reason, spent: a.cost, decidedAt: this.clock, importedWater: a.status === 'needs-water' || site === 'plain' }
+    this.landing = { site, approved: true, reason: a.reason, spent: a.cost, decidedAt: this.clock, importedWater: a.status === 'needs-water' || site === 'plain' || (site === 'hollow' && a.cost > KIT_COST) }
     this.note(`Landing approved at ${byId(SITES, site).name} (T+${fmt(this.clock)}). Spent ${a.cost} cr.`, 'landing')
     return null
   }

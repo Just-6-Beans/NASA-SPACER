@@ -24,8 +24,10 @@ export interface PlanSnapshot {
   lightMin: number
   /** Night-time low for that Mars season, in degrees C. Real: Curiosity REMS, Gale Crater. */
   nightLowC: number
-  /** Relay hand-off added to each signal leg, in minutes. A simulated ship property. */
+  /** Relay hand-off added to each signal leg, in minutes. A simulated ship property, longer if the relay is patched. */
   handoffMin: number
+  /** True when that hand-off includes the penalty of a patched, not repaired, relay. */
+  relayPatched?: boolean
   startBattery: number
   power: Power
   instrument: InstrumentId
@@ -156,12 +158,12 @@ export function forecastWarnings(s: PlanSnapshot, r: PassResult): ForecastWarnin
   if (block) w.push({ level: 'danger', text: block })
   if (r.safeMode) {
     const kind = r.commands.find(c => c.status === 'partial')!.kind
-    w.push({ level: 'danger', text: `Reserve risk: the rover runs ${r.shortfall} point${r.shortfall === 1 ? '' : 's'} short, hits the ${RESERVE_FLOOR}% floor during ${COMMAND_LABEL[kind]} and stops in safe mode. Ares Shelf needs the rover back at base.` })
+    w.push({ level: 'danger', text: `Reserve risk: the rover runs ${r.shortfall}% short of battery, hits the ${RESERVE_FLOOR}% reserve during ${COMMAND_LABEL[kind]} and stops in safe mode. Ares Shelf needs the rover back at base.` })
   }
-  if (r.finalTelemetryAt >= DUST_DEADLINE) w.push({ level: 'danger', text: `Dust front: final telemetry at T+${fmt(r.finalTelemetryAt)} is not ahead of the T+${DUST_DEADLINE} Ares Shelf window.` })
+  if (r.finalTelemetryAt >= DUST_DEADLINE) w.push({ level: 'danger', text: `Dust front: final telemetry at T+${fmt(r.finalTelemetryAt)} arrives after the T+${DUST_DEADLINE} deadline for Ares Shelf.` })
   if (!r.reading) w.push({ level: 'warn', text: 'No ice reading: the scan does not finish.' })
   else if (!r.reading.strong) w.push({ level: 'warn', text: `Weak evidence expected: low end ${r.reading.low}% is below ${STRONG_LOW_END}%.` })
-  if (!s.calibrated) w.push({ level: 'warn', text: `Instrument uncalibrated: +${UNCALIBRATED_PENALTY} points of uncertainty.` })
+  if (!s.calibrated) w.push({ level: 'warn', text: `Instrument uncalibrated: the ice reading is ±${UNCALIBRATED_PENALTY} looser.` })
   return w
 }
 
@@ -192,21 +194,21 @@ export function passCauses(s: PlanSnapshot, r: PassResult): Cause[] {
       topic: 'clock', ok: !late,
       headline: `Final telemetry at T+${fmt(r.finalTelemetryAt)}, ${gap} min ${late ? 'after' : 'ahead of'} the dust front (T+${DUST_DEADLINE}).`,
       parts: [
-        `Signal: ${fmt(r.uplink)} min each way = light time ${fmt(s.lightMin)} min + ${handoff ? `relay hand-off ${handoff} min` : 'no hand-off (direct link)'}`,
-        `${route.name}: ${route.legMin} min per driving leg`,
+        `Signal delay: ${fmt(r.uplink)} min each way = light time ${fmt(s.lightMin)} min + ${handoff ? `relay hand-off ${handoff} min${s.relayPatched ? ' (patched relay)' : ''}` : 'no hand-off (direct link)'}`,
+        `${route.name}: ${route.legMin} min each way`,
         `${scan.name}: ${scan.minutes} min`,
       ],
     },
     {
       topic: 'battery', ok: r.returned,
       headline: stoppedAt
-        ? `Rover stopped at the ${RESERVE_FLOOR}% reserve during ${COMMAND_LABEL[stoppedAt.kind]}: the plan needed ${r.shortfall} more battery point${r.shortfall === 1 ? '' : 's'}.`
-        : `Rover back at base with ${r.finalBattery}%, ${margin} point${margin === 1 ? '' : 's'} above the ${RESERVE_FLOOR}% reserve.`,
+        ? `Rover stopped at the ${RESERVE_FLOOR}% reserve during ${COMMAND_LABEL[stoppedAt.kind]}: the plan needed ${r.shortfall}% more battery.`
+        : `Rover back at base with ${r.finalBattery}%, ${margin}% above the ${RESERVE_FLOOR}% reserve.`,
       parts: [
-        `Cradle charge: ${s.startBattery}%`,
-        `Night heaters: ${r.heaterDraw} pts for a ${fmtTemp(s.nightLowC)} night`,
-        `${route.name}: ${r.legDraw} pts per driving leg${s.balanced ? ' (balanced pack)' : ''}`,
-        `${scan.name} with ${inst.code}: ${r.scanDraw} pts`,
+        `Starting charge: ${s.startBattery}%`,
+        `Night heaters: ${r.heaterDraw}% for a ${fmtTemp(s.nightLowC)} night`,
+        `${route.name}: ${r.legDraw}% each way${s.balanced ? ' (balanced pack)' : ''}`,
+        `${scan.name} with ${inst.code}: ${r.scanDraw}%`,
       ],
     },
     {
@@ -216,9 +218,9 @@ export function passCauses(s: PlanSnapshot, r: PassResult): Cause[] {
         : 'No ice reading: the scan did not finish.',
       parts: [
         `${inst.code} starts at ±${inst.baseUncertainty}`,
-        s.calibrated ? `Calibration: −${CALIBRATED_CUT}` : `No calibration: +${UNCALIBRATED_PENALTY}`,
-        scan.uncertaintyCut ? `${scan.name}: −${scan.uncertaintyCut}` : `${scan.name}: no cut`,
-        filter ? `Research filter: −${FILTER_CUT}` : 'Research filter: off',
+        s.calibrated ? `Calibration: ±${CALIBRATED_CUT} tighter` : `No calibration: ±${UNCALIBRATED_PENALTY} looser`,
+        scan.uncertaintyCut ? `${scan.name}: ±${scan.uncertaintyCut} tighter` : `${scan.name}: no gain`,
+        filter ? `Research filter: ±${FILTER_CUT} tighter` : 'Research filter: off',
         ...(raw < MIN_UNCERTAINTY ? [`Never better than ±${MIN_UNCERTAINTY}`] : []),
       ],
     },
@@ -233,7 +235,7 @@ export type TimelineEvent =
   | { t: number; type: 'safe-mode'; text: string }
 
 export function timeline(r: PassResult): TimelineEvent[] {
-  const ev: TimelineEvent[] = [{ t: r.uplink, type: 'uplink', text: `Commands reach Mars after ${fmt(r.uplink)} min. Rover wakes at ${r.wakeBattery}%${r.heaterDraw ? `: night heaters used ${r.heaterDraw} pts` : ''}.` }]
+  const ev: TimelineEvent[] = [{ t: r.uplink, type: 'uplink', text: `Commands reach Mars after ${fmt(r.uplink)} min. Rover wakes at ${r.wakeBattery}%${r.heaterDraw ? `: night heaters used ${r.heaterDraw}%` : ''}.` }]
   r.commands.forEach((c, index) => {
     if (c.status === 'cancelled') return
     const name = COMMAND_LABEL[c.kind]

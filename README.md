@@ -93,24 +93,24 @@ On Windows you can double-click `play.bat`. It installs dependencies if needed, 
 | Choose solo or co-op on the title | ← / →, then Enter | Tap a card |
 | Change spacecraft | ← / →, arrow buttons, wheel, swipe | Swipe |
 
-HUD buttons: **Tasks** (Routine, Mission and Emergency list), **Guide** (floor chevrons to the next objective, on by default), **Sound**, **Debug** (FPS, collision boxes, both clocks, +250 visual-only sprites up to 3,000), **Co-op**. The deck map in the corner shows the three nodes, you, your crewmate and the next objective.
+The HUD shows the five mission phases (Design, Prepare, Operate, Decide, Debrief), the current step with the terminal it sends you to, and a bottom bar with the three power buses, your crew-hours and your credits. **Tasks** lists the mission steps and the preparation tasks. **Menu** holds the floor guide (chevrons to the next objective, on by default), sound and co-op. The deck map appears only when the window is too narrow to show the whole deck. The backquote key (`` ` ``), or `?debug` in the address, opens the developer read-out: FPS, collision boxes, both clocks, +250 visual-only sprites up to 3,000.
 
 On the rover map, drag to pan, use the wheel or pinch to zoom, or use + / − / Fit.
 
 ## Five-minute walkthrough
 
-1. **Solo mission** → choose a spacecraft → enter a call sign and pick a suit → **Launch** (or **Skip animation**). For two players, choose **Co-op mission** instead (see below).
-2. You dock at the station. Walk up to **Payload**, just ahead of you. Pick an instrument and **Activate payload**. The relay faults.
-3. Go to **Rover Comms** (rear right) and rotate the receiver segments to match the reference. **Confirm match**.
-4. At **Power Grid** (rear left), raise Communications to at least 4. At 5 the link is direct and skips the relay hand-off on each signal leg. Research at 3 or more cuts uncertainty instead.
-5. Optional: at **Calibration** (front right), tune gain and offset until both standards turn green. Optional routine tasks: battery balancing, cargo, water, medical.
-6. Back at **Rover Comms**, open the planner. It has three steps: pick an **operations date**, a **route** and a **scan**. The date sets two real numbers, the signal delay and the night cold. Read the battery and clock forecast, and **Transmit sequence**.
-7. Advance the clock with **Next event**, **+5 min** or **Run clock**. Evidence counts only once it reaches Earth.
-8. **Review landing sites**: select a site and **Confirm site**, or defer. Read the report and commission the habitat if your crew passed the medical check. Then **Replay with this crew** or **Return to title**.
+1. **Solo mission** → read the short mission brief → choose a spacecraft → enter a call sign and pick a suit → **Launch** (or **Skip animation**). For two players, choose **Co-op mission** instead (see below).
+2. You dock at the station. At **Power Grid** (rear left), choose **Direct link** (signals skip the relay) or **Research filter** (a sharper ice reading). Ten units cover one, not both.
+3. At **Payload** (centre), pick an instrument and **Activate payload**. The relay faults, as it does on every mission.
+4. At **Rover Comms** (rear right), choose the fix: a **Quick patch** is free but makes the relay hand-off 2 minutes longer, and a **Full repair** takes one crew-hour.
+5. You have **3 crew-hours**, and each preparation task takes one: crew medical (the habitat needs it), calibration, battery balancing, water, cargo. There are more tasks than hours.
+6. Back at **Rover Comms**, the planner opens directly. Pick an **operations date**, a **route** and a **scan**. The date sets two real numbers, the signal delay and the night cold. The footer says in one sentence whether the plan clears Ares Shelf, and **Transmit plan** is always in view.
+7. The pass plays itself; **Pause clock** or **Skip to next event** as you like. The panel shows what the rover is doing on Mars against what Earth has heard so far.
+8. **Choose the landing site**, or defer. The debrief says what happened, which choices caused it, and what to change. Commission the habitat there to complete the mission. Then **Fly again · change one thing**, which keeps your last design, or start a **New mission** with another spacecraft.
 
 ## The station
 
-Three pressurised nodes in a row, joined by open hatches. You arrive through the airlock in node B, and the floor guide leads you to the mission brief. You can walk behind the freestanding consoles.
+Three pressurised nodes in a row, joined by open hatches. You arrive through the airlock in node B, and the floor guide leads you to the next step. The steps sweep the deck once, from the Power Grid on the left to Rover Comms on the right. You can walk behind the freestanding consoles.
 
 | Node | Rear wall | Front |
 | --- | --- | --- |
@@ -124,7 +124,7 @@ The deck shows mission state, so you can read your choices off the room:
 - **Consoles** show live values: the allocation on the Power Grid, the one-way signal delay on Rover Comms (split into the JPL Horizons light time and the relay hand-off), the rover's starting charge in the bay, and lamps for calibration, water and medical.
 - **The rover** carries the instrument you chose at Payload.
 - **Relay fault**: the beacon flashes, the dish hunts for the carrier, and the link display reads NO LINK until you repair it.
-- **Mission Ops** has three tabs: the mission brief; a live mission status (budget, mass, power, battery and time against their limits, what is deciding the rover pass, and the three operations dates compared side by side, where you can also pick one); and the data sources, which name the two NASA datasets with their place, date and limits and say which numbers are our model.
+- **Mission Ops** has three tabs: a live mission status (three lights for the clock, the battery and the evidence, each opening to the choices behind it, then what you have left and what needs attention); the mission brief; and the data sources, which name the two NASA datasets with their place, date and limits and say which numbers are our model. The operations date is chosen in one place, the rover planner, where each date shows what it would do to your plan.
 
 ## Two-tab co-op
 
@@ -153,8 +153,8 @@ The planner offers three operations dates. Each one carries two real measurement
 
 What the game does with those two numbers is our model:
 
-- **Signal leg** = light time + relay hand-off. Communications at 5 or more is a direct link and skips the hand-off. Nothing shortens the light time.
-- **Heaters** use 1 battery point for each °C the night low is below −65 °C, before the pass starts.
+- **Signal delay** = light time + relay hand-off. Communications at 5 or more is a direct link and skips the hand-off. A patched relay makes the hand-off 2 minutes longer. Nothing shortens the light time.
+- **Heaters** use 1% of the rover battery for each °C the night low is below −65 °C, before the pass starts.
 - **Rover reserve:** the battery floor is 20%. A command that would cross it runs only partway, then the rover enters safe mode and stays where it is. A stranded rover holds any landing at Ares Shelf.
 - **Dust front (simulated):** Ares Shelf closes if the final telemetry arrives at T+56 or later.
 
@@ -171,6 +171,9 @@ What the game does with those two numbers is our model:
 - **Scans:** a deep scan takes 8 min instead of 4, uses 8 extra points, and cuts uncertainty by 7.
 - **Ice reading:** the estimate is 31%. Calibration cuts uncertainty by 5; skipping it adds 9. Research filtering cuts 5. Minimum uncertainty is ±3. Evidence is strong when the low end is 22% or more.
 - **Meridian Plain:** needs 26 cr of water plus a 12 cr power kit. The water task saves 8 cr; the cargo task adds 5 cr to your budget.
+- **Eos Hollow:** shaded, so the dust front never closes it, and it runs on the 12 cr power kit. The rover must survey its slope, which needs the rover home with 8% of battery above the reserve. A strong reading at the shelf counts for its ice; a weak one means importing water as well.
+- **Crew-hours:** the station has 3. A full relay repair, calibration, battery balancing, cargo, water and the crew medical check take one each, so no crew does everything. The habitat needs the medical check; commissioning it takes no crew-hour.
+- **Relay fault:** a quick patch is free and adds 2 minutes to the relay hand-off. A direct link never uses the relay, so it loses nothing.
 
 No date and no design wins everywhere. The frugal spectrometer needs time for its deep scan, so it suits the close, cold date and never clears Ares Shelf from 15.8 light-minutes. The power-hungry radar reads well from a quick scan, so it can afford the fast route when the nights are warm. `npm test` checks this over every ship, instrument, date and plan.
 
@@ -183,11 +186,13 @@ No date and no design wins everywhere. The frugal spectrometer needs time for it
 - Water: screen → carbon → UV.
 - Medical: resting baseline → exertion scan → recovery verification.
 - Calibration: IR gain 125, offset +2. Radar gain 150, offset −2.
-- Relay: tap each receiver segment twice.
+- Relay (full repair): tap each receiver segment twice.
 - Habitat: anchor foundation → seal pressure shell → energize life support.
 </details>
 
 ## Acceptance scenarios (verified by `npm test` and in the browser)
+
+Each scenario fits in the 3 crew-hours. The numbers below are with the relay fully repaired; with a quick patch they are the same on a direct link (power 3/5/2), and each signal is 2 minutes slower on a relayed one.
 
 1. Odyssey, calibrated IR, power 3/5/2, 30 Mar 2029, ridge, deep scan. Signal legs are 5.4 min and the heaters take 14 points. The scan arrives at T+34.8 as 31 ±7%, the rover ends at 22%, and final telemetry arrives at T+50.8, so Ares Shelf clears. With battery balancing the rover ends at 28%.
 2. The same plan with power 3/4/3. Each signal leg now includes the 3 min hand-off (8.4 min). The evidence is strong, but final telemetry at T+56.8 means Ares Shelf has closed.

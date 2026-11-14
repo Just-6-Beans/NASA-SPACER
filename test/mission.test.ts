@@ -16,18 +16,21 @@ const DIRECT: Power = { life: 3, comms: 5, research: 2 } // direct link, no rela
 const FILTER: Power = { life: 3, comms: 4, research: 3 } // research filter
 const PLAIN: Power = { life: 3, comms: 4, research: 2 }
 
-interface Opts { ship?: ShipId; inst: InstrumentId; cal: boolean; power: Power; date?: string; route: RouteId; scan: ScanId; balanced?: boolean; water?: boolean }
+interface Opts { ship?: ShipId; inst: InstrumentId; cal: boolean; power: Power; date?: string; route: RouteId; scan: ScanId; balanced?: boolean; water?: boolean; medical?: boolean; relay?: 'repair' | 'patch' }
 
+/** Plays a mission up to transmission. Every task asked for must fit in the crew-hours. */
 function run(opts: Opts) {
   const m = new Mission({ callSign: 'Test', suit: 'ember', ship: opts.ship ?? 'odyssey' })
   assert.equal(m.selectInstrument(opts.inst), null)
   assert.equal(m.activatePayload(), null)
   assert.ok(m.relayFault)
   assert.match(m.transmitBlock()!, /Relay/)
-  m.complete('relay', 'test')
-  if (opts.cal) m.complete('calibration', 'test')
-  if (opts.balanced) m.complete('battery', 'test')
-  if (opts.water) m.complete('water', 'test')
+  if (opts.relay === 'patch') assert.equal(m.patchRelay(), null)
+  else assert.ok(m.complete('relay', 'test'))
+  if (opts.cal) assert.ok(m.complete('calibration', 'test'))
+  if (opts.balanced) assert.ok(m.complete('battery', 'test'))
+  if (opts.water) assert.ok(m.complete('water', 'test'))
+  if (opts.medical) assert.ok(m.complete('medical', 'test'))
   m.setPower(opts.power)
   assert.equal(m.setOpsDate(opts.date ?? NEAR), null)
   m.route = opts.route
@@ -193,9 +196,9 @@ test('the debrief names the choices behind the outcome', () => {
   assert.deepEqual([clock.ok, battery.ok, evidence.ok], [false, true, true])
   assert.match(clock.headline, /0\.8 min after the dust front/)
   assert.ok(clock.parts.some(p => /light time 5\.4 min \+ relay hand-off 3 min/.test(p)))
-  assert.ok(battery.parts.some(p => /Night heaters: 14 pts for a −79 °C night/.test(p)))
+  assert.ok(battery.parts.some(p => /Night heaters: 14% for a −79 °C night/.test(p)))
   const stranded = run({ inst: 'gpr', cal: false, power: PLAIN, date: NEAR, route: 'basin', scan: 'quick' })
-  assert.match(stranded.causes[1].headline, /needed 10 more battery points/)
+  assert.match(stranded.causes[1].headline, /needed 10% more battery/)
   assert.equal(stranded.causes[2].ok, false)
   assert.deepEqual(new Mission({ callSign: 'x', suit: 'ember', ship: 'odyssey' }).causes, [])
 })
@@ -232,15 +235,96 @@ test('tasks validate', () => {
 })
 
 test('task rewards apply once; habitat needs medical', () => {
-  const m = run({ inst: 'ir', cal: true, power: DIRECT, date: NEAR, route: 'ridge', scan: 'deep' })
+  // A patched relay is free, which leaves an hour each for calibration, cargo and the medical check.
+  const m = run({ inst: 'ir', cal: true, power: DIRECT, date: NEAR, route: 'ridge', scan: 'deep', relay: 'patch' })
   assert.equal(m.complete('cargo', 'x'), true)
   assert.equal(m.complete('cargo', 'x'), false)
   assert.equal(m.credits, 63)
   m.advanceTo(100)
   m.decideLanding('shelf')
   assert.match(m.taskAvailable('habitat')!, /medical/)
-  m.complete('medical', 'x')
+  assert.ok(m.complete('medical', 'x'))
   assert.equal(m.taskAvailable('habitat'), null)
+  assert.ok(m.complete('habitat', 'x'), 'commissioning the habitat takes no crew-hour')
+})
+
+test('preparation is limited: three crew-hours, one per task', () => {
+  const m = new Mission({ callSign: 'Test', suit: 'ember', ship: 'odyssey' })
+  assert.equal(m.prepLeft, 3)
+  m.selectInstrument('ir')
+  m.activatePayload()
+  assert.ok(m.complete('relay', 'x'), 'a full relay repair takes an hour')
+  assert.ok(m.complete('calibration', 'x'))
+  assert.equal(m.prepLeft, 1)
+  assert.equal(m.taskAvailable('water'), null)
+  assert.ok(m.complete('battery', 'x'))
+  assert.equal(m.prepLeft, 0)
+  // Nothing is left for the medical check, so this crew can land but cannot commission the habitat.
+  assert.match(m.taskAvailable('medical')!, /No crew-hours left/)
+  assert.equal(m.complete('medical', 'x'), false)
+  assert.ok(!m.completed.has('medical'))
+  assert.equal(m.taskAvailable('battery'), null, 'a finished task is never blocked')
+  // The whole mission fits in the three hours: calibrate, clear the crew, and one hour to spare.
+  const full = run({ inst: 'ir', cal: true, medical: true, power: DIRECT, date: NEAR, route: 'ridge', scan: 'deep', relay: 'patch' })
+  assert.equal(full.prepLeft, 1)
+  full.advanceTo(100)
+  assert.equal(full.decideLanding('shelf'), null)
+  assert.equal(full.taskAvailable('habitat'), null)
+})
+
+test('relay fault: a quick patch is free but slows the relay; a direct link does not care', () => {
+  const patched = run({ inst: 'ir', cal: true, power: FILTER, date: NEAR, route: 'ridge', scan: 'deep', relay: 'patch' })
+  assert.equal(patched.prepLeft, 2, 'the patch took no crew-hour')
+  assert.ok(patched.relayPatched)
+  assert.equal(patched.pass!.uplink, 10.4, 'light time 5.4, hand-off 3, patch 2')
+  assert.ok(patched.causes[0].parts.some(p => /relay hand-off 5 min \(patched relay\)/.test(p)))
+  const repaired = run({ inst: 'ir', cal: true, power: FILTER, date: NEAR, route: 'ridge', scan: 'deep' })
+  assert.equal(repaired.prepLeft, 1)
+  assert.equal(repaired.pass!.uplink, 8.4)
+  const direct = run({ inst: 'ir', cal: true, power: DIRECT, date: NEAR, route: 'ridge', scan: 'deep', relay: 'patch' })
+  assert.equal(direct.pass!.uplink, 5.4, 'a direct link skips the relay, patched or not')
+  assert.equal(direct.pass!.finalTelemetryAt, 50.8)
+  // A patch can be upgraded to the full repair before transmission, for a crew-hour.
+  const m = new Mission({ callSign: 'Test', suit: 'ember', ship: 'odyssey' })
+  assert.match(m.patchRelay()!, /nominal/)
+  m.selectInstrument('ir')
+  m.activatePayload()
+  assert.equal(m.patchRelay(), null)
+  assert.equal(m.roverAccess(), null)
+  assert.equal(m.handoffMin, 5)
+  assert.equal(m.taskAvailable('relay'), null)
+  assert.ok(m.complete('relay', 'x'))
+  assert.ok(!m.relayPatched)
+  assert.equal(m.handoffMin, 3)
+  assert.equal(m.prepLeft, 2)
+})
+
+test('Eos Hollow: no deadline, but it needs rover battery to spare and a power kit', () => {
+  // Late, strong evidence, 15% to spare: the shelf is closed and the hollow costs only the kit.
+  const late = run({ inst: 'ir', cal: true, power: DIRECT, date: FAR, route: 'ridge', scan: 'deep' })
+  late.advanceTo(100)
+  assert.equal(late.assess('shelf').status, 'closed')
+  const hollow = late.assess('hollow')
+  assert.deepEqual([hollow.canLand, hollow.cost], [true, 12])
+  assert.equal(late.assess('plain').cost, 38, 'Meridian costs more than three times as much')
+  assert.equal(late.decideLanding('hollow'), null)
+  assert.equal(late.funds, 100 - 42 - 12)
+  assert.ok(!late.landing!.importedWater)
+  // Scenario 1 comes home with 2% to spare: not enough for the slope survey.
+  const tight = run({ inst: 'ir', cal: true, power: DIRECT, date: NEAR, route: 'ridge', scan: 'deep' })
+  tight.advanceTo(100)
+  assert.equal(tight.assess('hollow').status, 'held')
+  assert.match(tight.assess('hollow').reason, /only 2% to spare/)
+  // Weak evidence: the hollow needs imported water too, so it costs what Meridian costs.
+  const weak = run({ inst: 'ir', cal: false, power: DIRECT, date: FAR, route: 'ridge', scan: 'quick' })
+  weak.advanceTo(100)
+  assert.ok(!weak.pass!.reading!.strong)
+  assert.equal(weak.assess('hollow').cost, 38)
+  // A stranded rover cannot survey anything.
+  const stranded = run({ inst: 'gpr', cal: false, power: PLAIN, date: NEAR, route: 'basin', scan: 'quick' })
+  stranded.advanceTo(200)
+  assert.equal(stranded.assess('hollow').status, 'held')
+  assert.equal(stranded.assess('hollow').canLand, false)
 })
 
 test('pose validation', () => {

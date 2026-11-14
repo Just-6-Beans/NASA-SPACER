@@ -28,12 +28,12 @@ export const SHIPS: Ship[] = [
     id: 'odyssey', name: 'Odyssey', role: 'Survey transport', payloadKg: 18, budget: 100, battery: 100, handoffMin: 3,
     blurb: 'A balanced survey hauler with a full-charge rover cradle.',
     pros: ['Full rover battery', 'Carries either instrument'],
-    cons: ['Middling supply budget'],
+    cons: ['Middling budget'],
   },
   {
     id: 'atlas', name: 'Atlas', role: 'Heavy logistics', payloadKg: 25, budget: 113, battery: 92, handoffMin: 3,
     blurb: 'Deep cargo bays and the richest supply line in the fleet.',
-    pros: ['Largest payload', 'Largest supply budget'],
+    pros: ['Largest payload', 'Largest budget'],
     cons: ['Rover arrives at 92% charge'],
   },
   {
@@ -108,16 +108,24 @@ export const UNCALIBRATED_PENALTY = 9
 export const FILTER_CUT = 5
 export const MIN_UNCERTAINTY = 3
 
+// ---- Preparation (our model) -----------------------------------------------
+/** Crew-hours on the station before the mission ends. Each preparation task takes one. */
+export const PREP_HOURS = 3
+/** Minutes a patched relay adds to its hand-off on every signal. A direct link skips the relay. */
+export const PATCH_HANDOFF = 2
+
 // ---- Landing costs (our model) ---------------------------------------------
 export const WATER_COST = 26
 export const KIT_COST = 12
 export const WATER_DISCOUNT = 8
 export const CARGO_REWARD = 5
+/** Battery the rover must have left above the reserve, back at base, to survey the Eos Hollow slope. */
+export const SURVEY_DRAW = 8
 
-export const SITES: { id: SiteId; name: string; terrain: string; evidence: string; power: string; risk: string }[] = [
-  { id: 'shelf', name: 'Ares Shelf', terrain: 'Level bedrock shelf', evidence: 'The sampled location: rover ice reading', power: `Good solar until the dust front (T+${DUST_DEADLINE})`, risk: 'Depends on the received ice range and on the rover getting home' },
-  { id: 'hollow', name: 'Eos Hollow', terrain: 'Loose slopes in a shaded hollow', evidence: 'Plausible, unverified ice', power: 'Weak solar exposure', risk: 'Needs slope survey and backup power' },
-  { id: 'plain', name: 'Meridian Plain', terrain: 'Relatively stable plain', evidence: 'No local ice evidence', power: 'Dust exposed: needs rated power kit', risk: 'Needs imported water + dust-rated kit' },
+export const SITES: { id: SiteId; name: string; needs: string; terrain: string; evidence: string; power: string; risk: string }[] = [
+  { id: 'shelf', name: 'Ares Shelf', needs: 'On time · rover home · strong ice or imported water', terrain: 'Level bedrock shelf', evidence: 'The sampled location: rover ice reading', power: `Good solar until the dust front (T+${DUST_DEADLINE})`, risk: 'Depends on the received ice range and on the rover getting home' },
+  { id: 'hollow', name: 'Eos Hollow', needs: `No deadline · rover home with ${SURVEY_DRAW}% to spare · power kit`, terrain: 'Loose slopes in a shaded hollow: the rover must survey them first', evidence: 'Plausible ice: a strong reading from the shelf scan counts, a weak one means importing water', power: 'Shaded, so it runs on a backup power kit and the dust front does not matter', risk: `The slope survey needs ${SURVEY_DRAW}% of rover battery above the reserve` },
+  { id: 'plain', name: 'Meridian Plain', needs: 'No deadline · imported water + power kit', terrain: 'Relatively stable plain', evidence: 'No local ice evidence', power: 'Dust exposed: needs rated power kit', risk: 'Needs imported water + dust-rated kit' },
 ]
 
 export const byId = <T extends { id: string }>(list: T[], id: string): T => {

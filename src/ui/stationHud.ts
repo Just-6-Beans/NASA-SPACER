@@ -14,24 +14,62 @@ import { linkMinutes } from './forecast'
 /** Units each bus needs before the plan can be transmitted. Mirrors powerBlock() in core/power. */
 export const NEED: Power = { life: 3, comms: 4, research: 0 }
 
-export interface Objective { text: string; target: TerminalId | null; urgent: boolean }
+export interface Objective {
+  /** Which of the mission's steps this is, counted from 1. */
+  step: number
+  title: string
+  text: string
+  target: TerminalId | null
+  urgent: boolean
+}
 
-/** The next step, in words and as a place on the deck. */
-export function objectiveFor(m: Mission, briefed: boolean): Objective {
-  const at = (target: TerminalId, text: string, urgent = false): Objective => ({ text, target, urgent })
-  // The brief comes first, but a player who walks past it and starts work is not sent back.
-  if (!briefed && !m.instrumentDraft && !m.payloadActive) return at('ops', 'Read the mission brief at the Mission Ops table (centre, under the cupola).')
-  if (!m.payloadActive) return at('payload', m.instrumentDraft ? 'Activate the payload at the Payload terminal in the rover bay.' : 'Choose a rover instrument at the Payload terminal in the rover bay (centre).')
-  if (m.relayFault) return at('comms', 'EMERGENCY: repair the relay at Rover Comms (node C, rear right).', true)
-  if (!m.pass) {
-    const pb = powerBlock(m.power)
-    if (pb) return at('power', `Route power at the Power Grid (node A, rear left): ${pb}`)
-    if (!m.calibrated) return at('comms', 'Optional: calibrate at the Calibration bench (node C, front right). Then plan and transmit at Rover Comms.')
-    return at('comms', 'Pick an operations date, a route and a scan at Rover Comms, then transmit.')
+/** The mission's steps in order, as the task list shows them. */
+export const STEPS = [
+  'Route station power',
+  'Choose the rover instrument',
+  'Fix the relay',
+  'Prepare, then plan the pass',
+  'Follow the rover pass',
+  'Choose the landing site',
+  'Read the debrief',
+] as const
+
+/** Which step the mission has reached, counted from 1. Steps before it are done. */
+export function stepOf(m: Mission): number {
+  if (m.relayFault) return 3
+  if (!m.pass && powerBlock(m.power)) return 1
+  if (!m.payloadActive) return 2
+  if (!m.pass) return 4
+  if (!m.passDone) return 5
+  if (!m.landing) return 6
+  return 7
+}
+
+/**
+ * The next step, in words and as a place on the deck. The player reads the brief before
+ * choosing a spacecraft, so the first step on the station is already a decision. The order
+ * sweeps the deck once, from the Power Grid on the left to Rover Comms on the right, so no step
+ * sends the player back across it.
+ */
+export function objectiveFor(m: Mission): Objective {
+  const step = stepOf(m)
+  const at = (target: TerminalId | null, text: string, urgent = false): Objective => ({ step, title: STEPS[step - 1], text, target, urgent })
+  switch (step) {
+    case 1: return at('power', 'The rover link needs Communications at 4 or more. Decide what the rest of the power buys.')
+    case 2: return at('payload', m.instrumentDraft ? 'Activate the payload to lock the instrument in.' : 'Only one instrument flies. Each trades cost and battery against a sharper ice reading.')
+    case 3: return at('comms', 'Powering up the payload knocked the relay out, as it always does. Patch it for free, or repair it for a crew-hour.', true)
+    case 4: {
+      const h = m.prepLeft
+      const hours = `${h} crew-hour${h === 1 ? '' : 's'} left`
+      const prep = h < 1 ? 'Your crew-hours are spent.'
+        : !m.completed.has('medical') ? `${hours}. The habitat needs the crew medical check at Hab Systems.`
+          : `${hours} for more preparation: see Tasks.`
+      return at('comms', `${prep} When ready, plan the pass at Rover Comms.`)
+    }
+    case 5: return at('comms', `The rover is at work on Mars (T+${fmt(m.clock)}). Watch its signals arrive at Rover Comms.`)
+    case 6: return at('comms', 'The last signal is in. Weigh the three sites at Rover Comms and commit, or wait in orbit.')
+    default: return at(null, 'The mission is decided. Open the mission report to see which choices caused it.')
   }
-  if (!m.passDone) return at('comms', `Rover pass under way (T+${fmt(m.clock)}). Follow telemetry at Rover Comms.`)
-  if (!m.landing) return at('comms', 'Final telemetry received. Choose a landing site at Rover Comms.')
-  return { text: 'Mission decided. Review the report.', target: null, urgent: false }
 }
 
 /** Mission state in the shape the live deck layer draws. */
@@ -49,7 +87,7 @@ export function stationView(m: Mission, o: Objective, guide: boolean): StationVi
     calibrated: m.calibrated,
     battery: m.ship.battery,
     linkMin: linkMinutes(m),
-    linkNote: d ? `${fmt(d.lightMin)} JPL HORIZONS ${direct ? '· DIRECT' : `+ ${m.ship.handoffMin} RELAY`}` : 'NO OPERATIONS DATE YET',
+    linkNote: d ? `${fmt(d.lightMin)} JPL HORIZONS ${direct ? '· DIRECT' : `+ ${m.plan?.handoffMin ?? m.handoffMin} RELAY`}` : 'NO OPERATIONS DATE YET',
     passClock: m.pass ? m.clock : null,
     passDone: m.passDone,
     water: m.completed.has('water'),

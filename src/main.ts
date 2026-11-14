@@ -3,24 +3,29 @@ import './holo.css'
 import './title.css'
 import { ICONS } from './ui/icons'
 import type Phaser from 'phaser'
-import { SHIPS, SUITS, byId, type ShipId, type SuitId } from './core/data'
-import { Mission, TASK_INFO } from './core/mission'
-import { powerBlock, validPower, type Power } from './core/power'
+import { CARGO_REWARD, PREP_HOURS, ROUTES, SCANS, SHIPS, SITES, SUITS, byId, type ShipId, type SuitId } from './core/data'
+import { Mission, PREP_COST, TASK_INFO } from './core/mission'
+import { validPower, type Power } from './core/power'
 import { fmt } from './core/rover'
 import type { TaskId } from './core/tasks'
 import { ROOM_NAME, type CrewMember } from './core/protocol'
 import { sound } from './audio'
 import { Coop, coopUrl } from './coop'
-import { createGame, type MarsScene, type StationScene, type Terminal } from './game/game'
+import { terminal } from './game/deck'
+import { createGame, deckFits, type MarsScene, type StationScene, type Terminal } from './game/game'
 import { bindDpad, clearHeld, input, setBlocked } from './game/input'
-import { $, el, esc, isTouch, toast } from './ui/dom'
-import { crewScreen, fleetScreen, launchScreen, titleScreen, type CrewLink, type Draft, type LinkStatus, type Mode, type TitleUi } from './ui/intro'
+import { $, clearToasts, el, esc, isTouch, lower1, toast } from './ui/dom'
+import type { Forecast } from './ui/forecast'
+import { briefScreen, crewScreen, fleetScreen, launchScreen, titleScreen, type CrewLink, type Draft, type LinkStatus, type Mode, type TitleUi } from './ui/intro'
 import { closePanel, openPanel, panelOpen, refreshPanel, type PanelCtx } from './ui/panels'
+import { phaseOf, phaseRail, type Phase } from './ui/phase'
 import { reportScreen, sitesScreen } from './ui/report'
 import { roverScreen } from './ui/roverView'
-import { NEED, deckMap, objectiveFor, stationView, type DeckMap } from './ui/stationHud'
+import { NEED, STEPS, deckMap, objectiveFor, stationView, stepOf, type DeckMap } from './ui/stationHud'
+// Last, so it can refine the station and rover stylesheets the modules above bring in.
+import './flow.css'
 
-type ScreenName = 'title' | 'fleet' | 'crew' | 'launch' | 'station' | 'rover' | 'report'
+type ScreenName = 'title' | 'brief' | 'fleet' | 'crew' | 'launch' | 'station' | 'rover' | 'report'
 
 const app = $('#app')
 const gameHost = el('<div id="game"></div>')
@@ -35,10 +40,14 @@ let hud: HTMLElement | null = null
 let rover: ReturnType<typeof roverScreen> | null = null
 let overlay: HTMLElement | null = null // sites overlay
 let map: DeckMap | null = null
-let briefed = false // the mission brief at Mission Ops has been opened in this session
+/** The pass flown before this one, so the planner can show what a change did. */
+let lastFlight: Forecast | null = null
+let shownPhase: Phase | null = null
 let guideOn = (() => { try { return localStorage.getItem('spacer.guide') !== '0' } catch { return true } })()
 let drawerOpen = false
-let debugOn = false
+let menuOpen = false
+// Debug is a developer view: the backquote key, or ?debug in the address, not a button.
+let debugOn = new URLSearchParams(location.search).has('debug')
 let prevFault = false
 const coop = new Coop()
 let coopPanel: HTMLElement | null = null
@@ -68,6 +77,7 @@ function show(name: ScreenName, node: HTMLElement | null) {
   screen = name
   if (node) app.append(node)
   gameHost.style.visibility = name === 'station' || name === 'rover' ? 'visible' : 'hidden'
+  document.body.dataset.screen = name // the stylesheet places toasts per screen
   document.title = `SPACER · ${name[0].toUpperCase()}${name.slice(1)}`
 }
 
@@ -81,19 +91,35 @@ function goTitle() {
 async function startMission(mode: Mode) {
   soloOnly = mode === 'solo'
   if (soloOnly && coop.connected) await leaveCoop()
-  goFleet()
+  goBrief()
 }
-function goFleet() { show('fleet', fleetScreen(draft, goTitle, ship => { draft.ship = ship; saveDraft(); goCrew() })) }
+/** The brief comes before the spacecraft, so the first choice is made knowing what it is for. */
+function goBrief() { show('brief', briefScreen(goTitle, goFleet)) }
+function goFleet() { leaveGameplay(); show('fleet', fleetScreen(draft, goBrief, ship => { draft.ship = ship; saveDraft(); goCrew() })) }
 function goCrew() { show('crew', crewScreen(draft, goFleet, d => { draft = d; saveDraft(); goLaunch() })) }
 function goLaunch() { show('launch', launchScreen(draft, () => void dock())) }
 
-async function dock() {
+/**
+ * Starts a mission on the station. `carry` is the mission just flown: its design is kept (power,
+ * instrument, date, route, scan) so the player can change one thing and fly again. Tasks and
+ * crew-hours start fresh.
+ */
+async function dock(carry: Mission | null = null) {
   await gameReady
+  if (carry?.plan && carry.pass) lastFlight = { plan: carry.plan, pass: carry.pass }
   mission = new Mission({ callSign: draft.callSign, suit: draft.suit as SuitId, ship: draft.ship as ShipId })
+  const kept = carry?.plan
+  if (kept) {
+    mission.setPower(kept.power)
+    mission.selectInstrument(kept.instrument)
+    mission.setOpsDate(kept.date)
+    mission.route = kept.route
+    mission.scan = kept.scan
+  }
   if (coop.connected && sharedPower) mission.setPower(sharedPower)
   prevFault = false
   enterStation(true)
-  toast(`Docked at 408 km. Welcome aboard, ${mission.profile.callSign}.`, 'ok')
+  toast(kept ? 'Docked again with your last design. Change one thing and see what it does.' : `Docked at 408 km. Welcome aboard, ${mission.profile.callSign}. The brief and live status are at Mission Ops.`, 'ok', 5200)
   sound.play('dock')
 }
 
@@ -114,6 +140,7 @@ function enterStation(fresh = false) {
     wireStation(s)
     if (fresh) s.respawn()
     s.layout()
+    s.setDebug(debugOn)
     s.forcePoseSend()
     pushView()
     if (coop.connected) syncCrew()
@@ -139,6 +166,7 @@ function wireStation(s: StationScene) {
   input.onEscape = () => {
     if (coopPanel) return closeCoop()
     if (panelOpen()) return closeTask()
+    if (menuOpen) return toggleMenu(false)
     if (drawerOpen) return toggleDrawer(false)
   }
 }
@@ -169,24 +197,33 @@ function panelCtx(): PanelCtx {
 function openTerminal(id: string) {
   if (!mission) return
   sound.play('ui')
+  // With the link up, Rover Comms is the rover planner: no panel in between.
+  if (id === 'comms' && !mission.roverAccess()) { goRover(); return }
+  showPanel(id)
+}
+/** Opens a terminal's panel over whatever screen is up: the station, or the rover planner. */
+function showPanel(id: string, tab?: string) {
+  if (!mission) return
   setBlocked(true)
-  if (id === 'ops') briefed = true
-  openPanel(id, panelCtx())
+  openPanel(id, panelCtx(), tab)
 }
 function closeTask() {
   closePanel()
-  setBlocked(!!coopPanel)
+  setBlocked(!!coopPanel || screen !== 'station')
   refresh()
 }
 
 function completeTask(task: TaskId, detail: string) {
   if (!mission!.complete(task, detail)) return
   sound.play('success')
-  toast(`${TASK_INFO[task].name} complete: ${TASK_INFO[task].reward}.`, 'ok')
+  const left = mission!.prepLeft
+  const hours = PREP_COST[task] ? ` ${left} crew-hour${left === 1 ? '' : 's'} left.` : ''
+  // Restoring the relay announces itself below, in refresh().
+  if (task !== 'relay') toast(`${TASK_INFO[task].name} done: ${lower1(TASK_INFO[task].reward)}.${hours}`, 'ok')
   refresh()
 }
 
-const objective = () => objectiveFor(mission!, briefed)
+const objective = () => objectiveFor(mission!)
 
 /** Hands the mission state to the deck, which draws it: power buses, consoles, guide. */
 function pushView() {
@@ -196,30 +233,38 @@ function pushView() {
 function buildHud(): HTMLElement {
   const m = mission!
   const suit = byId(SUITS, m.profile.suit)
+  shownPhase = null
+  menuOpen = false
   hud = el(`<section class="screen hud" aria-label="Station">
-    <div class="ops-head"><div class="brand">SPACER</div><div class="sect">ORBITAL OPERATIONS</div>
-      <div class="hud-buttons"><button class="btn small" id="b-tasks">Tasks</button><button class="btn small" id="b-guide"></button><button class="btn small" id="b-sound"></button><button class="btn small" id="b-debug">Debug</button><button class="btn small" id="b-coop">Co-op</button></div>
+    <div class="ops-head"><div class="brand">SPACER</div><div class="phasewrap" id="phases"></div>
+      <div class="hud-buttons">
+        <button class="btn small primary hidden" id="b-report">Mission report</button>
+        <button class="btn small" id="b-tasks">Tasks</button>
+        <div class="menuwrap"><button class="btn small" id="b-menu" aria-haspopup="true" aria-expanded="false">Menu</button>
+          <div class="hudmenu hidden" id="menu"><button class="btn small" id="b-guide"></button><button class="btn small" id="b-sound"></button><button class="btn small" id="b-coop"></button></div></div>
+      </div>
       <div class="crewtag" title="${esc(m.profile.callSign)} · ${m.ship.name} · ${suit.name} suit"><span class="sw" style="background:${suit.primary}"></span><div><b>${esc(m.profile.callSign)}</b><br/><span>${m.ship.name} · ${suit.name}</span></div></div>
-      <div class="crewn">${ICONS.crew}<span id="crewn">1 / 2 CREW</span></div></div>
-    <div class="ops-sub">
-      <div class="objline" id="objline" role="status"><span class="box"></span><span id="obj"></span></div>
-    </div>
-    <div class="statbar" id="meters" aria-label="Station power"></div>
-    <div class="clocks" id="clocks"></div>
-    <div class="banner hidden" id="banner" role="alert">⚠ Relay fault · Mars link down · Repair at Rover Comms</div>
+      <div class="crewn hidden" id="crewn-wrap">${ICONS.crew}<span id="crewn"></span></div></div>
+    <div class="objcard" id="objline" role="status">
+      <div class="objstep"><b id="objstep"></b><span id="objwhere"></span></div>
+      <div class="objtitle" id="objtitle"></div><div class="objtext" id="obj"></div></div>
+    <div class="statbar" id="meters" aria-label="Station resources"></div>
+    <div class="banner hidden" id="banner" role="alert">⚠ Relay fault · choose the fix at Rover Comms</div>
     <div class="prompt hidden" id="prompt"></div>
-    <div class="debugbox hidden" id="debug"><div id="dstats"></div><button class="btn small" id="d-add">+250 sprites</button> <button class="btn small" id="d-rst">Reset sprites</button><div style="margin-top:4px"><span style="color:#ff8a7a">red</span> = collision · <span style="color:#6ef2c6">mint</span> = feet · <span style="color:#ffb347">amber</span> = reach</div></div>
+    <div class="debugbox hidden" id="debug"><div id="dstats"></div><button class="btn small" id="d-add">+250 sprites</button> <button class="btn small" id="d-rst">Reset sprites</button><div style="margin-top:4px"><span style="color:#ff8a7a">red</span> = collision · <span style="color:#6ef2c6">mint</span> = feet · <span style="color:#ffb347">amber</span> = reach · <kbd>\`</kbd> closes</div></div>
     ${isTouch() ? `<div class="dpad" id="dpad">
       <span></span><button data-dir="up" aria-label="Up">▲</button><span></span>
       <button data-dir="left" aria-label="Left">◀</button><button data-dir="jog" aria-label="Jog">⇧</button><button data-dir="right" aria-label="Right">▶</button>
       <span></span><button data-dir="down" aria-label="Down">▼</button><span></span></div>
       <button class="act" id="touch-act" aria-label="Interact">E</button>` : ''}
   </section>`)
-  $('#b-tasks', hud).addEventListener('click', () => toggleDrawer())
+  $('#b-tasks', hud).addEventListener('click', () => { toggleMenu(false); toggleDrawer() })
+  $('#b-menu', hud).addEventListener('click', () => toggleMenu())
+  $('#b-report', hud).addEventListener('click', goReport)
   $('#b-sound', hud).addEventListener('click', () => { sound.setMuted(!sound.muted); sound.play('ui'); refresh() })
-  $('#b-debug', hud).addEventListener('click', () => { debugOn = !debugOn; station().setDebug(debugOn); refresh() })
-  $('#b-coop', hud).addEventListener('click', openCoop)
+  $('#b-coop', hud).addEventListener('click', () => { toggleMenu(false); openCoop() })
   $('#b-guide', hud).addEventListener('click', () => { guideOn = !guideOn; try { localStorage.setItem('spacer.guide', guideOn ? '1' : '0') } catch { /* ignore */ } sound.play('ui'); refresh() })
+  hud.addEventListener('pointerdown', e => { if (menuOpen && !(e.target as HTMLElement).closest('.menuwrap')) toggleMenu(false) })
   map = deckMap(m)
   hud.append(map.el)
   $('#d-add', hud).addEventListener('click', () => { station().addLoad(250) })
@@ -231,44 +276,77 @@ function buildHud(): HTMLElement {
   return hud
 }
 
+function toggleMenu(force?: boolean) {
+  menuOpen = force ?? !menuOpen
+  if (!hud) return
+  $('#menu', hud).classList.toggle('hidden', !menuOpen)
+  $('#b-menu', hud).setAttribute('aria-expanded', String(menuOpen))
+}
+
+/** The bottom bar: the three power buses, then the two budgets the player spends, hours and credits. */
+function metersHtml(m: Mission): string {
+  const p = m.power
+  const cell = (cls: string, icon: string, long: string, short: string, value: string, body: string, title: string) =>
+    `<div class="sm ${cls}" title="${title}">${icon}<b><span class="l">${long}</span><span class="s">${short}</span><span class="v">${value}</span></b>${body}</div>`
+  const bus = ([['Life support', 'Life', ICONS.leaf, 'life'], ['Comms', 'Comms', ICONS.signal, 'comms'], ['Research', 'Rsrch', ICONS.flask, 'research']] as [string, string, string, keyof Power][]).map(([n, s, ic, k]) =>
+    cell(`bus-${k} ${p[k] < NEED[k] ? 'low' : ''}`, ic, n, s, `${p[k]}<span class="of">/10</span>`, `<div class="bar"><i style="width:${p[k] * 10}%"></i></div>`, `${n}: ${p[k]} of 10 units${NEED[k] ? `, needs ${NEED[k]} to transmit` : ''}`))
+  const total = m.ship.budget + (m.completed.has('cargo') ? CARGO_REWARD : 0)
+  const hours = cell(`res ${m.prepLeft < 1 ? 'spent' : ''}`, ICONS.clock, 'Crew-hours', 'Hours', `${m.prepLeft}/${PREP_HOURS}`,
+    `<div class="pips">${Array.from({ length: PREP_HOURS }, (_, i) => `<i class="${i < m.prepLeft ? 'on' : ''}"></i>`).join('')}</div>`, `${m.prepLeft} of ${PREP_HOURS} crew-hours left. Each preparation task takes one.`)
+  const credits = cell('res', ICONS.bars, 'Credits', 'Cr', `${m.funds}<span class="of"> cr</span>`, `<div class="bar"><i style="width:${Math.max(0, (m.funds / total) * 100)}%"></i></div>`, `${m.funds} of ${total} credits left for imported water and landing kits.`)
+  return bus.join('') + hours + credits
+}
+
 function refresh() {
   const m = mission
   if (!m) return
-  if (m.relayFault && !prevFault) { sound.play('relay'); toast('Relay fault! The Mars link dropped when the payload powered up.', 'bad', 6000) }
-  if (!m.relayFault && prevFault) toast('Relay restored. Rover planner online.', 'ok')
+  if (m.relayFault && !prevFault) { sound.play('relay'); toast('Relay fault. Powering up the payload always knocks it out: choose the fix at Rover Comms.', 'bad', 6000) }
+  if (!m.relayFault && prevFault) toast(m.relayPatched ? `Relay patched. Its hand-off is now ${m.handoffMin} min; a direct link skips it.` : 'Relay repaired. The rover planner is online.', 'ok', 5000)
   prevFault = m.relayFault
   if (hud && screen === 'station') {
-    $('#obj', hud).textContent = objective().text
-    $('#b-guide', hud).textContent = guideOn ? 'Guide: on' : 'Guide: off'
+    const o = objective()
+    const ph = phaseOf(m)
+    if (ph !== shownPhase) { $('#phases', hud).innerHTML = phaseRail(ph); shownPhase = ph }
+    $('#objstep', hud).textContent = `Step ${o.step} of ${STEPS.length}`
+    $('#objwhere', hud).textContent = o.target ? `→ ${terminal(o.target).name}` : '→ Mission report'
+    $('#objtitle', hud).textContent = o.title
+    $('#obj', hud).textContent = o.text
+    $('#b-guide', hud).textContent = guideOn ? 'Floor guide: on' : 'Floor guide: off'
     $('#b-guide', hud).classList.toggle('mint', guideOn)
     $('#b-sound', hud).textContent = sound.muted ? 'Sound: off' : 'Sound: on'
-    $('#b-debug', hud).classList.toggle('mint', debugOn)
-    $('#b-coop', hud).textContent = coop.connected ? `Co-op · ${coop.players}` : 'Co-op'
+    $('#b-coop', hud).textContent = coop.connected ? `Co-op · ${coop.players} / 2` : 'Co-op…'
     $('#b-coop', hud).classList.toggle('mint', coop.connected)
-    const p = m.power
-    $('#meters', hud).innerHTML = ([['Life support', ICONS.leaf, 'life'], ['Comms', ICONS.signal, 'comms'], ['Research', ICONS.flask, 'research']] as [string, string, keyof Power][]).map(([n, ic, k]) =>
-      `<div class="sm bus-${k} ${p[k] < NEED[k] ? 'low' : ''}" title="${n}: ${p[k]} of 10 units${NEED[k] ? `, needs ${NEED[k]} to transmit` : ''}">${ic}<b>${n}<span>${p[k]}/10</span></b><div class="bar"><i style="width:${p[k] * 10}%"></i></div></div>`).join('')
-    $('#objline', hud).classList.toggle('alert', m.relayFault)
-    $('#crewn', hud).textContent = `${coop.connected ? coop.players : 1} / 2 CREW`
+    $('#b-report', hud).classList.toggle('hidden', !m.landing)
+    $('#meters', hud).innerHTML = metersHtml(m)
+    $('#objline', hud).classList.toggle('alert', o.urgent)
+    $('#crewn-wrap', hud).classList.toggle('hidden', !coop.connected)
+    $('#crewn', hud).textContent = `${coop.players} / 2 CREW`
     $('#banner', hud).classList.toggle('hidden', !m.relayFault)
     $('#debug', hud).classList.toggle('hidden', !debugOn)
+    // The map only earns its corner when the deck is wider than the window.
+    map?.el.classList.toggle('hidden', deckFits(window.innerWidth, window.innerHeight))
     if (drawerOpen) renderDrawer()
   }
+  if (screen === 'rover') rover?.powerChanged()
   pushView()
 }
+window.addEventListener('resize', () => { if (screen === 'station') refresh() })
 
-// clocks + debug readout
+// Debug read-out: frame rate, both clocks, sprite load. A developer view, off by default.
 setInterval(() => {
-  if (!mission || !hud || screen !== 'station') return
+  if (!debugOn || !mission || !hud || screen !== 'station' || !game) return
+  const st = station()
   const s = Math.floor((Date.now() - mission.dockedAt) / 1000)
-  const st = game && station()
-  const ph = st?.exteriorPhase ?? 0
+  const ph = st.exteriorPhase
   const ext = Math.floor(ph * 184)
-  $('#clocks', hud).innerHTML = `Docked <b>${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</b> real · Exterior 30× <b>${Math.floor(ext / 60)}:${String(ext % 60).padStart(2, '0')}</b>/3:04 ${ph < 0.62 ? 'day' : 'night'}<br/>Rover <b>${mission.pass ? `T+${fmt(mission.clock)}` : 'not transmitted'}</b>`
-  if (debugOn && st) {
-    $('#dstats', hud).innerHTML = `FPS <b>${Math.round(game!.loop.actualFps)}</b> · DPR ${window.devicePixelRatio.toFixed(2)}<br/>Docked clock ${s}s real · Exterior ${(ph * 100).toFixed(0)}% of 30× orbit<br/>Rover clock ${mission.pass ? `T+${fmt(mission.clock)}` : '—'} (simulated)<br/>Player ${Math.round(st.position.x)}, ${Math.round(st.position.y)} · remote crew ${st.remoteCount}<br/>Visual-only sprites <b>${st.loadCount}</b> / 3000`
-  }
+  $('#dstats', hud).innerHTML = `FPS <b>${Math.round(game.loop.actualFps)}</b> · DPR ${window.devicePixelRatio.toFixed(2)}<br/>Docked <b>${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</b> real · Exterior 30× <b>${Math.floor(ext / 60)}:${String(ext % 60).padStart(2, '0')}</b>/3:04 ${ph < 0.62 ? 'day' : 'night'}<br/>Rover clock ${mission.pass ? `T+${fmt(mission.clock)}` : '—'} (simulated)<br/>Player ${Math.round(st.position.x)}, ${Math.round(st.position.y)} · remote crew ${st.remoteCount}<br/>Visual-only sprites <b>${st.loadCount}</b> / 3000`
 }, 250)
+window.addEventListener('keydown', e => {
+  if (e.code !== 'Backquote' || screen !== 'station' || !game) return
+  debugOn = !debugOn
+  station().setDebug(debugOn)
+  refresh()
+})
 
 setInterval(() => {
   if (!mission || !map || !game || screen !== 'station') return
@@ -279,30 +357,39 @@ setInterval(() => {
 // ------------------------------------------------------------------ Task drawer
 function toggleDrawer(force?: boolean) {
   drawerOpen = force ?? !drawerOpen
+  document.body.classList.toggle('drawer-open', drawerOpen) // toasts step aside for it
   $('#drawer')?.remove()
   if (drawerOpen) renderDrawer()
 }
 function renderDrawer() {
   const m = mission!
   $('#drawer')?.remove()
-  const item = (done: boolean, name: string, where: string, prog: string, em = false) =>
-    `<div class="task ${done ? 'done' : ''} ${em && !done ? 'em' : ''}"><span class="ck"></span><div><b>${esc(name)}</b><small>${esc(where)} · ${esc(prog)}</small></div></div>`
-  const d = (k: string) => m.drafts[k] as Record<string, unknown> | undefined
-  const prog = (t: TaskId) => m.completed.has(t) ? 'complete' : d(t) ? 'in progress (draft saved)' : 'not started'
-  const routine = (['battery', 'cargo', 'water', 'medical'] as TaskId[]).map(t => item(m.completed.has(t), TASK_INFO[t].name, TASK_INFO[t].where, `${prog(t)} · ${TASK_INFO[t].reward}`)).join('')
-  const missionItems = [
-    item(briefed, 'Read the mission brief', 'Mission Ops', briefed ? 'read' : 'not read'),
-    item(m.payloadActive, 'Select & activate payload', 'Payload', m.payloadActive ? `${m.instrumentInfo!.code} active` : m.instrumentDraft ? 'instrument selected' : 'not started'),
-    item(!powerBlock(m.power), 'Route transmission power', 'Power Grid', `life ${m.power.life}/3 · comms ${m.power.comms}/4`),
-    item(m.completed.has('calibration'), 'Two-point calibration (optional)', 'Calibration', prog('calibration')),
-    item(!!m.pass, 'Transmit rover plan', 'Rover Comms', m.pass ? `sent · T+${fmt(m.clock)}` : 'not sent'),
-    item(!!m.landing, 'Landing decision', 'Rover Comms', m.landing ? m.landing.site : m.passDone ? 'ready' : 'awaiting telemetry'),
-    item(m.completed.has('habitat'), 'Habitat commissioning', 'Mission Report', m.completed.has('habitat') ? 'complete' : m.landing?.approved ? (m.completed.has('medical') ? 'available' : 'needs medical clearance') : 'needs approved landing'),
-  ].join('')
-  const emergency = m.payloadActive ? item(m.completed.has('relay'), 'Relay repair', 'Rover Comms', m.relayFault ? 'FAULT ACTIVE' : 'repaired', true) : '<div class="task"><span></span><small>No emergencies.</small></div>'
+  const now = stepOf(m)
+  const L = m.landing
+  // What each step holds right now, in a few words.
+  const notes = [
+    `Life ${m.power.life} · comms ${m.power.comms} · research ${m.power.research}`,
+    m.payloadActive ? `${m.instrumentInfo!.code} active` : m.instrumentDraft ? 'selected, not activated' : 'Payload, in the rover bay',
+    m.relayFault ? 'Fault: patch it (free) or repair it (1 crew-hour)' : m.completed.has('relay') ? 'Repaired' : m.relayPatched ? `Patched: hand-off ${m.handoffMin} min` : 'Faults when the payload powers up',
+    m.pass ? 'Plan sent' : m.ops ? `${m.ops.label} · ${byId(ROUTES, m.route).name} · ${byId(SCANS, m.scan).name}` : 'Rover Comms: date, route, scan',
+    m.pass ? (m.passDone ? 'Last signal received' : `T+${fmt(m.clock)}`) : 'One pass, sent once',
+    L ? (L.site === 'defer' ? 'Deferred' : byId(SITES, L.site).name) : 'After the last signal',
+    m.completed.has('habitat') ? 'Habitat commissioned' : L ? 'Open the mission report' : 'Which choices caused the outcome',
+  ]
+  const steps = STEPS.map((name, i) => {
+    const n = i + 1
+    return `<div class="task ${n < now ? 'done' : n === now ? 'now' : ''}"><span class="ck">${n < now ? '✓' : n}</span><div><b>${name}</b><small>${esc(notes[i])}</small></div></div>`
+  }).join('')
+  const prep = (['medical', 'calibration', 'battery', 'water', 'cargo'] as TaskId[]).map(t => {
+    const done = m.completed.has(t)
+    const gate = done ? null : m.taskAvailable(t)
+    const state = done ? 'Done' : gate ?? (m.drafts[t] ? 'Started · 1 crew-hour when finished' : '1 crew-hour')
+    return `<div class="task ${done ? 'done' : gate ? 'off' : ''}"><span class="ck">${done ? '✓' : ''}</span><div><b>${TASK_INFO[t].name}${t === 'medical' && !done ? ' <em>the habitat needs it</em>' : ''}</b><small>${TASK_INFO[t].where} · ${esc(TASK_INFO[t].reward)}</small><small class="st8">${esc(state)}</small></div></div>`
+  }).join('')
   const dr = el(`<aside class="drawer" id="drawer" aria-label="Tasks"><div class="row" style="justify-content:space-between"><h2 style="font-size:26px">Tasks</h2><button class="btn small" id="dclose">Close</button></div>
-    <h3>Emergency</h3>${emergency}<h3>Mission</h3>${missionItems}<h3>Routine (optional)</h3>${routine}
-    <p style="font-size:12px;color:#b9ae95">Routine tasks are optional, but each one changes what you can afford or accomplish.</p></aside>`)
+    <h3>Mission steps</h3>${steps}
+    <h3>Preparation <span class="hrs">${m.prepLeft} of ${PREP_HOURS} crew-hours left</span></h3>
+    <p class="drawer-note">Each task takes one crew-hour, and there are more tasks than hours. Choose what this mission needs.</p>${prep}</aside>`)
   $('#dclose', dr).addEventListener('click', () => toggleDrawer(false))
   hud?.append(dr)
 }
@@ -322,9 +409,12 @@ function goRover() {
   rover = roverScreen({
     m: mission,
     mars,
+    last: lastFlight,
     transmit: doTransmit,
     back: () => enterStation(),
     sites: goSites,
+    report: goReport,
+    openPanel: showPanel,
     refresh: () => {},
   })
   show('rover', rover.el)
@@ -349,27 +439,34 @@ async function doTransmit(): Promise<string | null> {
 
 function goSites() {
   overlay?.remove()
-  overlay = sitesScreen(mission!, () => { overlay?.remove(); overlay = null }, () => { overlay?.remove(); overlay = null; goReport() })
+  clearToasts() // nothing sits on top of the landing decision
+  const shut = () => { overlay?.remove(); overlay = null }
+  overlay = sitesScreen(mission!, shut, () => { shut(); goReport() }, () => { shut(); enterStation() })
   document.body.append(overlay)
 }
 
 function goReport() {
+  if (!mission) return
   rover?.stop()
+  closePanel()
+  toggleDrawer(false)
+  clearToasts()
+  if (game?.scene.isActive('station')) game.scene.sleep('station')
   game?.scene.sleep('mars')
   coop.away()
-  show('report', reportScreen(mission!, panelCtx(), replay, goTitle))
-}
-
-function replay() {
-  closePanel()
-  dock()
+  setBlocked(true)
+  show('report', reportScreen(mission, panelCtx(), {
+    refly: () => { closePanel(); void dock(mission) },
+    newMission: goFleet,
+    title: goTitle,
+  }))
 }
 
 function leaveGameplay() {
   rover?.stop()
   closePanel()
   overlay?.remove(); overlay = null
-  drawerOpen = false
+  toggleDrawer(false)
   hud = null
   map = null
   if (game) {
@@ -406,7 +503,6 @@ function applyShared(power: Power) {
     mission.setPower(power)
     refresh()
     if (panelOpen()) refreshPanel(panelCtx())
-    rover?.powerChanged()
   }
   if (powerWanted) { const w = powerWanted; powerWanted = null; requestPower(w) }
 }

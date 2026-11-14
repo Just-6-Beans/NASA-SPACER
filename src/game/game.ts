@@ -11,6 +11,10 @@ const SUIT_RES = 3
 const DECK_RES = 2
 const MAP_RES = 1.5
 export const dpr = () => Math.min(window.devicePixelRatio || 1, 2.5)
+/** Camera zoom for the deck at a window size, before the device pixel ratio. */
+export const deckZoom = (cssW: number, cssH: number) => Phaser.Math.Clamp(Math.max(Math.min(cssW / 1120, cssH / 700), cssH / 720), 0.85, 1.6)
+/** True when the window shows the deck from wall to wall, so a map of it would add nothing. */
+export const deckFits = (cssW: number, cssH: number) => cssW / deckZoom(cssW, cssH) >= DECK.width - 80
 
 export { TERMINALS, type Terminal, type TerminalId } from './deck'
 export type { StationView } from './stationFx'
@@ -185,7 +189,7 @@ export class StationScene extends Phaser.Scene {
   /** Camera framing: keep the astronaut and prompts legible on narrow screens. */
   layout() {
     const cssW = window.innerWidth, cssH = window.innerHeight
-    const base = Phaser.Math.Clamp(Math.max(Math.min(cssW / 1120, cssH / 700), cssH / 720), 0.85, 1.6)
+    const base = deckZoom(cssW, cssH)
     this.cameras.main.setZoom(base * dpr())
     this.cameras.main.setSize(this.scale.width, this.scale.height)
     // Let the view slide past the deck edges by the height of the HUD bars, so the header never
@@ -414,6 +418,10 @@ export class MarsScene extends Phaser.Scene {
   private drag: { x: number; y: number; sx: number; sy: number } | null = null
   private pinch: number | null = null
   private viewRect = { x: 0, y: 0, w: 800, h: 600 }
+  private legText!: Phaser.GameObjects.Text
+  private scanText!: Phaser.GameObjects.Text
+  private legLabel = ''
+  private scanLabel = ''
 
   constructor() { super('mars') }
 
@@ -429,6 +437,10 @@ export class MarsScene extends Phaser.Scene {
     label(basin[0], basin[1] + 40, 'DUSTY BASIN', '#ffd9a8')
     this.add.text(W - 16, H - 14, 'SIMULATED TERRAIN', { fontFamily: 'IBM Plex Mono, monospace', fontSize: '16px', color: '#ffd27a', resolution: dpr() * 2 }).setOrigin(1, 1)
     this.rover = this.add.image(base[0], base[1], 'rover').setScale(0.3).setOrigin(0.52, 0.86).setDepth(10)
+    // What the chosen route and scan cost, written on the map where the rover pays it.
+    const cost = (c: string) => this.add.text(0, 0, '', { fontFamily: 'IBM Plex Mono, monospace', fontSize: '19px', fontStyle: 'bold', color: c, backgroundColor: 'rgba(4,14,26,0.86)', padding: { x: 8, y: 4 }, resolution: dpr() * 2 }).setOrigin(0.5).setDepth(8).setVisible(false)
+    this.legText = cost('#8fe6ff')
+    this.scanText = cost('#f3d9a4').setPosition(ice[0], ice[1] + 62)
     const cam = this.cameras.main
     cam.setBounds(-200, -200, W + 400, H + 400)
     cam.setBackgroundColor('#8a4a2c')
@@ -478,6 +490,8 @@ export class MarsScene extends Phaser.Scene {
     }
   }
   setRoute(r: 'ridge' | 'basin') { this.route = r }
+  /** Labels for the chosen route (drawn at its midpoint) and for the scan (drawn at the sample site). Empty hides one. */
+  setCosts(leg: string, scan: string) { this.legLabel = leg; this.scanLabel = scan }
   setRover(along: number, returning: boolean, scanning: boolean) { this.along = along; this.returning = returning; this.scanning = scanning }
 
   private pointAt(path: Pt[], f: number): { x: number; y: number; ang: number } {
@@ -511,6 +525,9 @@ export class MarsScene extends Phaser.Scene {
         }
       }
     }
+    const mid = this.pointAt(routes[this.route], 0.46)
+    this.legText.setText(this.legLabel).setVisible(!!this.legLabel).setPosition(mid.x, mid.y + (this.route === 'ridge' ? -34 : 36))
+    this.scanText.setText(this.scanLabel).setVisible(!!this.scanLabel)
     const p = this.pointAt(routes[this.route], this.along)
     this.rover.setPosition(p.x, p.y)
     this.rover.setFlipX(this.returning)

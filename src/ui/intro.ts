@@ -3,8 +3,10 @@ import { SHIPS, SUITS, byId, type ShipId, type SuitId } from '../core/data'
 import { cleanCallSign } from '../core/mission'
 import { sound } from '../audio'
 import { asset } from '../game/game'
+import { BRIEF_DATA_LINE, briefCore } from './brief'
 import { $, $$, el, esc, isTouch, reducedMotion } from './dom'
 import { ICONS } from './icons'
+import { phaseRail } from './phase'
 import { mountBackdrop } from './titleScene'
 
 export interface Draft { callSign: string; suit: SuitId; ship: ShipId }
@@ -156,12 +158,35 @@ export function titleScreen(link: CrewLink, onStart: (mode: Mode) => void): Titl
   return { el: s, update }
 }
 
+/**
+ * The mission brief, before anything is chosen: the goal, the four decisions, and the three
+ * things that decide the outcome. The spacecraft screen comes next, so its numbers mean something.
+ */
+export function briefScreen(onBack: () => void, onContinue: () => void): HTMLElement {
+  const s = el(`<section class="screen earth-bg briefing" aria-label="Mission brief">
+    <div class="scanlines"></div>
+    <div class="topbar"><button class="btn ghost small" id="back">← Title</button>${phaseRail('design')}<span></span></div>
+    <div class="brief-card">
+      <div class="sim">Mission brief · simulated scenario</div>
+      ${briefCore()}
+      <p class="dataline">${BRIEF_DATA_LINE}</p>
+      <div class="actions"><button class="btn primary" id="go">Choose your spacecraft →</button></div>
+    </div>
+  </section>`)
+  $('#back', s).addEventListener('click', onBack)
+  $('#go', s).addEventListener('click', () => { sound.play('ui'); onContinue() })
+  const key = (e: KeyboardEvent) => { if (!s.isConnected) return window.removeEventListener('keydown', key); if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') onContinue() }
+  window.addEventListener('keydown', key)
+  setTimeout(() => $('#go', s).focus(), 50)
+  return s
+}
+
 const MAX = { payload: 25, budget: 113, battery: 100, handoff: 3 }
 
 export function fleetScreen(draft: Draft, onBack: () => void, onPick: (id: ShipId) => void): HTMLElement {
   const s = el(`<section class="screen earth-bg fleet" aria-label="Choose spacecraft">
     <div class="scanlines"></div>
-    <div class="topbar" style="z-index:2"><button class="btn ghost small" id="back">← Title</button><span class="step">Step 1 / 3 · Select spacecraft</span><span></span></div>
+    <div class="topbar" style="z-index:2"><button class="btn ghost small" id="back">← Brief</button>${phaseRail('design')}<span class="step">Spacecraft</span></div>
     <div class="carousel" id="car" tabindex="0" aria-roledescription="carousel">
       ${SHIPS.map(ship => `<div class="ship-slide" data-id="${ship.id}" role="group" aria-label="${ship.name}">
         <img src="${asset(`ship-${ship.id}.svg`)}" alt="${ship.name} spacecraft" draggable="false" />
@@ -170,10 +195,10 @@ export function fleetScreen(draft: Draft, onBack: () => void, onPick: (id: ShipI
           <h2>${ship.name}</h2>
           <p>${ship.blurb}</p>
           <div class="meters">
-            ${meter('Payload capacity', ship.payloadKg, MAX.payload, 'kg')}
-            ${meter('Supply budget', ship.budget, MAX.budget, 'cr')}
-            ${meter('Starting rover battery', ship.battery, MAX.battery, '%')}
-            ${meter('Relay hand-off per signal leg', ship.handoffMin, MAX.handoff, 'min', true)}
+            ${meter('Payload capacity', ship.payloadKg, MAX.payload, 'kg', 'Which rover instrument fits: 7 kg or 13 kg')}
+            ${meter('Budget', ship.budget, MAX.budget, 'cr', 'Pays for the instrument, then water and kits to land')}
+            ${meter('Rover battery at the start', ship.battery, MAX.battery, '%', 'Night heaters, two drives and a scan all draw on it')}
+            ${meter('Relay hand-off', ship.handoffMin, MAX.handoff, 'min', 'The station relay adds it to every signal, unless you fly a direct link', true)}
           </div>
           <div class="tradeoffs">${ship.pros.map(p => `<span class="pro">${p}</span>`).join('')}${ship.cons.map(c => `<span class="con">${c}</span>`).join('')}</div>
         </div>
@@ -222,15 +247,16 @@ export function fleetScreen(draft: Draft, onBack: () => void, onPick: (id: ShipI
   return s
 }
 
-function meter(label: string, v: number, max: number, unit: string, lowerBetter = false) {
+/** One spacecraft number, with a line saying what it is for in the mission. */
+function meter(label: string, v: number, max: number, unit: string, why: string, lowerBetter = false) {
   const pct = Math.round((v / max) * 100)
-  return `<div class="meter"><div class="row"><span>${label}</span><b>${v} ${unit}</b></div><div class="bar"><i style="width:${pct}%${lowerBetter ? ';background:linear-gradient(90deg,#ffb347,#e0702a)' : ''}"></i></div>${lowerBetter ? '<small style="color:#b9ae95">lower is faster</small>' : ''}</div>`
+  return `<div class="meter"><div class="row"><span>${label}</span><b>${v} ${unit}</b></div><div class="bar"><i style="width:${pct}%${lowerBetter ? ';background:linear-gradient(90deg,#ffb347,#e0702a)' : ''}"></i></div><small>${why}${lowerBetter ? ' · lower is faster' : ''}</small></div>`
 }
 
 export function crewScreen(draft: Draft, onBack: () => void, onLaunch: (d: Draft) => void): HTMLElement {
   const ship = byId(SHIPS, draft.ship)
   const s = el(`<section class="screen crew" aria-label="Crew manifest">
-    <div class="topbar"><button class="btn ghost small" id="back">← Fleet</button><span class="step">Step 2 / 3 · Crew manifest</span><span></span></div>
+    <div class="topbar"><button class="btn ghost small" id="back">← Fleet</button>${phaseRail('design')}<span class="step">Crew</span></div>
     <div class="crew-panel">
       <div class="crew-preview"><img id="pv" alt="Suit preview" /><div class="tagname" id="pvname"></div></div>
       <div>
