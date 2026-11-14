@@ -3,11 +3,12 @@
 import '../station.css'
 import { SUITS, byId } from '../core/data'
 import type { Mission } from '../core/mission'
-import { powerBlock, signalLeg, type Power } from '../core/power'
+import { powerBlock, type Power } from '../core/power'
 import { fmt } from '../core/rover'
 import { DECK, MODULES, SOLIDS, TERMINALS, moduleAt, terminal, type TerminalId } from '../game/deck'
 import type { StationView } from '../game/stationFx'
 import { el } from './dom'
+import { linkMinutes } from './forecast'
 
 /** Units each bus needs before the plan can be transmitted. Mirrors powerBlock() in core/power. */
 export const NEED: Power = { life: 3, comms: 4, research: 0 }
@@ -43,7 +44,7 @@ export function stationView(m: Mission, o: Objective, guide: boolean): StationVi
     instrumentDraft: m.instrumentDraft,
     calibrated: m.calibrated,
     battery: m.ship.battery,
-    linkMin: signalLeg(m.ship.relayMin, m.power),
+    linkMin: linkMinutes(m),
     passClock: m.pass ? m.clock : null,
     passDone: m.passDone,
     water: m.completed.has('water'),

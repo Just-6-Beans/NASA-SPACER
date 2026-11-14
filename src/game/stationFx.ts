@@ -21,8 +21,8 @@ export interface StationView {
   instrumentDraft: InstrumentId | null
   calibrated: boolean
   battery: number
-  /** One-way signal delay in simulated minutes. */
-  linkMin: number
+  /** One-way signal delay in minutes, or null while the rover plan cannot say yet. */
+  linkMin: number | null
   /** Rover clock in simulated minutes once the plan is transmitted, else null. */
   passClock: number | null
   passDone: boolean
@@ -116,7 +116,8 @@ export class StationLive {
     for (const [id, img] of this.ships) img.setVisible(id === v.ship)
     const relay = v.relayFault ? 'FAULT' : v.passClock !== null && !v.passDone ? 'PASS IN PROGRESS' : 'NOMINAL'
     this.relayLabel.setText(`MARS RELAY · ${relay}`).setColor(v.relayFault ? '#ff8a7a' : '#9fd8e8')
-    this.linkBig.setText(v.relayFault ? 'NO LINK' : `${v.linkMin} MIN`).setColor(v.relayFault ? '#ff6a55' : '#6ef2c6')
+    const mins = v.linkMin === null ? '—' : Number.isInteger(v.linkMin) ? String(v.linkMin) : v.linkMin.toFixed(1)
+    this.linkBig.setText(v.relayFault ? 'NO LINK' : `${mins} MIN`).setColor(v.relayFault ? '#ff6a55' : '#6ef2c6')
     this.linkSub.setVisible(!v.relayFault)
     this.batt.setText(`${v.battery}%`)
     const shown = v.instrument ?? v.instrumentDraft
@@ -226,7 +227,8 @@ export class StationLive {
       g.lineStyle(1.2, MINT, 0.5)
       for (let x = ex + 9; x < mx - 9; x += 7) g.lineBetween(x, ly, x + 3.5, ly)
       // one simulated minute of delay is drawn as 0.4 s of travel
-      const f = (t % Math.max(1.2, v.linkMin * 0.4)) / Math.max(1.2, v.linkMin * 0.4)
+      const period = Math.max(1.2, (v.linkMin ?? 8) * 0.4)
+      const f = (t % period) / period
       g.fillStyle(0xffffff, 0.95).fillCircle(ex + 9 + (mx - ex - 18) * f, ly, 2.3)
       if (v.passClock !== null && !v.passDone) g.fillStyle(CYAN, 0.95).fillCircle(mx - 9 - (mx - ex - 18) * ((f + 0.5) % 1), ly, 2.3)
     }

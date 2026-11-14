@@ -1,11 +1,11 @@
 // Mission Ops table: the mission brief, a live read-out of how the current design is shaping
 // the mission, and where every number in the game comes from. It only displays what the rules
 // in src/core return; it adds no rule of its own.
-import { CARGO_REWARD, DUST_DEADLINE, INSTRUMENTS, KIT_COST, POWER_TOTAL, RESERVE_FLOOR, ROUTES, SCANS, SITES, STRONG_LOW_END, byId, type InstrumentId } from '../core/data'
-import { Mission } from '../core/mission'
-import { fastRelay, researchFilter, signalLeg, unassigned } from '../core/power'
-import { COMMAND_LABEL, fmt, reading, simulatePass, uncertaintyFor, type PassResult } from '../core/rover'
+import { CARGO_REWARD, DUST_DEADLINE, INSTRUMENTS, KIT_COST, POWER_TOTAL, RESERVE_FLOOR, ROUTES, SCANS, SITES, STRONG_LOW_END, byId } from '../core/data'
+import { fastRelay, researchFilter, unassigned } from '../core/power'
+import { COMMAND_LABEL, fmt, reading, uncertaintyFor } from '../core/rover'
 import { $, esc } from './dom'
+import { forecastFor, linkMinutes } from './forecast'
 import type { PanelCtx, Tab } from './panels'
 import { NEED } from './stationHud'
 
@@ -20,6 +20,7 @@ export function opsTabs(ctx: PanelCtx): Tab[] {
 // ------------------------------------------------------------------ Brief
 function briefTab(body: HTMLElement, _rerender: () => void, ctx: PanelCtx) {
   const ship = ctx.m.ship
+  const link = linkMinutes(ctx.m)
   body.innerHTML = `<div class="sim">Simulated scenario · every number below is a game rule, not NASA data</div>
     <div class="brief-goal"><h3>Your mission</h3>
       <p>You are docked 408 km above Earth, commanding a rover on Mars. Find out whether there is enough water ice at <b>Ares Shelf</b> to build a habitat, then decide where the crew lands.</p></div>
@@ -34,7 +35,7 @@ function briefTab(body: HTMLElement, _rerender: () => void, ctx: PanelCtx) {
         <span>Payload mass</span><b>${ship.payloadKg} kg</b>
         <span>Rover battery</span><b>${ship.battery}%, stops at ${RESERVE_FLOOR}%</b>
         <span>Station power</span><b>${POWER_TOTAL} units</b>
-        <span>Signal delay</span><b>${ship.relayMin} min each way</b>
+        <span>Signal delay</span><b>${link === null ? 'set by the rover plan' : `${fmt(link)} min each way`}</b>
         <span>Time</span><b>dust at T+${DUST_DEADLINE}</b></div></div>
     </div>
     <div class="brief-box"><h3>What counts as success</h3>
@@ -46,14 +47,6 @@ function briefTab(body: HTMLElement, _rerender: () => void, ctx: PanelCtx) {
 }
 
 // ------------------------------------------------------------------ Status
-/** The rover pass the current design would produce. Before the payload is activated, the
- *  mission is asked for its plan as if the selected instrument were already locked in, so this
- *  uses the same snapshot and the same simulatePass() as the planner and the executed pass. */
-function forecast(m: Mission, inst: InstrumentId): PassResult {
-  const probe: Mission = Object.assign(Object.create(Mission.prototype), m, { instrument: inst })
-  return simulatePass(probe.snapshot()!)
-}
-
 type Tone = 'good' | 'warn' | 'bad' | 'info'
 const why = (tone: Tone, where: string, cause: string, effect: string) =>
   `<div class="why ${tone}"><span class="where">${esc(where)}</span><div><b>${cause}</b><span>${effect}</span></div></div>`
@@ -66,9 +59,9 @@ function statusTab(body: HTMLElement, ctx: PanelCtx) {
   const instId = m.instrument ?? m.instrumentDraft
   const inst = instId ? byId(INSTRUMENTS, instId) : null
   const sent = !!m.pass
-  const f = m.pass ?? (instId ? forecast(m, instId) : null)
+  const f = m.pass ?? (instId ? forecastFor(m, instId) : null)
   const plan = m.plan ?? { route: m.route, scan: m.scan, calibrated: m.calibrated }
-  const leg = f ? f.uplink : signalLeg(ship.relayMin, p)
+  const leg = linkMinutes(m)
   const total = ship.budget + (m.completed.has('cargo') ? CARGO_REWARD : 0)
   const free = unassigned(p)
   const package_ = m.waterCost + KIT_COST
@@ -85,7 +78,7 @@ function statusTab(body: HTMLElement, ctx: PanelCtx) {
   // power
   rows.push(why(p.life >= NEED.life ? 'good' : 'bad', 'Power Grid', `Life support ${p.life}`, p.life >= NEED.life ? 'Enough to transmit.' : `Below ${NEED.life}: transmission is blocked.`))
   rows.push(why(p.comms < NEED.comms ? 'bad' : fastRelay(p) ? 'good' : 'info', 'Power Grid', `Communications ${p.comms}`,
-    p.comms < NEED.comms ? `Below ${NEED.comms}: the plan cannot reach Mars.` : `Each signal leg takes ${fmt(leg)} min.${fastRelay(p) ? ' Fast relay is on.' : ' One more unit would shorten every leg.'}`))
+    p.comms < NEED.comms ? `Below ${NEED.comms}: the plan cannot reach Mars.` : `${leg === null ? 'Enough to reach Mars.' : `Each signal leg takes ${fmt(leg)} min.`}${fastRelay(p) ? ' Fast relay is on.' : ' One more unit would shorten every leg.'}`))
   rows.push(why(researchFilter(p) ? 'good' : 'info', 'Power Grid', `Research ${p.research}`, researchFilter(p) ? 'Noise filter on: a tighter ice reading.' : 'Noise filter off: a looser ice reading.'))
   if (free > 0 && !sent) rows.push(why('warn', 'Power Grid', `${free} unit${free === 1 ? '' : 's'} unassigned`, 'Power you have and are not using.'))
   // instrument and evidence
@@ -115,7 +108,7 @@ function statusTab(body: HTMLElement, ctx: PanelCtx) {
   const head = L
     ? `<div class="feedback ${L.approved ? 'ok' : 'warn'}">${L.site === 'defer' ? 'Landing deferred. The crew remains in orbit.' : `Landing approved at ${esc(byId(SITES, L.site).name)}.`}</div>`
     : sent ? `<div class="feedback ok">Plan transmitted. These are the numbers the rover is flying, at T+${fmt(m.clock)}.</div>`
-      : `<div class="feedback">${f ? 'A forecast of the plan as it stands. Nothing is locked until you transmit.' : 'Choose an instrument at the Payload terminal to see a forecast of the rover pass.'}</div>`
+      : `<div class="feedback">${f ? 'A forecast of the plan as it stands. Nothing is locked until you transmit.' : inst ? 'The rover plan is not complete yet. Finish it in the rover planner at Rover Comms to see a forecast.' : 'Choose an instrument at the Payload terminal to see a forecast of the rover pass.'}</div>`
   body.innerHTML = `<div class="sim">Simulated ${sent ? 'pass' : 'forecast'} · same calculation as the rover planner</div>
     ${head}
     <div class="rbars">${bars}</div>

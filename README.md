@@ -82,7 +82,7 @@ On the rover map, drag to pan, use the wheel or pinch to zoom, or use + / − / 
 2. You dock at the station. Walk up to **Payload**, just ahead of you. Pick an instrument and **Activate payload**. The relay faults.
 3. Go to **Rover Comms** (rear right) and rotate the receiver segments to match the reference. **Confirm match**.
 4. At **Power Grid** (rear left), raise Communications to at least 4. At 5, each signal leg is 2 minutes faster. Research at 3 or more cuts uncertainty instead.
-5. Optional: at **Calibration** (front right), tune gain and offset until both standards turn green. Optional routine tasks: battery balancing, cargo, water, medical. The **Mission Ops** table under the cupola has the mission brief, and its **Mission status** tab shows what each choice is doing to the forecast.
+5. Optional: at **Calibration** (front right), tune gain and offset until both standards turn green. Optional routine tasks: battery balancing, cargo, water, medical.
 6. Back at **Rover Comms**, open the planner. Choose a route and a scan, queue Drive → Scan → Return, read the forecast, and **Transmit sequence**.
 7. Advance the clock with **Next event**, **+5 min** or **Run clock**. Evidence counts only once it reaches Earth.
 8. **Review landing sites**: select a site and **Confirm site**, or defer. Read the report and commission the habitat if your crew passed the medical check. Then **Replay with this crew** or **Return to title**.
@@ -155,9 +155,9 @@ If the service is offline, the Co-op panel says so and offers **Retry**. Solo pl
 ## Project layout
 
 - `src/core/`: pure TypeScript rules (data, power, tasks, rover simulation, mission, co-op protocol validation). This code is shared with the server and tests.
+- `src/art/geo.json`: station and Mars geometry, read by both the art generator and the game.
+- Station code: `src/game/deck.ts` (typed geometry), `src/game/stationFx.ts` (mission state drawn on the deck), `src/game/nav.ts` (the floor guide's route), `src/ui/ops.ts` (Mission Ops), `src/ui/stationHud.ts` (objective, deck map), `src/ui/forecast.ts` (the pass forecast those screens show).
 - `src/game/`: Phaser scenes (station and Mars) and input.
 - `src/ui/`: title, fleet, crew, launch, task panels, rover operations, landing sites, and the report.
 - `server/`: the Colyseus `spacer_power` room.
 - `scripts/`: the art generator. `test/` holds the tests.
-- `src/art/geo.json`: station and Mars geometry, read by both the art generator and the game. `src/game/deck.ts` is its typed view; `src/game/stationFx.ts` draws mission state on the deck; `src/game/nav.ts` finds the floor guide's route.
-- `src/ui/ops.ts` is the Mission Ops panel; `src/ui/stationHud.ts` holds the objective, the deck map and the state handed to the deck.
