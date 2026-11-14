@@ -2,16 +2,25 @@
 // validation with the co-op server.
 import { OPS_DATES, lightTimeSource, opsDate, weatherSource, type OpsDate } from '../data/opsDates'
 import {
-  CARGO_REWARD, DUST_DEADLINE, INSTRUMENTS, KIT_COST, RESERVE_FLOOR, ROUTES, SCANS, SHIPS, SITES, STRONG_LOW_END, WATER_COST, WATER_DISCOUNT, byId,
-  type InstrumentId, type RouteId, type ScanId, type ShipId, type SiteId, type SuitId,
+  CARGO_REWARD, CELLS_BONUS, DUST_DEADLINE, EXTRAS, INSTRUMENTS, KIT_COST, RESERVE_FLOOR, ROUTES, SCANS, SHIPS, SITES, STRONG_LOW_END, WATER_COST, WATER_DISCOUNT, byId,
+  type ExtraId, type InstrumentId, type RouteId, type ScanId, type ShipId, type SiteId, type SuitId,
 } from './data'
+import { cleanLoadout, type LaunchRecord, type Loadout } from './loadout'
 import { DEFAULT_POWER, powerBlock, validPower, type Power } from './power'
 import {
   passCauses, simulatePass, timeline, type Cause, type PassResult, type PlanSnapshot, type TimelineEvent, fmt, fmtTemp,
 } from './rover'
 import type { TaskId } from './tasks'
 
-export interface Profile { callSign: string; suit: SuitId; ship: ShipId }
+export interface Profile {
+  callSign: string
+  suit: SuitId
+  ship: ShipId
+  /** What was loaded on the ground. Without one (the tests, an old save) any instrument can be chosen aboard. */
+  loadout?: Loadout
+  /** How the launch went, for the report. */
+  launch?: LaunchRecord
+}
 
 export const cleanCallSign = (raw: string) => {
   const s = raw.replace(/\s+/g, ' ').trim().slice(0, 20).trim()
@@ -73,8 +82,14 @@ export class Mission {
   dockedAt = Date.now()
 
   constructor(profile: Profile) {
-    this.profile = { ...profile, callSign: cleanCallSign(profile.callSign) }
+    this.profile = { ...profile, callSign: cleanCallSign(profile.callSign), loadout: profile.loadout && cleanLoadout(profile.loadout) }
+    // one instrument aboard: nothing to choose, so it is already in the bay
+    if (this.loadout?.instruments.length === 1) this.instrumentDraft = this.loadout.instruments[0]
   }
+
+  /** The design that flew, or undefined when the mission was started without one. */
+  get loadout() { return this.profile.loadout }
+  has(extra: ExtraId) { return !!this.loadout?.extras.includes(extra) }
 
   get ship() { return byId(SHIPS, this.profile.ship) }
   get instrumentInfo() { return this.instrument ? byId(INSTRUMENTS, this.instrument) : null }
@@ -87,10 +102,18 @@ export class Mission {
   note(text: string, kind: LogEntry['kind'] = 'mission') { this.log.push({ at: this.stamp(), text, kind }) }
 
   // ---- Budget ------------------------------------------------------------
+  /** Credits left after the launch and everything bought for it. */
   get credits() {
     let c = this.ship.budget
-    const inst = this.instrument ?? this.instrumentDraft
-    if (inst) c -= byId(INSTRUMENTS, inst).cost
+    const l = this.loadout
+    if (l) {
+      // everything aboard was paid for on the ground, whether or not it gets used
+      for (const id of l.instruments) c -= byId(INSTRUMENTS, id).cost
+      for (const id of l.extras) c -= byId(EXTRAS, id).cost
+    } else {
+      const inst = this.instrument ?? this.instrumentDraft
+      if (inst) c -= byId(INSTRUMENTS, inst).cost
+    }
     if (this.completed.has('cargo')) c += CARGO_REWARD
     return c
   }
@@ -99,6 +122,9 @@ export class Mission {
   // ---- Payload -----------------------------------------------------------
   instrumentBlock(id: InstrumentId): string | null {
     const inst = byId(INSTRUMENTS, id)
+    // with a design, what can be mounted is what was loaded: its mass and price were settled on the ground
+    if (this.loadout) return this.loadout.instruments.includes(id) ? null : `${inst.code} stayed on Earth: it was not loaded before launch.`
+
     if (inst.massKg > this.ship.payloadKg) return `${inst.code} is ${inst.massKg} kg; ${this.ship.name} carries ${this.ship.payloadKg} kg.`
     if (inst.cost > this.ship.budget) return `${inst.code} costs ${inst.cost} cr; budget is ${this.ship.budget} cr.`
     return null
@@ -164,11 +190,13 @@ export class Mission {
     if (!this.instrument || !d) return null
     return {
       date: d.id, lightMin: d.lightMin, nightLowC: d.weather.minAirTemp, handoffMin: this.ship.handoffMin,
-      startBattery: this.ship.battery, power: { ...this.power },
+      startBattery: this.startBattery, power: { ...this.power },
       instrument: this.instrument, calibrated: this.calibrated, route: this.route, scan: this.scan,
       balanced: this.completed.has('battery'),
     }
   }
+  /** Rover charge at the start of the pass: what the launch system delivers, plus spare cells if they were loaded. */
+  get startBattery() { return Math.min(100, this.ship.battery + (this.has('cells') ? CELLS_BONUS : 0)) }
   forecast(): PassResult | null {
     const s = this.snapshot()
     return s ? simulatePass(s) : null
@@ -228,16 +256,20 @@ export class Mission {
   }
 
   // ---- Landing -----------------------------------------------------------
-  get waterCost() { return WATER_COST - (this.completed.has('water') ? WATER_DISCOUNT : 0) }
+  /** Water tanks loaded on Earth cover the landing party; otherwise water is imported at landing. */
+  get waterCost() { return this.has('water') ? 0 : WATER_COST - (this.completed.has('water') ? WATER_DISCOUNT : 0) }
+  get kitCost() { return this.has('kit') ? 0 : KIT_COST }
 
   assess(site: SiteId): SiteAssessment {
     const funds = this.funds
     const reading = this.receivedReading
     if (site === 'hollow') return { site, status: 'held', canLand: false, cost: 0, reason: 'Ice is plausible but unverified, the slopes are loose, and solar power is weak. Landing is held until a slope survey and backup power are available.', action: 'Held' }
     if (site === 'plain') {
-      const cost = this.waterCost + KIT_COST
+      const cost = this.waterCost + this.kitCost
       const can = cost <= funds
-      return { site, status: 'needs-package', canLand: can, cost, reason: `Stable terrain but no local water. Needs imported water (${this.waterCost} cr${this.completed.has('water') ? ', purifier discount applied' : ''}) and a dust-rated power kit (${KIT_COST} cr) = ${cost} cr. ${can ? `Affordable with ${funds} cr.` : `Only ${funds} cr available.`}`, action: `Land with package · ${cost} cr` }
+      const water = this.has('water') ? 'water (the tanks you carried cover it)' : `imported water (${this.waterCost} cr${this.completed.has('water') ? ', purifier discount applied' : ''})`
+      const kit = this.has('kit') ? 'a dust-rated power kit (yours is aboard)' : `a dust-rated power kit (${KIT_COST} cr)`
+      return { site, status: 'needs-package', canLand: can, cost, reason: `Stable terrain but no local water. Needs ${water} and ${kit} = ${cost} cr. ${can ? `Affordable with ${funds} cr.` : `Only ${funds} cr available.`}`, action: cost ? `Land with package · ${cost} cr` : 'Land with the supplies aboard' }
     }
     if (this.clock >= DUST_DEADLINE) return { site, status: 'closed', canLand: false, cost: 0, reason: `The dust front closed the solar landing window at T+${DUST_DEADLINE}. Final telemetry arrived at T+${fmt(this.finalTelemetryAt)}. Good evidence or imported water cannot reopen it.`, action: 'Window closed' }
     if (this.pass && !this.pass.returned) return { site, status: 'held', canLand: false, cost: 0, reason: `The rover stopped in safe mode at the ${RESERVE_FLOOR}% reserve and never got back to the relay base, so it cannot mark the landing zone. A landing at Ares Shelf is held.`, action: 'Held: rover in safe mode' }
@@ -245,6 +277,7 @@ export class Mission {
     const cost = this.waterCost
     const can = cost <= funds
     const why = reading ? `Received ice low end ${reading.low}% is below ${STRONG_LOW_END}%` : 'No ice reading was received'
+    if (this.has('water')) return { site, status: 'needs-water', canLand: true, cost: 0, reason: `${why}. The water tanks you carried from Earth cover the landing party, so the shelf can still be cleared.`, action: 'Land with the water aboard' }
     return { site, status: 'needs-water', canLand: can, cost, reason: `${why}. The shelf can still be cleared by budgeting imported water (${cost} cr). ${can ? `Affordable with ${funds} cr.` : `Only ${funds} cr available.`}`, action: `Land with imported water · ${cost} cr` }
   }
 

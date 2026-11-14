@@ -66,59 +66,88 @@ function earthSvg() {
 }
 
 // ---------------------------------------------------------------- Ships
+// The spacecraft docked at node A, seen through its window: the Shuttle orbiter from above, and
+// the Crew Dragon and Starliner capsules from the side. Our own drawings of real spacecraft, with
+// no agency or company markings. Each carries a name plate; stationFx.ts knows where it sits.
 function shipSvg(id) {
   const W = 900, H = 420
   const defs = `
   <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf6ea"/><stop offset=".5" stop-color="${IVORY}"/><stop offset="1" stop-color="#9c937f"/></linearGradient>
+  <linearGradient id="hullS" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b9b1a0"/><stop offset=".5" stop-color="#f4eee0"/><stop offset="1" stop-color="#cfc7b4"/></linearGradient>
   <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a5059"/><stop offset="1" stop-color="#1b1e23"/></linearGradient>
+  <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b4047"/><stop offset="1" stop-color="#15171b"/></linearGradient>
   <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2b77d"/><stop offset=".5" stop-color="#b9864b"/><stop offset="1" stop-color="#6e4b26"/></linearGradient>
+  <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe3e8"/><stop offset=".5" stop-color="#a3abb5"/><stop offset="1" stop-color="#5d646d"/></linearGradient>
   <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9ff3ff"/><stop offset=".5" stop-color="#2a7f9c"/><stop offset="1" stop-color="#0d2833"/></linearGradient>
-  <radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff2c9"/><stop offset=".4" stop-color="#ff9c45" stop-opacity=".7"/><stop offset="1" stop-color="#ff6a1a" stop-opacity="0"/></radialGradient>
   <linearGradient id="panel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1e3354"/><stop offset=".5" stop-color="#2f5b8f"/><stop offset="1" stop-color="#1e3354"/></linearGradient>
   <filter id="sh"><feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity=".55"/></filter>`
-  const panelGrid = (x, y, w, h, cols) => {
-    let s = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="url(#panel)" stroke="#9fb6d1" stroke-width="2"/>`
-    for (let i = 1; i < cols; i++) s += `<line x1="${x + (w / cols) * i}" y1="${y}" x2="${x + (w / cols) * i}" y2="${y + h}" stroke="#9fb6d1" stroke-width="1" opacity=".6"/>`
-    return s + `<line x1="${x}" y1="${y + h / 2}" x2="${x + w}" y2="${y + h / 2}" stroke="#9fb6d1" stroke-width="1" opacity=".6"/>`
+  const cells = (x, y, w, h, cols, rows = 2) => {
+    let g = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="url(#panel)" stroke="#9fb6d1" stroke-width="2"/>`
+    for (let i = 1; i < cols; i++) g += `<line x1="${x + (w / cols) * i}" y1="${y}" x2="${x + (w / cols) * i}" y2="${y + h}" stroke="#9fb6d1" stroke-width="1" opacity=".6"/>`
+    for (let j = 1; j < rows; j++) g += `<line x1="${x}" y1="${y + (h / rows) * j}" x2="${x + w}" y2="${y + (h / rows) * j}" stroke="#9fb6d1" stroke-width="1" opacity=".6"/>`
+    return g
   }
+  const plate = (cx, w, name) => `<rect x="${cx - w / 2}" y="193" width="${w}" height="34" rx="6" fill="url(#metal)"/>
+    <text x="${cx}" y="217" text-anchor="middle" font-family="Arial Narrow,Arial" font-weight="700" font-size="20" fill="#2b1a0b">${name}</text>`
   let body = ''
-  if (id === 'odyssey') {
+  if (id === 'shuttle') {
+    // the orbiter in plan: double-delta wings, payload bay doors along the back, three main engines
+    const wing = flip => `<g${flip ? ' transform="translate(0 420) scale(1 -1)"' : ''}>
+      <path d="M640 170 L500 150 L330 52 L222 40 L206 170 Z" fill="url(#hull)"/>
+      <path d="M640 170 L500 150 L330 52 L222 40" fill="none" stroke="#7d848d" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M222 44 L300 60 L296 168 L208 168 Z" fill="#d8d0bc" stroke="#a69c86" stroke-width="2"/>
+      <line x1="252" y1="50" x2="250" y2="168" stroke="#a69c86" stroke-width="2"/></g>`
     body = `<g filter="url(#sh)">
-    ${panelGrid(250, 40, 170, 70, 5)}${panelGrid(250, 310, 170, 70, 5)}
-    <rect x="325" y="108" width="20" height="205" fill="#8c8576"/>
-    <ellipse cx="160" cy="210" rx="44" ry="62" fill="url(#glow)"/>
-    <path d="M180 160 L230 140 L230 280 L180 260 Z" fill="url(#dark)"/>
-    <rect x="225" y="130" width="300" height="160" rx="30" fill="url(#hull)"/>
-    <rect x="240" y="150" width="270" height="18" fill="${ORANGE}" opacity=".9"/>
-    <rect x="240" y="252" width="270" height="10" fill="${CHAR_L}"/>
-    <path d="M520 138 L690 168 Q760 210 690 252 L520 282 Z" fill="url(#hull)"/>
-    <path d="M640 182 Q700 196 712 210 L640 214 Z" fill="url(#glass)"/>
-    <rect x="300" y="186" width="120" height="44" rx="8" fill="url(#metal)"/>
-    <text x="360" y="215" text-anchor="middle" font-family="Arial Narrow,Arial" font-weight="700" font-size="20" fill="#2b1a0b">ODYSSEY</text>
-    <circle cx="560" cy="210" r="10" fill="${MINT}"/></g>`
-  } else if (id === 'atlas') {
+    ${wing(false)}${wing(true)}
+    <path d="M150 190 L112 180 L112 204 L150 204 Z M150 216 L112 216 L112 240 L150 230 Z M158 200 L104 198 L104 222 L158 220 Z" fill="url(#dark)"/>
+    <rect x="150" y="150" width="124" height="34" rx="17" fill="#ddd5c2" stroke="#a69c86" stroke-width="2"/><rect x="150" y="236" width="124" height="34" rx="17" fill="#ddd5c2" stroke="#a69c86" stroke-width="2"/>
+    <path d="M168 168 L640 168 Q770 172 826 210 Q770 248 640 252 L168 252 Q150 252 150 236 L150 184 Q150 168 168 168 Z" fill="url(#hull)"/>
+    <path d="M770 188 Q812 198 826 210 Q812 222 770 232 Q790 210 770 188 Z" fill="url(#tile)"/>
+    <rect x="290" y="176" width="336" height="68" rx="5" fill="#f1ebdc" stroke="#a69c86" stroke-width="2.5"/>
+    <line x1="290" y1="210" x2="626" y2="210" stroke="#8c8576" stroke-width="2.5"/>
+    ${[0, 1, 2, 3, 4].map(i => `<line x1="${346 + i * 56}" y1="176" x2="${346 + i * 56}" y2="244" stroke="#b9b09a" stroke-width="1.5"/>`).join('')}
+    <rect x="172" y="206" width="112" height="8" rx="3" fill="url(#dark)"/>
+    <path d="M668 186 L716 190 Q742 200 748 210 Q742 220 716 230 L668 234 Q684 210 668 186 Z" fill="url(#tile)"/>
+    <path d="M690 192 L714 195 Q730 202 734 208 L690 207 Z M690 228 L714 225 Q730 218 734 212 L690 213 Z" fill="url(#glass)"/>
+    <rect x="636" y="194" width="20" height="32" rx="4" fill="${ORANGE}" opacity=".85"/>
+    ${plate(400, 132, 'ORBITER')}
+    <circle cx="560" cy="210" r="7" fill="${MINT}"/></g>`
+  } else if (id === 'falcon9') {
+    // Crew Dragon from the side: a gumdrop capsule on a trunk that is half solar cells, with four fins
     body = `<g filter="url(#sh)">
-    ${panelGrid(320, 20, 220, 60, 6)}${panelGrid(320, 340, 220, 60, 6)}
-    <rect x="420" y="78" width="16" height="264" fill="#8c8576"/>
-    <ellipse cx="110" cy="170" rx="40" ry="50" fill="url(#glow)"/><ellipse cx="110" cy="250" rx="40" ry="50" fill="url(#glow)"/>
-    <rect x="130" y="140" width="60" height="60" rx="8" fill="url(#dark)"/><rect x="130" y="220" width="60" height="60" rx="8" fill="url(#dark)"/>
-    <rect x="180" y="110" width="440" height="200" rx="18" fill="url(#hull)"/>
-    ${[0, 1, 2, 3].map(i => `<rect x="${205 + i * 100}" y="130" width="86" height="160" rx="6" fill="none" stroke="#a69c86" stroke-width="3"/><rect x="${205 + i * 100}" y="${i % 2 ? 250 : 130}" width="86" height="14" fill="${ORANGE}" opacity=".85"/>`).join('')}
-    <path d="M615 120 L740 150 Q790 210 740 270 L615 300 Z" fill="url(#hull)"/>
-    <path d="M700 168 Q760 190 768 210 L700 214 Z" fill="url(#glass)"/>
-    <rect x="300" y="196" width="150" height="40" rx="6" fill="url(#metal)"/>
-    <text x="375" y="223" text-anchor="middle" font-family="Arial Narrow,Arial" font-weight="700" font-size="20" fill="#2b1a0b">ATLAS</text></g>`
+    <path d="M250 118 L196 92 L196 132 L250 150 Z M250 302 L196 328 L196 288 L250 270 Z" fill="url(#dark)"/>
+    <rect x="240" y="116" width="236" height="188" rx="8" fill="url(#hull)"/>
+    ${cells(250, 122, 216, 62, 9, 2)}
+    <rect x="240" y="286" width="236" height="10" fill="${CHAR_L}"/>
+    <line x1="240" y1="238" x2="476" y2="238" stroke="#b9b09a" stroke-width="2"/>
+    <path d="M476 108 L500 108 Q640 128 700 178 Q716 194 716 210 Q716 226 700 242 Q640 292 500 312 L476 312 Z" fill="url(#hull)"/>
+    <path d="M476 108 L500 108 L500 312 L476 312 Z" fill="url(#tile)"/>
+    <path d="M520 132 Q570 140 604 160 L590 196 L520 196 Z" fill="url(#dark)" opacity=".85"/><path d="M520 288 Q570 280 604 260 L590 224 L520 224 Z" fill="url(#dark)" opacity=".85"/>
+    <rect x="534" y="150" width="34" height="26" rx="8" fill="url(#glass)"/><rect x="534" y="244" width="34" height="26" rx="8" fill="url(#glass)"/>
+    <circle cx="612" cy="210" r="9" fill="#15171b"/><circle cx="640" cy="196" r="5" fill="#15171b"/><circle cx="640" cy="224" r="5" fill="#15171b"/>
+    <path d="M700 178 Q716 194 716 210 Q716 226 700 242 L724 236 L724 184 Z" fill="url(#steel)"/>
+    <path d="M704 172 Q760 140 790 150 Q768 168 724 184 Z" fill="url(#hullS)" stroke="#a69c86" stroke-width="2"/>
+    ${plate(352, 124, 'DRAGON')}
+    <circle cx="452" cy="262" r="7" fill="${MINT}"/></g>`
   } else {
+    // Starliner from the side: a blunt cone on a wide service module with thruster pods and four abort engines
     body = `<g filter="url(#sh)">
-    <ellipse cx="170" cy="210" rx="52" ry="40" fill="url(#glow)"/>
-    <path d="M300 200 L250 60 L330 60 L420 190 Z" fill="url(#dark)"/>
-    <path d="M300 220 L250 360 L330 360 L420 230 Z" fill="url(#dark)"/>
-    <path d="M190 180 L520 150 Q760 175 820 210 Q760 245 520 270 L190 240 Z" fill="url(#hull)"/>
-    <path d="M200 196 L520 170 L520 180 L200 206 Z" fill="${ORANGE}"/>
-    <path d="M660 186 Q770 196 800 210 L660 214 Z" fill="url(#glass)"/>
-    <circle cx="470" cy="150" r="30" fill="${IVORY}" stroke="#8c8576" stroke-width="4"/><circle cx="470" cy="150" r="10" fill="${MINT}"/>
-    <rect x="330" y="198" width="130" height="34" rx="6" fill="url(#metal)"/>
-    <text x="395" y="222" text-anchor="middle" font-family="Arial Narrow,Arial" font-weight="700" font-size="20" fill="#2b1a0b">VECTOR</text></g>`
+    ${[128, 176, 224, 272].map(y => `<path d="M236 ${y} L204 ${y - 8} L204 ${y + 28} L236 ${y + 20} Z" fill="url(#dark)"/>`).join('')}
+    <rect x="232" y="104" width="240" height="212" rx="8" fill="url(#hullS)"/>
+    <rect x="232" y="104" width="240" height="212" rx="8" fill="url(#hull)" opacity=".55"/>
+    <rect x="232" y="118" width="240" height="14" fill="url(#steel)"/><rect x="232" y="288" width="240" height="14" fill="url(#steel)"/>
+    <rect x="300" y="86" width="96" height="24" rx="5" fill="url(#steel)" stroke="#5d646d" stroke-width="2"/><rect x="300" y="310" width="96" height="24" rx="5" fill="url(#steel)" stroke="#5d646d" stroke-width="2"/>
+    ${[318, 348, 378].map(x => `<circle cx="${x}" cy="98" r="5" fill="#15171b"/><circle cx="${x}" cy="322" r="5" fill="#15171b"/>`).join('')}
+    <line x1="232" y1="160" x2="472" y2="160" stroke="#b9b09a" stroke-width="2"/><line x1="232" y1="260" x2="472" y2="260" stroke="#b9b09a" stroke-width="2"/>
+    <rect x="468" y="100" width="16" height="220" rx="3" fill="url(#tile)"/>
+    <path d="M484 100 L692 166 L692 254 L484 320 Z" fill="url(#steel)"/>
+    <path d="M484 100 L692 166 L692 254 L484 320 Z" fill="url(#hull)" opacity=".35"/>
+    <path d="M484 150 L692 196 L692 224 L484 270 Z" fill="#3d5f86" opacity=".5"/>
+    <rect x="540" y="146" width="36" height="26" rx="8" fill="url(#glass)" transform="rotate(17 558 159)"/>
+    <rect x="540" y="248" width="36" height="26" rx="8" fill="url(#glass)" transform="rotate(-17 558 261)"/>
+    <rect x="692" y="170" width="26" height="80" rx="4" fill="url(#metal)"/><rect x="718" y="182" width="12" height="56" rx="3" fill="url(#dark)"/>
+    ${plate(352, 140, 'STARLINER')}
+    <circle cx="450" cy="210" r="7" fill="${MINT}"/></g>`
   }
   save(`ship-${id}.svg`, W, H, body, defs)
 }
@@ -174,11 +203,12 @@ function station() {
 }
 
 earthSvg()
-;['odyssey', 'atlas', 'vector'].forEach(shipSvg)
+;['shuttle', 'falcon9', 'atlasv'].forEach(shipSvg)
 suitSheets()
 station()
 cockpitSvg()
 { const m = HQ.marsSvg(geo); save('mars-sector.svg', m.W, m.H, m.body, m.defs) }
 { const r = HQ.roverSvg(); save('rover.svg', r.w, r.h, r.body, HQ.commonDefs) }
 for (const id of ['shelf', 'hollow', 'plain']) { const s = HQ.siteSvg(id); save(`site-${id}.svg`, s.W, s.H, s.body, s.defs) }
+
 console.log('SPACER art generated in public/assets/')

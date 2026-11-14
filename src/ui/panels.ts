@@ -1,6 +1,7 @@
 // Terminal task panels. Every panel re-renders from mission state + its saved draft, so closing
 // and reopening keeps work in progress.
-import { FILTER_CUT, INSTRUMENTS, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
+import { EXTRAS, FILTER_CUT, INSTRUMENTS, MISSION_BUDGET, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
+import { cargoKg, designCost } from '../core/loadout'
 import type { Mission } from '../core/mission'
 import { fastRelay, powerBlock, researchFilter, signalLeg, unassigned, type Power } from '../core/power'
 import * as T from '../core/tasks'
@@ -104,28 +105,39 @@ function tabsFor(id: string, ctx: PanelCtx): Tab[] {
 
 // ------------------------------------------------------------------ Payload
 function payloadTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
-  const m = ctx.m
+  const m = ctx.m, l = m.loadout
   const sel = m.instrument ?? m.instrumentDraft
   const inst = sel ? byId(INSTRUMENTS, sel) : null
-  const mass = inst?.massKg ?? 0
-  body.innerHTML = `<p class="lead">Choose one rover instrument for ${esc(m.ship.name)}. Activating the payload locks the choice and powers up the rover link.</p>
+  const aboard = l ? INSTRUMENTS.filter(i => l.instruments.includes(i.id)) : INSTRUMENTS
+  const lead = !l ? `Choose one rover instrument for ${esc(m.ship.name)}. Activating the payload locks the choice and powers up the rover link.`
+    : aboard.length > 1 ? 'Both instruments came up with you. Mount one on the rover for its pass: activating the payload locks the choice and powers up the rover link.'
+      : `The ${esc(aboard[0]?.name ?? 'instrument')} you loaded on Earth is in the rover bay. Activating the payload powers up the rover link.`
+  const c = l ? designCost(m.ship, l) : null
+  body.innerHTML = `<p class="lead">${lead}</p>
     <div class="cards">${INSTRUMENTS.map(i => {
       const block = m.instrumentBlock(i.id)
       return `<button class="card" data-id="${i.id}" aria-pressed="${sel === i.id}" ${block || m.payloadActive ? 'disabled' : ''}>
         <h4>${i.name}</h4><div class="mono" style="color:#ff8f45">${i.code}</div><div style="margin-top:4px">${i.note}</div>
         <div class="stats">Cost ${i.cost} cr · Mass ${i.massKg} kg<br/>Quick-scan draw ${i.quickDraw} battery pts<br/>Base uncertainty ±${i.baseUncertainty} pts</div>
-        ${block ? `<div class="why">Blocked: ${esc(block)}</div>` : ''}</button>`
+        ${block ? `<div class="why">${esc(block)}</div>` : ''}</button>`
     }).join('')}</div>
-    <div class="ledger">
+    ${l && c ? `<div class="ledger">
+      <span>Mission budget</span><b>${MISSION_BUDGET} cr</b>
+      <span>Launch on the ${esc(m.ship.rocketName)}</span><b>−${c.launch} cr</b>
+      <span>Instruments aboard</span><b>−${c.instruments} cr</b>
+      <span>Supplies aboard</span><b>${c.extras ? `−${c.extras} cr · ${l.extras.map(id => byId(EXTRAS, id).name.toLowerCase()).join(', ')}` : 'none'}</b>
+      <span>Remaining</span><b>${m.credits} cr</b>
+      <span>Cargo lifted</span><b>${cargoKg(l)} kg</b>
+    </div>` : `<div class="ledger">
       <span>Supply budget</span><b>${m.ship.budget} cr</b>
       <span>Instrument</span><b>${inst ? `−${inst.cost} cr` : '—'}</b>
       <span>Remaining</span><b>${m.credits} cr</b>
-      <span>Payload mass</span><b>${mass} / ${m.ship.payloadKg} kg</b>
-    </div>
+      <span>Payload mass</span><b>${inst?.massKg ?? 0} / ${m.ship.payloadKg} kg</b>
+    </div>`}
     ${m.payloadActive ? `<div class="feedback ok">Payload active: ${esc(inst!.name)} locked. Rover Comms is online${m.relayFault ? ' — but the relay just faulted.' : '.'}</div>` : '<div class="feedback">No payload active.</div>'}
     <div class="actions">${m.payloadActive ? '' : `<button class="btn primary" id="act" ${sel ? '' : 'disabled'}>Activate payload</button>`}</div>`
-  $$('.card', body).forEach(c => c.addEventListener('click', () => {
-    const err = m.selectInstrument(c.dataset.id as InstrumentId)
+  $$('.card', body).forEach(c_ => c_.addEventListener('click', () => {
+    const err = m.selectInstrument(c_.dataset.id as InstrumentId)
     if (err) { sound.play('fail'); fb(body, err, 'bad') } else { sound.play('ui'); rerender(); ctx.refresh() }
   }))
   $('#act', body)?.addEventListener('click', () => {

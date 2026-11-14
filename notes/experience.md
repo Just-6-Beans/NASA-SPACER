@@ -35,6 +35,21 @@ Only the experience lane edits this file. Everyone reads it.
 - `test/station.test.ts` (in the rules lane's folder, named in the commit): the deck matches the co-op world size, the spawn and a crewmate's offset spawn are open floor, every terminal has a console and is reachable from the airlock, and each bus ends at the system it feeds.
 - Checked in headless Edge against the production build, with no console errors: a full mission through the new deck (acceptance scenario 1 gave 31 ±7% at T+36, 36% battery, final telemetry T+52, landing approved, habitat commissioned, replay), all three ships, both instruments, relay fault and repair, night side, the 390 x 844 touch layout, and two-pilot co-op (presence, moved-aside spawn, power sync). Frame time matched the first build within noise. No human play time was measured.
 
+### Launch field: mission design and a hand-flown ascent (14 Nov, LOCAL ONLY, not on main)
+
+Asked for by a human on this device. It lives uncommitted in the worktree `.claude/worktrees/launch-field` (branch `lane/experience-launch`) until that human says to merge. It crosses lanes, so read the last bullet before landing it.
+
+- **What it is.** The game now opens on a launch field on Earth, drawn in WebGL2 like the title's Mars (`src/ui/launchScene.ts`, models and shaders in `src/ui/scene/`, no new dependency). The player designs the mission there and then flies the climb.
+  - Design: one of three real launch systems (Space Shuttle, Falcon 9 + Crew Dragon, Atlas V N22 + Starliner), instruments and supplies, all inside one 136 cr budget. A "Launch check" panel shows the budget, the cargo against the rocket's rating, and a forecast of the climb. The question mark opens a compact card of what NASA says, with numbered sources.
+  - Flight: the pilot tilts the stack with A / D (or touch buttons) and follows a guidance marker to orbit, about 85 seconds. Too heavy, or steered badly, and the launch fails; a debrief names the cause, and the pilot flies again or changes the design. After two failures the guidance can fly it.
+  - Co-op: the host chooses the launch system; each pilot loads and flies their own. Once the host has launched with a crewmate in the room, the launch system is settled.
+- **NASA data.** `data/nasa/launch-vehicles.json` (built by `scripts/fetch-launch-vehicles.mjs`, `npm run data:rockets`): 54 quoted sentences from NASA pages and reports, each checked against its source by the script. The game takes thrust over weight at lift-off (Shuttle, Falcon 9) and the launch prices from them. Mission Ops lists these under Data sources, with limits. Everything else about the launch is labelled as our model.
+- **Down the line.** What was loaded is what can be mounted on the rover; carried water and a carried power kit are not bought again at the landing; spare cells raise the rover's starting charge. The report has a "What decided the launch" box and a budget box.
+- **Removed.** The old fleet, crew and launch screens and their CSS, the three invented ships (Odyssey, Atlas, Vector) and their art. Docked-spacecraft art for the three real systems is in `scripts/gen-art.mjs`.
+- **Checked** in headless Edge on the production build, no console errors: the design screen (budget, weight verdicts, blocking), a guided ascent to docking with each launch system, a failed overweight launch and a failed hand-off launch with their debriefs, the guidance offer after two failures, a keyboard-driven ascent at real speed, two-browser co-op (18 checks), the 390 x 844 touch layout, the station panels and the report. `npm run check` passes (62 tests).
+- **Not checked:** a human flying it (the keyboard flight was scripted), a real phone, Firefox, Safari, a machine without WebGL2 (the code falls back to a plain backdrop and the instruments). **Play time was not measured**; the launch adds a design step and about a minute and a half of flight per attempt.
+- **Crosses lanes, needs a human's yes before landing:** data lane (`data/nasa/launch-vehicles.json`, `src/data/launchVehicles.ts`, `scripts/fetch-launch-vehicles.mjs`), rules lane (`src/core/data.ts`, `mission.ts`, new `ascent.ts` and `loadout.ts`, tests), and the frozen co-op files (`server/index.ts`, `src/coop.ts`, `src/core/protocol.ts`: the host's launch decision). `ShipId` changed (`shuttle`, `falcon9`, `atlasv`), which other lanes' code may name. `npm run lane-check` will refuse this from an experience branch as it stands.
+
 ## Now
 
 - (nothing claimed)
@@ -42,7 +57,7 @@ Only the experience lane edits this file. Everyone reads it.
 ## Next
 
 1. Play the current build start to finish with a stopwatch and write the time below. This is the baseline for the 10 to 20 minute target.
-2. Show the mission brief before the fleet screen as well. It now exists at the Mission Ops table (`briefTab` in `src/ui/ops.ts`), which the player reaches after choosing a ship.
+2. Show the mission brief before the launch field as well. It now exists at the Mission Ops table (`briefTab` in `src/ui/ops.ts`), which the player reaches after docking.
 3. Build the debrief screen: outcome, then the choices that caused it (from the rules lane), then "try again with a different design".
 4. Add a data-source label wherever a real measurement appears. The "Data sources" panel exists (Mission Ops); it has no real measurement to list yet.
 5. Replace "simulated" wording where a value now comes from NASA data, and keep it where the value is still our model.

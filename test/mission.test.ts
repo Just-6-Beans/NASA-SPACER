@@ -19,7 +19,7 @@ const PLAIN: Power = { life: 3, comms: 4, research: 2 }
 interface Opts { ship?: ShipId; inst: InstrumentId; cal: boolean; power: Power; date?: string; route: RouteId; scan: ScanId; balanced?: boolean; water?: boolean }
 
 function run(opts: Opts) {
-  const m = new Mission({ callSign: 'Test', suit: 'ember', ship: opts.ship ?? 'odyssey' })
+  const m = new Mission({ callSign: 'Test', suit: 'ember', ship: opts.ship ?? 'atlasv' })
   assert.equal(m.selectInstrument(opts.inst), null)
   assert.equal(m.activatePayload(), null)
   assert.ok(m.relayFault)
@@ -123,7 +123,7 @@ test('Scenario 4: the same plan succeeds or fails with the operations date', () 
 })
 
 test('no operations date and no design wins everywhere', () => {
-  const designs: [ShipId, InstrumentId][] = [['odyssey', 'ir'], ['odyssey', 'gpr'], ['atlas', 'ir'], ['atlas', 'gpr'], ['vector', 'ir']]
+  const designs: [ShipId, InstrumentId][] = [['atlasv', 'ir'], ['atlasv', 'gpr'], ['falcon9', 'ir'], ['falcon9', 'gpr'], ['shuttle', 'ir']]
   const dates = OPS_DATES.map(d => d.id)
   /** True if any plan and any station preparation clears Ares Shelf for this design on this date. */
   const canClear = (ship: ShipId, inst: InstrumentId, date: string) => {
@@ -143,10 +143,10 @@ test('no operations date and no design wins everywhere', () => {
     assert.ok(winners.length < designs.length, `${date} does not work for every design`)
   }
   // The frugal spectrometer needs time for its deep scan: it never clears from far away.
-  for (const design of ['odyssey-ir', 'atlas-ir', 'vector-ir']) assert.ok(!table.get(design)!.includes(FAR), design)
-  // The power-hungry radar on the weakest battery only works when the nights are warm.
-  assert.deepEqual(table.get('atlas-gpr'), [FAR])
-  assert.deepEqual(table.get('odyssey-gpr'), [NEAR, MID, FAR])
+  for (const design of ['atlasv-ir', 'falcon9-ir', 'shuttle-ir']) assert.ok(!table.get(design)!.includes(FAR), design)
+  // The power-hungry radar on the weakest battery (the Falcon 9's trunk delivers 92%) only works when the nights are warm.
+  assert.deepEqual(table.get('falcon9-gpr'), [FAR])
+  assert.deepEqual(table.get('atlasv-gpr'), [NEAR, MID, FAR])
 })
 
 test('heater draw is one point per degree below -65 C', () => {
@@ -170,7 +170,7 @@ test('partial scan gives no reading; return can still hit reserve after a comple
 })
 
 test('transmit rules: a date is required, the plan locks, one pass per run', () => {
-  const m = new Mission({ callSign: 'Test', suit: 'ember', ship: 'odyssey' })
+  const m = new Mission({ callSign: 'Test', suit: 'ember', ship: 'atlasv' })
   m.selectInstrument('ir')
   m.activatePayload()
   m.complete('relay', 'test')
@@ -197,16 +197,20 @@ test('the debrief names the choices behind the outcome', () => {
   const stranded = run({ inst: 'gpr', cal: false, power: PLAIN, date: NEAR, route: 'basin', scan: 'quick' })
   assert.match(stranded.causes[1].headline, /needed 10 more battery points/)
   assert.equal(stranded.causes[2].ok, false)
-  assert.deepEqual(new Mission({ callSign: 'x', suit: 'ember', ship: 'odyssey' }).causes, [])
+  assert.deepEqual(new Mission({ callSign: 'x', suit: 'ember', ship: 'atlasv' }).causes, [])
 })
 
-test('payload rules: Vector cannot carry radar, payload locks', () => {
-  const m = new Mission({ callSign: '  ', suit: 'sage', ship: 'vector' })
+test('payload rules: only what was loaded can be mounted, and the payload locks', () => {
+  const m = new Mission({ callSign: '  ', suit: 'sage', ship: 'shuttle', loadout: { instruments: ['ir'], extras: [] } })
   assert.equal(m.profile.callSign, 'Pilot')
-  assert.ok(m.selectInstrument('gpr'))
+  assert.equal(m.instrumentDraft, 'ir', 'the only instrument aboard is already in the bay')
+  assert.match(m.selectInstrument('gpr')!, /stayed on Earth/)
   assert.equal(m.selectInstrument('ir'), null)
   m.activatePayload()
   assert.ok(m.selectInstrument('ir'))
+  const both = new Mission({ callSign: 'x', suit: 'sage', ship: 'shuttle', loadout: { instruments: ['ir', 'gpr'], extras: [] } })
+  assert.equal(both.instrumentDraft, null, 'two aboard: the pilot chooses which to mount')
+  assert.equal(both.selectInstrument('gpr'), null)
   assert.equal(cleanCallSign('  A very very long callsign here '), 'A very very long cal')
 })
 

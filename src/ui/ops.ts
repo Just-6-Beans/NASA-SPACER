@@ -1,10 +1,12 @@
 // Mission Ops table: the mission brief, a live read-out of how the current design is shaping
 // the mission, and where every number in the game comes from. It only displays what the rules
 // in src/core and the data in src/data return; it adds no rule of its own.
-import { CARGO_REWARD, DUST_DEADLINE, HEATER_FREE_C, INSTRUMENTS, KIT_COST, POWER_TOTAL, RESERVE_FLOOR, SITES, STRONG_LOW_END, byId } from '../core/data'
+import { CARGO_REWARD, DUST_DEADLINE, HEATER_FREE_C, INSTRUMENTS, KIT_COST, MISSION_BUDGET, POWER_TOTAL, RESERVE_FLOOR, SITES, STRONG_LOW_END, byId } from '../core/data'
 import type { Mission } from '../core/mission'
 import { fastRelay, researchFilter, unassigned } from '../core/power'
 import { fmt, fmtTemp, heaterDraw, passCauses, type Cause } from '../core/rover'
+import { cargoKg } from '../core/loadout'
+import { ROCKET_DATA, USD_MILLIONS_PER_CREDIT, rocket, rocketSources } from '../data/launchVehicles'
 import { OPS_DATES, SOURCES, formatDate, lightTimeSource, opsDate, seasonNote, weatherSource, type OpsDate } from '../data/opsDates'
 import { sound } from '../audio'
 import { $, $$, esc } from './dom'
@@ -33,7 +35,7 @@ function briefTab(body: HTMLElement, ctx: PanelCtx) {
   const d = dateOf(m), link = linkMinutes(m)
   const light = OPS_DATES.map(o => o.lightMin), cold = OPS_DATES.map(o => o.weather.minAirTemp)
   const most = Math.max(...OPS_DATES.map(heat))
-  body.innerHTML = `<div class="sim">Simulated scenario · the signal delay and the night cold are NASA data</div>
+  body.innerHTML = `<div class="sim">Simulated scenario · the signal delay, the night cold and the facts about your launch system are NASA data</div>
     <div class="brief-goal"><h3>Your mission</h3>
       <p>You are docked 408 km above Earth, commanding a rover on Mars. Find out whether there is enough water ice at <b>Ares Shelf</b> to build a habitat, then decide where the crew lands.</p></div>
     <div class="brief-cols">
@@ -43,9 +45,9 @@ function briefTab(body: HTMLElement, ctx: PanelCtx) {
         <li><b>Rover plan.</b> The operations date, the route and the scan. It is sent once.</li>
         <li><b>Landing site.</b> Where to commit, or whether to wait.</li></ol></div>
       <div class="brief-box"><h3>Your limits with ${esc(ship.name)}</h3><div class="kv">
-        <span>Supply budget</span><b>${ship.budget} cr</b>
-        <span>Payload mass</span><b>${ship.payloadKg} kg</b>
-        <span>Rover battery</span><b>${ship.battery}%, stops at ${RESERVE_FLOOR}%</b>
+        <span>Budget left</span><b>${m.loadout ? `${m.credits} of ${MISSION_BUDGET} cr` : `${ship.budget} cr`}</b>
+        <span>Cargo lifted</span><b>${m.loadout ? `${cargoKg(m.loadout)} kg` : `up to ${ship.payloadKg} kg`}</b>
+        <span>Rover battery</span><b>${m.startBattery}%, stops at ${RESERVE_FLOOR}%</b>
         <span>Station power</span><b>${POWER_TOTAL} units</b>
         <span>Signal delay</span><b>${d && link !== null ? `${fmt(link)} min each way on ${d.label}` : `${fmt(Math.min(...light))} to ${fmt(Math.max(...light))} min, by date, + ${ship.handoffMin} min relay`}</b>
         <span>Night cold</span><b>${d ? `${fmtTemp(d.weather.minAirTemp)}: heaters use ${pts(heat(d))}` : `${fmtTemp(Math.min(...cold))} to ${fmtTemp(Math.max(...cold))}, by date: heaters use up to ${pts(most)}`}</b>
@@ -57,6 +59,7 @@ function briefTab(body: HTMLElement, ctx: PanelCtx) {
     <div class="prov">
       <div>${REAL}<b>Signal delay.</b> The Earth to Mars light time on the operations date. ${esc(SOURCES.lightTime.name)}.</div>
       <div>${REAL}<b>Night cold.</b> The night low for that Mars season at Gale Crater. ${esc(SOURCES.weather.name)}.</div>
+      <div>${REAL}<b>Your launch system.</b> ${esc(rocket(ship.rocket).name)}: what the game says about it comes from NASA pages.</div>
       <div>${MODEL}Everything else: the relay hand-off, the heater draw, drive and scan times, battery points, the ice reading, the dust front, budgets and landing sites.</div>
     </div>
     <div class="actions"><button class="btn primary" id="begin">Begin mission</button><button class="btn" id="tostatus">See mission status</button></div>`
@@ -107,15 +110,16 @@ function statusTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
   const d = dateOf(m)
   const fc = m.plan && m.pass ? { plan: m.plan, pass: m.pass } : instId ? forecastPlan(m, instId) : null
   const f = fc?.pass ?? null
-  const total = ship.budget + (m.completed.has('cargo') ? CARGO_REWARD : 0)
+  const total = (m.loadout ? MISSION_BUDGET : ship.budget) + (m.completed.has('cargo') ? CARGO_REWARD : 0)
   const free = unassigned(p)
   const package_ = m.waterCost + KIT_COST
 
   const bars = [
-    bar('Supply budget', `${m.funds} of ${total} cr`, (m.funds / total) * 100, m.funds >= package_ ? 'good' : m.funds >= m.waterCost ? 'warn' : 'bad'),
-    bar('Payload mass', `${inst?.massKg ?? 0} of ${ship.payloadKg} kg`, ((inst?.massKg ?? 0) / ship.payloadKg) * 100, 'info'),
+    bar(m.loadout ? 'Mission budget left' : 'Supply budget', `${m.funds} of ${total} cr`, (m.funds / total) * 100, m.funds >= package_ ? 'good' : m.funds >= m.waterCost ? 'warn' : 'bad'),
+    m.loadout ? bar('Cargo lifted', `${cargoKg(m.loadout)} kg, rated ${ship.payloadKg} kg`, (cargoKg(m.loadout) / (ship.payloadKg * 1.5)) * 100, cargoKg(m.loadout) > ship.payloadKg ? 'warn' : 'info', (1 / 1.5) * 100)
+      : bar('Payload mass', `${inst?.massKg ?? 0} of ${ship.payloadKg} kg`, ((inst?.massKg ?? 0) / ship.payloadKg) * 100, 'info'),
     bar('Station power', `${POWER_TOTAL - free} of ${POWER_TOTAL} routed`, ((POWER_TOTAL - free) / POWER_TOTAL) * 100, p.life >= NEED.life && p.comms >= NEED.comms ? 'good' : 'bad'),
-    f ? bar('Rover battery', `${ship.battery}% → ${f.finalBattery}%`, f.finalBattery, f.safeMode ? 'bad' : f.finalBattery < RESERVE_FLOOR + 10 ? 'warn' : 'good', RESERVE_FLOOR) : '',
+    f ? bar('Rover battery', `${m.startBattery}% → ${f.finalBattery}%`, f.finalBattery, f.safeMode ? 'bad' : f.finalBattery < RESERVE_FLOOR + 10 ? 'warn' : 'good', RESERVE_FLOOR) : '',
     f ? bar('Time', `T+${fmt(f.finalTelemetryAt)} of T+${DUST_DEADLINE}`, (f.finalTelemetryAt / (DUST_DEADLINE * 1.25)) * 100, f.finalTelemetryAt < DUST_DEADLINE ? 'good' : 'bad', 80) : '',
   ].join('')
 
@@ -174,6 +178,7 @@ const KIND_LABEL: Record<Kind, string> = { real: 'NASA data', model: 'Our model'
 function sourceRows(m: Mission): Row[] {
   const d = dateOf(m)
   const dates = OPS_DATES.map(o => o.label).join(', ')
+  const r = rocket(m.ship.rocket)
   return [
     { kind: 'real', what: 'Signal delay: Earth to Mars light time',
       note: d ? `${fmt(d.lightMin)} minutes one way on your operations date.` : `Read for the operations date you pick: ${dates}.`,
@@ -181,6 +186,19 @@ function sourceRows(m: Mission): Row[] {
     { kind: 'real', what: 'Night cold on Mars',
       note: d ? `${fmtTemp(d.weather.minAirTemp)} night low, sol ${d.weather.sol} (${formatDate(d.weather.earthDate)}).` : 'The night low of one Curiosity sol for each operations date.',
       origin: `${SOURCES.weather.provider} · ${SOURCES.weather.location} · ${d ? `sol ${d.weather.sol}, ${formatDate(d.weather.earthDate)}` : 'one sol per date'} · retrieved ${formatDate(SOURCES.weather.retrieved)}`, limit: SOURCES.weather.limits },
+    { kind: 'real', what: `Your launch system: ${r.name}`,
+      note: r.brief.map(x => x.text).join(' '),
+      origin: `${rocketSources(r).length} NASA sources · flew crews to the station ${r.years} · retrieved ${formatDate(ROCKET_DATA.retrieved)}`, limit: ROCKET_DATA.limits },
+    { kind: 'real', what: 'What your launch cost',
+      note: `${m.ship.launchCost} cr: NASA's figure of $${r.cost.usdMillions} million for a flight, at 1 credit for each $${USD_MILLIONS_PER_CREDIT} million. ${r.cost.basis}`,
+      origin: `${r.cost.backing[0].source.title} · ${r.cost.backing[0].source.provider}`,
+      limit: 'The three cost figures are not like for like: different years, and a whole mission for the Shuttle against seats for the capsules. The scale in credits is ours.' },
+    r.liftoff
+      ? { kind: 'real', what: 'Thrust over weight at lift-off', note: `${r.liftoff.twr.toFixed(2)}: ${(r.liftoff.thrustLbf / 1e6).toFixed(1)} million pounds of thrust over ${(r.liftoff.weightLb / 1e6).toFixed(2)} million pounds. ${r.liftoff.note} The ascent you flew started from it.`,
+          origin: `${[...new Set(r.liftoff.backing.map(x => x.source.title))].join(' · ')} · retrieved ${formatDate(ROCKET_DATA.retrieved)}`,
+          limit: ROCKET_DATA.disagreements.filter(x => x.about === r.id && /thrust/.test(x.text)).map(x => x.text).join(' ') || undefined }
+      : { kind: 'model', what: 'Thrust over weight at lift-off', note: 'NASA gives the thrust of this stack but no lift-off weight, so the ratio the ascent started from is our estimate.', origin: '' },
+    { kind: 'model', what: 'The ascent, cargo ratings and cargo masses', note: 'The climb is a small physics model on a scaled-down Earth, with read-outs shown at real scale. Masses and ratings are game rules.', origin: '' },
     { kind: 'model', what: 'Season stand-in', note: 'Curiosity has no weather for 2029, so each date borrows the sol from the same Mars season in an earlier Mars year.', origin: 'Built on Curiosity REMS' },
     { kind: 'model', what: 'Heater draw', note: `One battery point for each degree the night low is below ${fmtTemp(HEATER_FREE_C)}, taken before the pass starts.`, origin: 'Built on Curiosity REMS' },
     { kind: 'model', what: 'Relay hand-off', note: 'Two or three minutes added to each signal leg by the station relay, and skipped by a direct link.', origin: 'Added to JPL Horizons light time' },
@@ -201,5 +219,5 @@ function sourcesTab(body: HTMLElement, ctx: PanelCtx) {
     <div class="srcs">${rows.map(r => `<div class="src ${r.kind}"><div><b>${esc(r.what)}</b><span>${esc(r.note)}</span>
       ${r.origin ? `<small>${esc(r.origin)}</small>` : ''}${r.limit ? `<small class="limit">Limit: ${esc(r.limit)}</small>` : ''}</div>
       <em>${KIND_LABEL[r.kind]}</em></div>`).join('')}</div>
-    <div class="feedback ok">${count('real')} of these ${rows.length} come from NASA measurements, and ${count('model')} are our model built on them. The rest are simulated. The game reads committed snapshots and never calls NASA while you play.</div>`
+    <div class="feedback ok">${count('real')} of these ${rows.length} come from NASA data, and ${count('model')} are our model built on them. The rest are simulated. The game reads committed snapshots and never calls NASA while you play.</div>`
 }

@@ -70,7 +70,7 @@ export function roverScreen(ctx: RoverCtx) {
   function render() {
     syncMap()
     const p = m.pass
-    const known = p ? knownBattery(p) : m.forecast()?.wakeBattery ?? m.ship.battery
+    const known = p ? knownBattery(p) : m.forecast()?.wakeBattery ?? m.startBattery
     const bt = $('#batt', s)
     bt.className = `batt ${known <= 30 ? 'low' : ''}`
     bt.innerHTML = `<span class="bcell"><i style="width:${known}%"></i></span>BATTERY ${known}%`

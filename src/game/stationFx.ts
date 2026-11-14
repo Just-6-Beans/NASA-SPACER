@@ -40,7 +40,7 @@ export const BUS_COLOR: Record<Bus, number> = { life: 0x6ef2c6, comms: 0x5fd8f0,
 const MINT = 0x6ef2c6, CYAN = 0x5fd8f0, AMBER = 0xff9a3c, RED = 0xff4a3a, OFF = 0x2c343d
 const DISH_REST = -28
 // Where each ship's name plate sits in its 900 px wide artwork, so the plate lands in the window.
-const NAME_PLATE: Record<ShipId, number> = { odyssey: 360, atlas: 375, vector: 395 }
+const NAME_PLATE: Record<ShipId, number> = { shuttle: 400, falcon9: 352, atlasv: 352 }
 const SHIP_W = 450
 
 const vec = (pts: Pt[]) => pts.map(([x, y]) => new Phaser.Math.Vector2(x, y))

@@ -47,7 +47,7 @@ export function stationView(m: Mission, o: Objective, guide: boolean): StationVi
     instrument: m.instrument,
     instrumentDraft: m.instrumentDraft,
     calibrated: m.calibrated,
-    battery: m.ship.battery,
+    battery: m.startBattery,
     linkMin: linkMinutes(m),
     linkNote: d ? `${fmt(d.lightMin)} JPL HORIZONS ${direct ? '· DIRECT' : `+ ${m.ship.handoffMin} RELAY`}` : 'NO OPERATIONS DATE YET',
     passClock: m.pass ? m.clock : null,

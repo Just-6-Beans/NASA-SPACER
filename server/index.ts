@@ -1,9 +1,11 @@
-// SPACER co-op service: one two-player room that shares station presence and the power grid.
+// SPACER co-op service: one two-player room that shares station presence, the power grid and the
+// host's launch decision (which rocket, and when the countdown starts).
 // Each client still simulates its own tasks, rover and mission clock.
 import { Room, Server, type Client } from '@colyseus/core'
 import { WebSocketTransport } from '@colyseus/ws-transport'
 import { DEFAULT_POWER, powerBlock, validPower, type Power } from '../src/core/power'
-import { ROOM_NAME, WORLD, cleanPose, validPose, type CrewMember, type NoticeKind } from '../src/core/protocol'
+import type { ShipId } from '../src/core/data'
+import { ROOM_NAME, WORLD, cleanPose, validPose, validShip, type CrewMember, type FlightState, type NoticeKind } from '../src/core/protocol'
 
 const HOST = process.env.HOST || '127.0.0.1'
 const PORT = Number(process.env.PORT || 2567)
@@ -28,8 +30,21 @@ export class PowerRoom extends Room {
   private revision = 0
   private crew = new Map<string, CrewMember>()
   private buckets = new Map<string, { pose: Bucket; control: Bucket }>()
+  /** The pilot who has been in the room longest. Only the host chooses the launch system and commits the room to it. */
+  private host = ''
+  private ship: ShipId | null = null
+  private launched = false
+  private launches = 0
 
   private state0() { return { power: this.power, revision: this.revision, players: this.clients.length } }
+  private flight(): FlightState { return { host: this.host, ship: this.ship, launched: this.launched, launches: this.launches } }
+  /** True when this client may decide the launch. Tells a guest why not. */
+  private hostOnly(c: Client, value: unknown): value is ShipId {
+    if (!this.allow(c, 'control')) { this.notice(c, 'limit', false, 'Too many requests.'); return false }
+    if (c.sessionId !== this.host) { this.notice(c, 'flight', false, 'Only the host chooses the launch system.'); c.send('flight', this.flight()); return false }
+    if (!validShip(value)) { this.notice(c, 'flight', false, 'Server rejected the launch: unknown rocket.'); return false }
+    return true
+  }
   private notice(c: Client, kind: NoticeKind, ok: boolean, text: string) { c.send('notice', { kind, ok, text }) }
   private allow(c: Client, kind: 'pose' | 'control') { return this.buckets.get(c.sessionId)?.[kind].take() ?? false }
 
@@ -48,7 +63,7 @@ export class PowerRoom extends Room {
     // The client asks for its initial snapshot once its message handlers are registered.
     this.onMessage('hello', client => {
       if (!this.allow(client, 'control')) return
-      client.send('snapshot', { ...this.state0(), crew: [...this.crew.values()], you: client.sessionId, roomId: this.roomId })
+      client.send('snapshot', { ...this.state0(), crew: [...this.crew.values()], you: client.sessionId, roomId: this.roomId, flight: this.flight() })
     })
     this.onMessage('pose', (client, value: unknown) => {
       if (!this.allow(client, 'pose') || !validPose(value)) return
@@ -83,6 +98,22 @@ export class PowerRoom extends Room {
       this.revision++
       this.broadcast('power', this.state0())
     })
+    // The host is on the launch field and has a rocket on the pad. Choosing again reopens the pad.
+    this.onMessage('ship', (client, value: unknown) => {
+      if (!this.hostOnly(client, value)) return
+      if (this.ship === value && !this.launched) return
+      this.ship = value
+      this.launched = false
+      this.broadcast('flight', this.flight())
+    })
+    // The host started the countdown. Every pilot on the launch field lifts off on this rocket.
+    this.onMessage('launch', (client, value: unknown) => {
+      if (!this.hostOnly(client, value)) return
+      this.ship = value
+      this.launched = true
+      this.launches++
+      this.broadcast('flight', this.flight())
+    })
     this.onMessage('transmit-check', (client, revision: unknown) => {
       if (!this.allow(client, 'control')) return this.notice(client, 'limit', false, 'Too many requests.')
       if (revision !== this.revision) {
@@ -96,6 +127,7 @@ export class PowerRoom extends Room {
 
   onJoin(client: Client) {
     this.buckets.set(client.sessionId, { pose: new Bucket(30, 40), control: new Bucket(4, 8) })
+    if (!this.host) this.host = client.sessionId
     this.broadcast('power', this.state0(), { except: client })
   }
 
@@ -103,6 +135,13 @@ export class PowerRoom extends Room {
     this.buckets.delete(client.sessionId)
     if (this.crew.delete(client.sessionId)) this.broadcast('gone', client.sessionId)
     this.broadcast('power', this.state0())
+    if (client.sessionId === this.host) {
+      // The remaining pilot takes over as host. Their client reports their own rocket next.
+      this.host = this.clients.find(c => c.sessionId !== client.sessionId)?.sessionId ?? ''
+      this.ship = null
+      this.launched = false
+      this.broadcast('flight', this.flight())
+    }
   }
 }
 

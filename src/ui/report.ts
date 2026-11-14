@@ -1,5 +1,6 @@
 // Landing site selection and the mission report (built from actual mission events).
-import { INSTRUMENTS, ROUTES, SCANS, SITES, SUITS, byId, type SiteId } from '../core/data'
+import { EXTRAS, INSTRUMENTS, MISSION_BUDGET, ROUTES, SCANS, SITES, SUITS, byId, type SiteId } from '../core/data'
+import { cargoKg, designCost, launchCauses } from '../core/loadout'
 import { TASK_INFO, type Mission } from '../core/mission'
 import { fmt, fmtTemp } from '../core/rover'
 import type { TaskId } from '../core/tasks'
@@ -58,6 +59,8 @@ export function reportScreen(m: Mission, ctx: PanelCtx, onReplay: () => void, on
     const ship = m.ship
     const suit = byId(SUITS, m.profile.suit)
     const inst = m.instrument ? byId(INSTRUMENTS, m.instrument) : null
+    const l = m.loadout, cost = l ? designCost(ship, l) : null
+    const launch = m.profile.launch ? launchCauses(ship, m.profile.launch) : null
     const p = m.pass, plan = m.plan
     const d = plan ? opsDate(plan.date) : null
     const L = m.landing
@@ -69,12 +72,15 @@ export function reportScreen(m: Mission, ctx: PanelCtx, onReplay: () => void, on
     inner.innerHTML = `<div class="sim">Mission report · simulated scenario</div><h1>${esc(m.profile.callSign)} · ${ship.name}</h1>
       <div class="verdict-big ${good ? 'good' : 'mid'}">${esc(verdict)}</div>
       <div class="rgrid">
-        <div class="rbox"><h3>Crew & spacecraft</h3><div class="kv"><span>Call sign</span><b>${esc(m.profile.callSign)}</b><span>Suit</span><b style="color:${suit.light}">${suit.name}</b><span>Ship</span><b>${ship.name} · ${ship.role}</b><span>Instrument</span><b>${inst ? `${inst.name} (${inst.code})` : 'none'}</b></div></div>
+        <div class="rbox"><h3>Crew & spacecraft</h3><div class="kv"><span>Call sign</span><b>${esc(m.profile.callSign)}</b><span>Suit</span><b style="color:${suit.light}">${suit.name}</b><span>Launch system</span><b>${ship.name}</b><span>Cargo</span><b>${l ? `${cargoKg(l)} kg: ${[...l.instruments.map(id => byId(INSTRUMENTS, id).code), ...l.extras.map(id => byId(EXTRAS, id).name.toLowerCase())].join(', ')}` : 'not recorded'}</b><span>Instrument</span><b>${inst ? `${inst.name} (${inst.code})` : 'none'}</b></div></div>
         <div class="rbox"><h3>Preparation</h3><ul>${(['relay', 'calibration', ...routine] as TaskId[]).map(t => `<li>${m.completed.has(t) ? '✓' : '○'} ${TASK_INFO[t].name}${m.completed.has(t) ? ` — <span style="color:#b9ae95">${TASK_INFO[t].reward}</span>` : t === 'calibration' ? ' — skipped (+9 uncertainty)' : ' — not done'}</li>`).join('')}</ul></div>
         <div class="rbox"><h3>Transmission</h3>${plan && p && d ? `<div class="kv"><span>Operations date</span><b>${d.label}</b><span>Power at send</span><b>${plan.power.life}/${plan.power.comms}/${plan.power.research}</b><span>Route · scan</span><b>${byId(ROUTES, plan.route).name} · ${byId(SCANS, plan.scan).name}</b><span>Signal leg</span><b>${fmt(p.uplink)} min each way</b><span>Drive began</span><b>T+${fmt(p.commands[0].start)}</b><span>Final telemetry</span><b>T+${fmt(p.finalTelemetryAt)}</b></div>` : 'No plan transmitted.'}</div>
         <div class="rbox"><h3>Evidence & rover</h3>${p ? `<div class="kv"><span>Ice reading</span><b>${p.reading ? `${p.reading.estimate}% ±${p.reading.uncertainty} (low ${p.reading.low}%) · ${p.reading.strong ? 'strong' : 'weak'}` : 'none (scan incomplete)'}</b><span>Received at</span><b>${p.readingAt !== null ? `T+${fmt(p.readingAt)}` : '—'}</b><span>Outcome</span><b>${p.returned ? 'Returned to base' : `Reserve stop · safe mode at T+${fmt(p.safeMode!.at)}`}</b><span>Final battery</span><b>${p.finalBattery}%</b></div>` : '—'}</div>
-        <div class="rbox"><h3>Supplies</h3><div class="kv"><span>Budget</span><b>${ship.budget} cr</b><span>Instrument</span><b>${inst ? `−${inst.cost} cr` : '0'}</b><span>Cargo reward</span><b>${m.completed.has('cargo') ? '+5 cr' : '0'}</b><span>Landing spend</span><b>${L ? `−${L.spent} cr` : '0'}</b><span>Remaining</span><b>${m.funds} cr</b></div></div>
+        <div class="rbox"><h3>Budget</h3><div class="kv">${l && cost ? `<span>Mission budget</span><b>${MISSION_BUDGET} cr</b><span>Launch</span><b>−${cost.launch} cr</b><span>Instruments</span><b>−${cost.instruments} cr</b><span>Supplies</span><b>${cost.extras ? `−${cost.extras} cr` : '0'}</b>` : `<span>Budget</span><b>${ship.budget} cr</b><span>Instrument</span><b>${inst ? `−${inst.cost} cr` : '0'}</b>`}<span>Cargo reward</span><b>${m.completed.has('cargo') ? '+5 cr' : '0'}</b><span>Landing spend</span><b>${L ? `−${L.spent} cr` : '0'}</b><span>Remaining</span><b>${m.funds} cr</b></div></div>
         <div class="rbox"><h3>Landing rationale</h3><p style="margin:0">${L ? esc(L.reason) : 'No decision recorded.'}</p></div>
+        ${launch ? `<div class="rbox" style="grid-column:1/-1"><h3>What decided the launch</h3>
+          <div class="causes"><div class="cause ${launch.ok ? 'ok' : 'bad'}"><b>${launch.ok ? '✓' : '✗'} ${esc(launch.headline)}</b><ul>${launch.parts.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>
+          <p class="dataline" style="margin:10px 0 0"><span class="tag model">Our model</span>The ascent, the cargo masses and the ratings. The launch systems are real; their thrust and weight at lift-off are NASA figures where NASA gives them.</p></div>` : ''}
         ${plan && d ? `<div class="rbox" style="grid-column:1/-1"><h3>What decided the rover pass</h3>
           <div class="causes">${m.causes.map(c => `<div class="cause ${c.ok ? 'ok' : 'bad'}"><b>${c.ok ? '✓' : '✗'} ${esc(c.headline)}</b><ul>${c.parts.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</div>
           <p class="dataline" style="margin:10px 0 0"><span class="tag real">NASA data</span>Light time ${fmt(plan.lightMin)} min: ${esc(lightTimeSource(d))}. Night low ${fmtTemp(plan.nightLowC)}: ${esc(weatherSource(d))}. ${esc(seasonNote(d))}<br/><span class="tag model">Our model</span>The relay hand-off, heater draw, drive and scan times, battery points and ice reading.</p></div>` : ''}

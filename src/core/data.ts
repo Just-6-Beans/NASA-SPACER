@@ -1,46 +1,68 @@
 // Static mission catalogue and game rules.
 // Every number in this file is OUR MODEL for a simulated scenario. The two real inputs to the
 // rover pass, the signal light time and the night temperature, come from NASA data in src/data/.
+import type { RocketId } from '../data/launchVehicles'
 
-export type ShipId = 'odyssey' | 'atlas' | 'vector'
+export type ShipId = 'shuttle' | 'falcon9' | 'atlasv'
 export type InstrumentId = 'ir' | 'gpr'
+export type ExtraId = 'water' | 'kit' | 'cells'
 export type SuitId = 'ember' | 'aurora' | 'sage' | 'violet'
 export type RouteId = 'ridge' | 'basin'
 export type ScanId = 'quick' | 'deep'
 export type SiteId = 'shelf' | 'hollow' | 'plain'
 
+/** What the whole mission may spend, in credits: the launch, the instruments, the supplies, and whatever the landing needs. */
+export const MISSION_BUDGET = 136
+
+/** A launch system: a real rocket and the real spacecraft it carries to the station. */
 export interface Ship {
   id: ShipId
   name: string
+  /** The rocket and the spacecraft on their own, for short labels. */
+  rocketName: string
+  craft: string
   role: string
+  /** Credits the launch costs: one credit for each $10 million of NASA's cost figure for a flight
+   *  of the real system (`cost` in data/nasa/launch-vehicles.json). The scale is ours. */
+  launchCost: number
+  /** Cargo in kilograms that a clean ascent carries with propellant to spare. More can fly on a
+   *  thinner margin: the limit comes out of the ascent model in ascent.ts, not from this number. */
   payloadKg: number
+  /** Credits left for instruments, supplies and the landing once the launch is paid: MISSION_BUDGET - launchCost. */
   budget: number
   battery: number
   /** Minutes the station relay adds to each signal leg, on top of the light time. */
   handoffMin: number
+  /** The real launch system. Its facts are NASA data in src/data/launchVehicles.ts; every other
+   *  number on this line is our model. */
+  rocket: RocketId
   blurb: string
   pros: string[]
   cons: string[]
 }
 
+/** In the order they first flew crews to the station. */
 export const SHIPS: Ship[] = [
   {
-    id: 'odyssey', name: 'Odyssey', role: 'Survey transport', payloadKg: 18, budget: 100, battery: 100, handoffMin: 3,
-    blurb: 'A balanced survey hauler with a full-charge rover cradle.',
-    pros: ['Full rover battery', 'Carries either instrument'],
-    cons: ['Middling supply budget'],
+    id: 'shuttle', name: 'Space Shuttle', rocketName: 'Space Shuttle', craft: 'Orbiter', role: 'Heavy lift',
+    launchCost: 45, payloadKg: 40, budget: 91, battery: 100, handoffMin: 2, rocket: 'space-shuttle',
+    blurb: 'The orbiter is spacecraft and rocket in one, with a cargo bay nothing else matches.',
+    pros: ['Carries 40 kg with propellant to spare', 'Shortest relay hand-off (2 min)'],
+    cons: ['The most expensive launch', 'Winged stack: breaks up under the least sideways air load'],
   },
   {
-    id: 'atlas', name: 'Atlas', role: 'Heavy logistics', payloadKg: 25, budget: 113, battery: 92, handoffMin: 3,
-    blurb: 'Deep cargo bays and the richest supply line in the fleet.',
-    pros: ['Largest payload', 'Largest supply budget'],
-    cons: ['Rover arrives at 92% charge'],
+    id: 'falcon9', name: 'Falcon 9 + Crew Dragon', rocketName: 'Falcon 9 Block 5', craft: 'Crew Dragon', role: 'Lowest cost',
+    launchCost: 22, payloadKg: 25, budget: 114, battery: 92, handoffMin: 3, rocket: 'falcon-9-crew-dragon',
+    blurb: 'A booster that lands and flies again, under a capsule that docks itself.',
+    pros: ['The cheapest launch: most left to spend', 'Carries 25 kg with propellant to spare'],
+    cons: ['Lowest thrust for its weight: slowest off the pad', 'Rover rides in the unpowered trunk: arrives at 92% charge'],
   },
   {
-    id: 'vector', name: 'Vector', role: 'Fast-response shuttle', payloadKg: 12, budget: 88, battery: 100, handoffMin: 2,
-    blurb: 'A lean shuttle with a high-gain relay and a tight cargo cage.',
-    pros: ['Shortest relay hand-off (2 min)', 'Full rover battery'],
-    cons: ['Too small for Ground Radar', 'Smallest budget'],
+    id: 'atlasv', name: 'Atlas V N22 + Starliner', rocketName: 'Atlas V N22', craft: 'Starliner', role: 'Steady climb',
+    launchCost: 36, payloadKg: 18, budget: 100, battery: 100, handoffMin: 3, rocket: 'atlas-v-n22-starliner',
+    blurb: 'Built for crew: no nose cone, and a two-engine upper stage that flies a gentler path.',
+    pros: ['Sturdiest stack: takes the roughest steering without breaking up', 'Full rover battery'],
+    cons: ['Carries only 18 kg with propellant to spare', 'Mid-priced launch'],
   },
 ]
 
@@ -70,6 +92,24 @@ export const INSTRUMENTS: Instrument[] = [
 ]
 
 export interface Suit { id: SuitId; name: string; primary: string; shade: string; light: string }
+
+/** Supplies that can be loaded on Earth. Each saves something later and weighs something now. */
+export interface Extra {
+  id: ExtraId
+  name: string
+  cost: number
+  massKg: number
+  note: string
+  /** What it changes later in the mission. */
+  effect: string
+}
+export const EXTRAS: Extra[] = [
+  { id: 'water', name: 'Water tanks', cost: 15, massKg: 12, note: 'The landing party\'s water, carried from Earth.', effect: 'No imported water to buy at landing (26 cr if you need it then).' },
+  { id: 'kit', name: 'Dust-rated power kit', cost: 8, massKg: 6, note: 'Sealed panels and filters for a dusty site.', effect: 'No kit to buy for a Meridian Plain landing (12 cr then).' },
+  { id: 'cells', name: 'Spare rover cells', cost: 10, massKg: 5, note: 'Extra battery cells clipped into the rover.', effect: '+8 points of rover charge when the pass starts, up to 100%.' },
+]
+/** Rover charge the spare cells add, capped at a full battery. */
+export const CELLS_BONUS = 8
 
 export const SUITS: Suit[] = [
   { id: 'ember', name: 'Ember', primary: '#c8582a', shade: '#8a3618', light: '#ec8a55' },

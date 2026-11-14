@@ -14,13 +14,16 @@ import { Coop, coopUrl } from './coop'
 import { createGame, type MarsScene, type StationScene, type Terminal } from './game/game'
 import { bindDpad, clearHeld, input, setBlocked } from './game/input'
 import { $, el, esc, isTouch, toast } from './ui/dom'
-import { crewScreen, fleetScreen, launchScreen, titleScreen, type CrewLink, type Draft, type LinkStatus, type Mode, type TitleUi } from './ui/intro'
+import { titleScreen, type CrewLink, type Draft, type LinkStatus, type Mode, type TitleUi } from './ui/intro'
+import { launchField, type FieldLink, type FieldUi } from './ui/launchField'
+import { warmLaunchScene } from './ui/launchScene'
+import { STARTER, cleanLoadout, type LaunchRecord } from './core/loadout'
 import { closePanel, openPanel, panelOpen, refreshPanel, type PanelCtx } from './ui/panels'
 import { reportScreen, sitesScreen } from './ui/report'
 import { roverScreen } from './ui/roverView'
 import { NEED, deckMap, objectiveFor, stationView, type DeckMap } from './ui/stationHud'
 
-type ScreenName = 'title' | 'fleet' | 'crew' | 'launch' | 'station' | 'rover' | 'report'
+type ScreenName = 'title' | 'field' | 'station' | 'rover' | 'report'
 
 const app = $('#app')
 const gameHost = el('<div id="game"></div>')
@@ -45,6 +48,11 @@ let coopPanel: HTMLElement | null = null
 let coopStatus: LinkStatus = 'offline'
 let coopError = ''
 let titleUi: TitleUi | null = null
+let field: FieldUi | null = null // the launch field, while it is on screen
+let cover: HTMLElement | null = null // the last frame of the launch, held over the station until the deck is drawn
+let seenLaunches = 0 // host launches this pilot already knew about on reaching the launch field
+let lastLaunch: LaunchRecord | null = null // how the ascent went, kept for the report
+let shipTimer = 0
 let soloOnly = false // the player chose a solo mission while a co-op join was still in flight
 let powerInFlight = false
 let powerWanted: Power | null = null
@@ -53,43 +61,133 @@ const gameReady = createGame(gameHost).then(g => { game = g; g.loop.sleep(); ret
 const station = () => game!.scene.getScene('station') as StationScene
 const mars = () => game!.scene.getScene('mars') as MarsScene
 
+/** The pilot and design from last time. Anything an older build saved that no longer exists is dropped. */
 function loadDraft(): Draft {
+  const fresh: Draft = { callSign: 'Pilot', suit: 'ember', ship: 'falcon9', instruments: [...STARTER.instruments], extras: [] }
   try {
     const d = JSON.parse(localStorage.getItem('spacer.profile') || 'null')
-    if (d && SHIPS.some(s => s.id === d.ship) && SUITS.some(s => s.id === d.suit) && typeof d.callSign === 'string') return d
+    if (d && SUITS.some(s => s.id === d.suit) && typeof d.callSign === 'string') {
+      const kept = cleanLoadout(d)
+      const loadout = kept.instruments.length || kept.extras.length ? kept : { instruments: [...STARTER.instruments], extras: [] }
+      return { callSign: d.callSign, suit: d.suit, ship: SHIPS.some(s => s.id === d.ship) ? d.ship : fresh.ship, ...loadout }
+    }
   } catch { /* ignore */ }
-  return { callSign: 'Pilot', suit: 'ember', ship: 'odyssey' }
+  return fresh
 }
 function saveDraft() { try { localStorage.setItem('spacer.profile', JSON.stringify(draft)) } catch { /* ignore */ } }
 
-function show(name: ScreenName, node: HTMLElement | null) {
-  screenEl?.remove()
+/** Lets a screen that is on its way out fade, then removes it. */
+function fadeOut(node: HTMLElement, ms: number) {
+  node.inert = true
+  node.style.setProperty('--fade', `${ms}ms`)
+  node.classList.add('screen-out')
+  setTimeout(() => node.remove(), ms + 80)
+}
+/** Reveals the station once its deck is drawn. */
+function uncover(ms = 900) {
+  const c = cover
+  cover = null
+  if (c) fadeOut(c, ms)
+}
+
+/**
+ * Swaps the screen. `fade`: the new screen fades in over the old one. `cover`: the old screen
+ * stays on top, untouched, until uncover() is called, so nothing half-drawn shows beneath it.
+ */
+function show(name: ScreenName, node: HTMLElement | null, opts: { fade?: number; cover?: boolean } = {}) {
+  const old = screenEl
   screenEl = node
   screen = name
+  if (name !== 'field') field = null
   if (node) app.append(node)
+  if (old && opts.cover) {
+    uncover(0)
+    cover = old
+    old.inert = true
+    old.classList.add('screen-cover')
+  } else if (old && opts.fade) {
+    old.inert = true
+    setTimeout(() => old.remove(), opts.fade)
+  } else old?.remove()
+  if (node && opts.fade) {
+    node.style.setProperty('--fade', `${opts.fade}ms`)
+    node.classList.add('screen-in')
+  }
   gameHost.style.visibility = name === 'station' || name === 'rover' ? 'visible' : 'hidden'
   document.title = `SPACER · ${name[0].toUpperCase()}${name.slice(1)}`
 }
 
 // ------------------------------------------------------------------ Intro flow
 function goTitle() {
+  const fromField = screen === 'field'
   leaveGameplay()
   titleUi = titleScreen(crewLink, mode => void startMission(mode))
-  show('title', titleUi.el)
+  show('title', titleUi.el, fromField ? { fade: 450 } : {})
 }
 /** Solo drops any co-op link first. Co-op keeps the link opened in the title lobby through docking. */
 async function startMission(mode: Mode) {
   soloOnly = mode === 'solo'
   if (soloOnly && coop.connected) await leaveCoop()
-  goFleet()
+  goField()
 }
-function goFleet() { show('fleet', fleetScreen(draft, goTitle, ship => { draft.ship = ship; saveDraft(); goCrew() })) }
-function goCrew() { show('crew', crewScreen(draft, goFleet, d => { draft = d; saveDraft(); goLaunch() })) }
-function goLaunch() { show('launch', launchScreen(draft, () => void dock())) }
+
+/** How the launch field sees the co-op room. Outside a room the pilot decides alone. */
+const fieldLink: FieldLink = {
+  role: () => (!coop.connected ? 'solo' : coop.isHost ? 'host' : 'guest'),
+  players: () => coop.players,
+  hostShip: () => coop.flight.ship,
+  hostLaunched: () => coop.flight.launched,
+}
+
+/** The title dissolves into a fall from orbit onto the launch field, where the mission is designed and the launch is flown. */
+function goField() {
+  seenLaunches = coop.flight.launches
+  const ui = launchField(draft, fieldLink, {
+    onBack: goTitle,
+    onPick: ship => { draft.ship = ship; saveDraft(); announceShip() },
+    onDraft: d => { draft = d; saveDraft() },
+    onLaunch: d => {
+      draft = d; saveDraft()
+      clearTimeout(shipTimer)
+      if (coop.isHost) coop.sendLaunch(d.ship)
+    },
+    onDone: (d, launch) => { draft = d; lastLaunch = launch; saveDraft(); void dock() },
+  }, { descend: true })
+  show('field', ui.el, { fade: 650 })
+  field = ui
+  if (coop.isHost) coop.sendShip(ui.ship())
+}
+/** Tells the room which rocket the host has on the pad, once the host stops flicking through them. */
+function announceShip() {
+  clearTimeout(shipTimer)
+  if (!coop.isHost) return
+  shipTimer = window.setTimeout(() => { if (coop.isHost && screen === 'field' && field) coop.sendShip(field.ship()) }, 180)
+}
+
+/**
+ * The room's launch decision changed, or this pilot's place in it did. The host's client keeps
+ * the room true to the host's own launch system. A guest on the launch field follows it, and may
+ * launch once the host has committed. Each pilot loads and flies their own ascent.
+ */
+function flightChanged() {
+  if (!coop.connected) return
+  const f = coop.flight
+  if (coop.isHost) {
+    if (screen === 'field' && field) { if (f.ship === null) coop.sendShip(field.ship()) }
+    else if (mission && screen !== 'title' && (f.ship !== mission.profile.ship || !f.launched)) coop.sendLaunch(mission.profile.ship)
+  } else if (screen === 'field' && field && f.launched && f.ship && f.launches > seenLaunches) {
+    seenLaunches = f.launches
+    toast('The host has committed to launch. Lift off when you are ready.', 'ok')
+  }
+  if (screen === 'field') field?.update()
+}
 
 async function dock() {
   await gameReady
-  mission = new Mission({ callSign: draft.callSign, suit: draft.suit as SuitId, ship: draft.ship as ShipId })
+  mission = new Mission({
+    callSign: draft.callSign, suit: draft.suit as SuitId, ship: draft.ship as ShipId,
+    loadout: { instruments: draft.instruments, extras: draft.extras }, launch: lastLaunch ?? undefined,
+  })
   if (coop.connected && sharedPower) mission.setPower(sharedPower)
   prevFault = false
   enterStation(true)
@@ -117,10 +215,14 @@ function enterStation(fresh = false) {
     s.forcePoseSend()
     pushView()
     if (coop.connected) syncCrew()
+    requestAnimationFrame(() => uncover()) // the deck has a frame: let the launch dissolve into it
   }
+  // Arriving from the launch field, its last frame stays up until the deck is drawn.
+  const arriving = screen === 'field'
+  show('station', buildHud(), arriving ? { cover: true } : {})
+  if (arriving) setTimeout(uncover, 2500) // never leave the cover up if the scene is slow to start
   if (st.sys.settings.status >= 5 && (st as unknown as { feet?: unknown }).feet) ready()
   else st.events.once('create', ready)
-  show('station', buildHud())
   setBlocked(false)
   refresh()
 }
@@ -199,7 +301,7 @@ function buildHud(): HTMLElement {
   hud = el(`<section class="screen hud" aria-label="Station">
     <div class="ops-head"><div class="brand">SPACER</div><div class="sect">ORBITAL OPERATIONS</div>
       <div class="hud-buttons"><button class="btn small" id="b-tasks">Tasks</button><button class="btn small" id="b-guide"></button><button class="btn small" id="b-sound"></button><button class="btn small" id="b-debug">Debug</button><button class="btn small" id="b-coop">Co-op</button></div>
-      <div class="crewtag" title="${esc(m.profile.callSign)} · ${m.ship.name} · ${suit.name} suit"><span class="sw" style="background:${suit.primary}"></span><div><b>${esc(m.profile.callSign)}</b><br/><span>${m.ship.name} · ${suit.name}</span></div></div>
+      <div class="crewtag" title="${esc(m.profile.callSign)} · ${m.ship.name} · ${suit.name} suit"><span class="sw" style="background:${suit.primary}"></span><div><b>${esc(m.profile.callSign)}</b><br/><span>${m.ship.craft} · ${suit.name}</span></div></div>
       <div class="crewn">${ICONS.crew}<span id="crewn">1 / 2 CREW</span></div></div>
     <div class="ops-sub">
       <div class="objline" id="objline" role="status"><span class="box"></span><span id="obj"></span></div>
@@ -429,7 +531,7 @@ function closeCoop() {
 }
 /** The title lobby's view of the co-op service: the same Colyseus room the in-station Co-op panel uses. */
 const crewLink: CrewLink = {
-  state: () => ({ status: coopStatus, error: coopError, url: coopUrl(), room: ROOM_NAME, roomId: coop.roomId, players: coop.players }),
+  state: () => ({ status: coopStatus, error: coopError, url: coopUrl(), room: ROOM_NAME, roomId: coop.roomId, players: coop.players, host: coop.isHost }),
   join: () => void joinCoop(),
   leave: leaveCoop,
 }
@@ -442,9 +544,10 @@ async function leaveCoop() {
   refresh()
 }
 
-/** Redraws whichever co-op view is on screen: the title lobby, the in-station panel, or neither. */
+/** Redraws whichever co-op view is on screen: the title lobby, the launch field, the in-station panel, or none. */
 function renderCoop() {
   if (screen === 'title') titleUi?.update()
+  if (screen === 'field') field?.update()
   if (!coopPanel) return
   const b = $('#cbody', coopPanel)
   const statusText = { offline: 'Not connected', connecting: 'Connecting…', connected: 'Connected', error: 'Connection failed' }[coopStatus]
@@ -474,8 +577,10 @@ async function joinCoop() {
         }
         renderCoop()
         toast(`Joined co-op room ${s.roomId} (${s.players}/2).`, 'ok')
+        flightChanged()
       },
       onPower: s => { applyShared(s.power); renderCoop() },
+      onFlight: flightChanged,
       onPose: (c: CrewMember) => { if (screen === 'station') station().upsertRemote(c) },
       onCrew: list => { if (screen !== 'station') return; for (const c of list) station().upsertRemote(c) },
       onGone: id => { if (game) station().removeRemote(id) },
@@ -483,6 +588,7 @@ async function joinCoop() {
       onNotice: n => {
         if (n.kind === 'allocate' && !n.ok) { powerInFlight = false; toast(n.text, 'warn') }
         if (n.kind === 'limit') toast(n.text, 'warn')
+        if (n.kind === 'flight' && !n.ok) toast(n.text, 'warn')
       },
       onClosed: reason => {
         coopStatus = 'offline'
@@ -502,7 +608,8 @@ async function joinCoop() {
 
 // expose a tiny read-only hook for automated testing
 ;(window as unknown as { __spacer: unknown }).__spacer = {
-  get mission() { return mission }, get screen() { return screen }, station: () => game && station(), coop,
+  get mission() { return mission }, get screen() { return screen }, station: () => game && station(), coop, field: () => field,
 }
 
 goTitle()
+setTimeout(warmLaunchScene, 1400) // build the launch field's scene while the title is up

@@ -1,5 +1,5 @@
 // Web Audio synthesis for every cue. Unlocks on the first user gesture.
-type Cue = 'ui' | 'step' | 'launch' | 'success' | 'fail' | 'relay' | 'telemetry' | 'alert' | 'dock'
+type Cue = 'ui' | 'step' | 'count' | 'ignite' | 'launch' | 'success' | 'fail' | 'relay' | 'telemetry' | 'alert' | 'dock'
 
 class Sound {
   private ctx: AudioContext | null = null
@@ -72,7 +72,9 @@ class Sound {
     switch (cue) {
       case 'ui': this.tone(880, t, 0.06, 'triangle', 0.08); break
       case 'step': this.noise(t, 0.07, 0.12, 380 + Math.random() * 120, 2); break
-      case 'launch': this.noise(t, 3.5, 0.5, 90, 0.6); this.noise(t + 0.2, 3, 0.25, 260, 0.8); this.tone(55, t, 3.5, 'sawtooth', 0.06, 110); break
+      case 'count': this.tone(660, t, 0.09, 'square', 0.06); break
+      case 'ignite': this.noise(t, 2.8, 0.3, 70, 0.5); this.tone(40, t, 2.8, 'sawtooth', 0.05, 62); break
+      case 'launch': this.noise(t, 6.5, 0.5, 90, 0.6); this.noise(t + 0.2, 5.5, 0.25, 260, 0.8); this.tone(55, t, 6.5, 'sawtooth', 0.06, 120); break
       case 'dock': this.tone(220, t, 0.25, 'square', 0.06); this.noise(t + 0.05, 0.35, 0.3, 160, 1.5); break
       case 'success': [523, 659, 784, 1047].forEach((f, i) => this.tone(f, t + i * 0.08, 0.22, 'triangle', 0.14)); break
       case 'fail': this.tone(180, t, 0.18, 'sawtooth', 0.1, 120); this.tone(150, t + 0.16, 0.22, 'sawtooth', 0.1, 90); break
