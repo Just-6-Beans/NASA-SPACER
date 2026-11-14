@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" width="900" height="420"><defs>
+  <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf6ea"/><stop offset=".5" stop-color="#ece4d2"/><stop offset="1" stop-color="#9c937f"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a5059"/><stop offset="1" stop-color="#1b1e23"/></linearGradient>
+  <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2b77d"/><stop offset=".5" stop-color="#b9864b"/><stop offset="1" stop-color="#6e4b26"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9ff3ff"/><stop offset=".5" stop-color="#2a7f9c"/><stop offset="1" stop-color="#0d2833"/></linearGradient>
+  <radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff2c9"/><stop offset=".4" stop-color="#ff9c45" stop-opacity=".7"/><stop offset="1" stop-color="#ff6a1a" stop-opacity="0"/></radialGradient>
+  <linearGradient id="panel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1e3354"/><stop offset=".5" stop-color="#2f5b8f"/><stop offset="1" stop-color="#1e3354"/></linearGradient>
+  <filter id="sh"><feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity=".55"/></filter></defs><g filter="url(#sh)">
+    <ellipse cx="170" cy="210" rx="52" ry="40" fill="url(#glow)"/>
+    <path d="M300 200 L250 60 L330 60 L420 190 Z" fill="url(#dark)"/>
+    <path d="M300 220 L250 360 L330 360 L420 230 Z" fill="url(#dark)"/>
+    <path d="M190 180 L520 150 Q760 175 820 210 Q760 245 520 270 L190 240 Z" fill="url(#hull)"/>
+    <path d="M200 196 L520 170 L520 180 L200 206 Z" fill="#e0702a"/>
+    <path d="M660 186 Q770 196 800 210 L660 214 Z" fill="url(#glass)"/>
+    <circle cx="470" cy="150" r="30" fill="#ece4d2" stroke="#8c8576" stroke-width="4"/><circle cx="470" cy="150" r="10" fill="#6ef2c6"/>
+    <rect x="330" y="198" width="130" height="34" rx="6" fill="url(#metal)"/>
+    <text x="395" y="222" text-anchor="middle" font-family="Arial Narrow,Arial" font-weight="700" font-size="20" fill="#2b1a0b">VECTOR</text></g></svg>

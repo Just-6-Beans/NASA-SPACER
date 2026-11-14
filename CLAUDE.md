@@ -1,0 +1,2 @@
+@AGENTS.md
+@CHALLENGE.md

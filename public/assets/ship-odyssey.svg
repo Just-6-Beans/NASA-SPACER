@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" width="900" height="420"><defs>
+  <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf6ea"/><stop offset=".5" stop-color="#ece4d2"/><stop offset="1" stop-color="#9c937f"/></linearGradient>
+  <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a5059"/><stop offset="1" stop-color="#1b1e23"/></linearGradient>
+  <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2b77d"/><stop offset=".5" stop-color="#b9864b"/><stop offset="1" stop-color="#6e4b26"/></linearGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9ff3ff"/><stop offset=".5" stop-color="#2a7f9c"/><stop offset="1" stop-color="#0d2833"/></linearGradient>
+  <radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff2c9"/><stop offset=".4" stop-color="#ff9c45" stop-opacity=".7"/><stop offset="1" stop-color="#ff6a1a" stop-opacity="0"/></radialGradient>
+  <linearGradient id="panel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1e3354"/><stop offset=".5" stop-color="#2f5b8f"/><stop offset="1" stop-color="#1e3354"/></linearGradient>
+  <filter id="sh"><feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity=".55"/></filter></defs><g filter="url(#sh)">
+    <rect x="250" y="40" width="170" height="70" rx="3" fill="url(#panel)" stroke="#9fb6d1" stroke-width="2"/><line x1="284" y1="40" x2="284" y2="110" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="318" y1="40" x2="318" y2="110" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="352" y1="40" x2="352" y2="110" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="386" y1="40" x2="386" y2="110" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="250" y1="75" x2="420" y2="75" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><rect x="250" y="310" width="170" height="70" rx="3" fill="url(#panel)" stroke="#9fb6d1" stroke-width="2"/><line x1="284" y1="310" x2="284" y2="380" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="318" y1="310" x2="318" y2="380" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="352" y1="310" x2="352" y2="380" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="386" y1="310" x2="386" y2="380" stroke="#9fb6d1" stroke-width="1" opacity=".6"/><line x1="250" y1="345" x2="420" y2="345" stroke="#9fb6d1" stroke-width="1" opacity=".6"/>
+    <rect x="325" y="108" width="20" height="205" fill="#8c8576"/>
+    <ellipse cx="160" cy="210" rx="44" ry="62" fill="url(#glow)"/>
+    <path d="M180 160 L230 140 L230 280 L180 260 Z" fill="url(#dark)"/>
+    <rect x="225" y="130" width="300" height="160" rx="30" fill="url(#hull)"/>
+    <rect x="240" y="150" width="270" height="18" fill="#e0702a" opacity=".9"/>
+    <rect x="240" y="252" width="270" height="10" fill="#3a3f46"/>
+    <path d="M520 138 L690 168 Q760 210 690 252 L520 282 Z" fill="url(#hull)"/>
+    <path d="M640 182 Q700 196 712 210 L640 214 Z" fill="url(#glass)"/>
+    <rect x="300" y="186" width="120" height="44" rx="8" fill="url(#metal)"/>
+    <text x="360" y="215" text-anchor="middle" font-family="Arial Narrow,Arial" font-weight="700" font-size="20" fill="#2b1a0b">ODYSSEY</text>
+    <circle cx="560" cy="210" r="10" fill="#6ef2c6"/></g></svg>

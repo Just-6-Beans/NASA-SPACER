@@ -1,0 +1,5 @@
+# Same line endings on every device, so diffs between Windows, macOS and Linux stay clean.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.webp binary
+*.zip binary

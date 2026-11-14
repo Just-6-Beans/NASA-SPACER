@@ -1,0 +1,35 @@
+{
+  "name": "nasa-spacer-claude",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SPACER: orbital station operations and a delayed Mars rover survey (NASA Space Apps educational game).",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "server": "tsx server/index.ts",
+    "test": "tsx --test test/*.test.ts",
+    "art": "node scripts/gen-art.mjs",
+    "check": "tsc --noEmit && npm test"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.17.56",
+    "@colyseus/sdk": "^0.17.43",
+    "@colyseus/ws-transport": "^0.17.13",
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@fontsource/dm-sans": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "express": "^5.3.0",
+    "phaser": "3.90.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.8"
+  }
+}
