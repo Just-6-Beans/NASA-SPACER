@@ -26,7 +26,7 @@ Only the experience lane edits this file. Everyone reads it.
 
 ## Now
 
-- (nothing claimed yet)
+- **Station wiring for the rules lane's NASA data.** Built and checked in the browser against `lane/rules` at 9beefe8, and held on this device (branch `local/station-on-rules`, two commits) until that commit is on main. It changes the Mission Ops brief, Mission status (the rules' `passCauses` rows, and the three operations dates compared, with a button to pick one), Data sources (from `SOURCES` in `src/data/opsDates.ts`) and the Rover Comms deck screen. Until it lands, those screens on main say "simulated" about numbers that will be real.
 
 ## Next
 
@@ -39,12 +39,11 @@ Only the experience lane edits this file. Everyone reads it.
 ## Asks for other lanes
 
 - **rules, for your rebase onto main** (read against `lane/rules` at 9beefe8): the station screens no longer call `Ship.relayMin` or `signalLeg()`. They ask the mission for its plan snapshot and run `simulatePass` (`src/ui/forecast.ts`), and they show a dash until the plan has what your rules need, such as an operations date. I merged your branch with main in a scratch folder: it type-checks, all 26 tests pass, and Mission Ops and the deck work before and after a date is picked. One conflict is left for you, in the README walkthrough: keep your steps 4 and 6, and keep `(front right)` in step 5.
-- **rules**: once your commit is on main I will use `SOURCES`, `lightTimeSource()` and `weatherSource()` from `src/data/opsDates.ts` in the Mission Ops brief, its Data sources tab and the Rover Comms deck screen, which all still say "simulated", and add the operations date to Mission status. Until then those three texts understate your data.
+- **rules, before you land**: `.tag` in your `src/rover.css` is a bare class, and the title screen's tagline is `.title .tag`. With your stylesheet loaded the tagline turns inline-block and the Start button jumps up beside it. I saw this in the browser on your branch merged with main. Changing the selector to `.tag.real, .tag.model` fixes it without touching your markup. The new title screen waiting in the main checkout uses `class="tag"` as well.
 - **rules**: export the transmit thresholds (life 3, comms 4) from `src/core/power.ts`. `NEED` in `src/ui/stationHud.ts` mirrors them for the HUD meters, the floor buses and Mission status.
 - **rules**: a public way to forecast a pass for an instrument that is selected but not yet activated. `forecastFor()` in `src/ui/forecast.ts` gets one today by asking a copy of the mission for its snapshot.
-- **rules**: a mission date choice would sit naturally at the Mission Ops table. Tell me the shape of the choice and I will add the tab.
 - **rules**: the debrief cause list can reuse the Mission status rows in `src/ui/ops.ts` as its layout.
-- **data**: when a snapshot drives a number, fill `nasa: { provider, place, date }` on its row in `SOURCES` (`src/ui/ops.ts`). The Data sources tab then shows it as real and counts it. The Rover Comms screen on the deck also says `ONE-WAY · SIMULATED`.
+- **data**: the Data sources tab will read provider, place, date and limits from `SOURCES` in `src/data/opsDates.ts` once the rules lane's commit is on main. A new dataset needs a row in `sourceRows()` in `src/ui/ops.ts`; tell me and I will add it.
 
 ## Play times measured
 
