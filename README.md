@@ -31,6 +31,23 @@ git checkout -b lane/data        # or lane/rules, lane/experience
 
 Write your name at the top of `notes/<lane>.md` and follow the working rules in [CHALLENGE.md](CHALLENGE.md#5-three-devices-three-lanes).
 
+## Working as a team
+
+Everyone works on one repository and lands on `main`, so the repo itself keeps people from stepping on each other:
+
+- **Lanes own files.** [lanes.json](lanes.json) lists which files belong to the data, rules and experience lanes, which are frozen (co-op), and which only a human changes. It mirrors CHALLENGE.md section 5.
+- **`npm ci` turns on a pre-push hook** ([.githooks/pre-push](.githooks/pre-push)). When you push to `main` it:
+  - refuses to overwrite commits a teammate already pushed, so pull first (`git pull --rebase origin main`);
+  - runs `npm run lane-check`;
+  - runs `npm run check`.
+- **`npm run lane-check`** compares your `lane/<name>` branch with `main`:
+  - Another lane's file is allowed only if a commit message names the file.
+  - Another lane's notes file is never allowed.
+  - Frozen files, human-only files and new dependencies need a `Human-approved: <who>, <what>` line in the commit message.
+- **GitHub Actions** ([.github/workflows/check.yml](.github/workflows/check.yml)) runs the same checks on every push to `main` and every pull request, and also checks that `public/assets` matches `src/art/geo.json`. A red run means `main` needs fixing before anything else.
+- **Claim work before you start it** under "Now" in your lane's notes, and read the other two notes files after every pull.
+- **Same environment everywhere:** the repo has a dev container ([.devcontainer/](.devcontainer/devcontainer.json)). Open it in GitHub Codespaces or with VS Code's Dev Containers extension to get Node 22 and an installed project. For co-op inside Codespaces, build with `VITE_COOP_URL` set to the forwarded address of port 2567.
+
 ## Run it
 
 Needs Node.js 20.19+ or 22.12+.
@@ -57,6 +74,7 @@ Other commands:
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run preview` | Serve the built game at http://127.0.0.1:4173/ |
 | `npm run check` | Type-check, then `npm test` |
+| `npm run lane-check` | Check that this lane branch only changes what its lane owns (see [Working as a team](#working-as-a-team)) |
 | `npm test` | Mission rules, acceptance scenarios, and a live two-client co-op test |
 | `npm run art` | Regenerate the SVG artwork |
 | `npm run data` | Download the NASA snapshots again into `data/nasa/`, then rebuild the operations dates (needs a network connection; the game itself never does) |

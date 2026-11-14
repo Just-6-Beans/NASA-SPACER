@@ -1,0 +1,47 @@
+# Runs on every push to main and every pull request into it. The same checks run in the
+# pre-push hook, so a red run here means someone bypassed it or main moved underneath them.
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # lane-check compares the branch with main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type-check and tests (npm run check)
+        run: npm run check
+
+      - name: Production build
+        run: npm run build
+
+      - name: Art matches src/art/geo.json
+        run: |
+          npm run art
+          git diff --exit-code --stat public/assets || {
+            echo "::error::public/assets is out of date with src/art/geo.json or the art scripts. Run npm run art and commit the result."
+            exit 1
+          }
+
+      - name: Lane ownership (pull requests from lane/* branches)
+        if: github.event_name == 'pull_request'
+        run: node scripts/lane-check.mjs --base origin/${{ github.base_ref }}

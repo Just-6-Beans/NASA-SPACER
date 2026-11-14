@@ -1,0 +1,45 @@
+{
+  "about": "Who owns which files. Mirrors CHALLENGE.md section 5; a human changes both together. Read by scripts/lane-check.mjs, which the pre-push hook and CI run. A pattern ending in / covers the folder; **/*.ext covers matching files under a folder; anything else is one exact path. The most specific match wins.",
+  "lanes": {
+    "data": [
+      "data/",
+      "src/data/",
+      "scripts/fetch-nasa-data.mjs",
+      "scripts/build-ops-dates.mjs",
+      "notes/data.md"
+    ],
+    "rules": [
+      "src/core/",
+      "test/",
+      "notes/rules.md"
+    ],
+    "experience": [
+      "src/main.ts",
+      "src/ui/",
+      "src/game/",
+      "src/audio.ts",
+      "src/**/*.css",
+      "index.html",
+      "public/",
+      "scripts/gen-art.mjs",
+      "scripts/art-hq.mjs",
+      "src/art/",
+      "notes/experience.md"
+    ]
+  },
+  "frozen": {
+    "why": "Co-op works; leave it alone unless it breaks (CHALLENGE.md section 2). A change needs a human's yes.",
+    "paths": ["server/", "src/coop.ts", "src/core/protocol.ts"]
+  },
+  "humanOnly": {
+    "why": "Humans own these, or a change here means a new dependency (AGENTS.md rule 7).",
+    "paths": ["CHALLENGE.md", "package-lock.json"]
+  },
+  "shared": {
+    "why": "Anyone may make small edits. Keep them short and say what changed in the commit message.",
+    "paths": [
+      "README.md", "AGENTS.md", "CLAUDE.md", "CREDITS.md", "PROGRESS.md", "package.json", "tsconfig.json", "vite.config.ts",
+      "play.bat", ".gitignore", ".gitattributes", "lanes.json", "scripts/lane-check.mjs", ".githooks/", ".github/", ".devcontainer/"
+    ]
+  }
+}
