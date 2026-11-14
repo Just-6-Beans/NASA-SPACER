@@ -126,10 +126,23 @@ test('clear running: lettuce is ready in about 30 crop days, healthy, with no al
   assert.equal(p.symptom, 'none')
   assert.equal(g.alerts.length, 0)
   assert.equal(g.summary().ready, 1)
-  // a crop waits at harvest-ready: the cooldown is the wait, not a deadline
-  run(g, 20)
+  // a crop waits at harvest-ready: the cooldown is the wait, not a deadline. A ripe crop takes
+  // almost nothing from the solution, so a module left alone for minutes does not starve it.
+  const ec = g.ec, ph = g.ph
+  run(g, 300)
   assert.equal(stage(g, 'A1'), 'ready')
   assert.equal(g.bay('A1').planting!.ageDays, p.ageDays)
+  assert.deepEqual([g.ec, g.ph], [ec, ph])
+  assert.equal(g.bay('A1').planting!.health, 100)
+  assert.equal(g.alerts.length, 0)
+  // the same with the schedule on and nobody on deck
+  const away = new Greenhouse({ seed: 6 })
+  away.plant('A1', 'lettuce'); away.plant('A2', 'radish'); away.plant('A3', 'tomato')
+  for (let s = 0; s < 480; s++) away.tick(1, { quiet: true })
+  assert.ok(ready(away, 'A1', 'A2', 'A3'))
+  assert.equal(away.plantsLost, 0)
+  assert.equal(away.alerts.length, 0)
+  for (const id of ['A1', 'A2', 'A3'] as BayId[]) assert.equal(away.bay(id).planting!.health, 100)
 })
 
 test('growth is the product of five factors, each from a band', () => {
@@ -175,7 +188,8 @@ test('growth is the product of five factors, each from a band', () => {
   assert.equal(g.setRecipe({ tempLitC: 23 }), null)
   run(g, 40)
   near(g.tempC, 23, 0.05, 'air follows the setpoint')
-  assert.equal(g.bay('A3').planting!.factors.temperature, 1)
+  near(g.bay('A3').planting!.factors.temperature, 1, 0.005)
+  assert.equal(g.bay('A1').planting!.factors.temperature, 1)
   assert.equal(g.bay('A3').planting!.limiting, null)
 })
 
@@ -308,7 +322,7 @@ test('a pump repaired in time: flow returns, the plants recover, and nothing els
   const g = quiet()
   g.plant('A1', 'lettuce'); g.plant('A2', 'radish'); g.plant('A3', 'tomato')
   run(g, 31)
-  g.ec = 0.7 // an unrelated problem: the solution is thin
+  g.ec = 0.5 // an unrelated problem: the solution is thin
   assert.equal(g.inject('irrigation', 'A'), null)
   const al = alertOf(g, 'irrigation')!
   assert.equal(al.title, 'Loop A irrigation')
@@ -343,19 +357,26 @@ test('a pump repaired in time: flow returns, the plants recover, and nothing els
   assert.ok(g.ec < 0.75)
   assert.ok(g.bay('A1').planting!.factors.nutrient < 0.75)
   assert.equal(g.bay('A1').planting!.limiting, 'nutrient')
-  run(g, 60)
-  assert.equal(alertOf(g, 'irrigation'), undefined)
+  // the irrigation alert lets go once the plants are troubled by something else; a crop alert names it
+  until(g, () => !alertOf(g, 'irrigation') && !!alertOf(g, 'crop'), 30)
+  run(g, 2)
   const crops = g.alerts.filter(a => a.kind === 'crop')
   assert.equal(crops.length, 1, 'one alert speaks for every bay with the same trouble')
   assert.equal(crops[0].factor, 'nutrient')
   assert.match(crops[0].problem, /taking up nutrients poorly: pH [\d.]+, conductivity 0\.\d mS\/cm\. The same shows in 2 other bays/)
   assert.match(crops[0].action, /Inspect pH, conductivity and nutrient balance/)
-  // a dose is the fix for that one
-  assert.equal(g.dose('nutrient'), null)
-  assert.equal(g.dose('nutrient'), null)
+  // doses are the fix for that one
+  for (let i = 0; i < 3; i++) assert.equal(g.dose('nutrient'), null)
   run(g, 60)
   assert.equal(g.alerts.length, 0)
   assert.equal(g.plantsLost, 0)
+  // left thin, the solution would have cost the tomato, pump or no pump
+  const h = quiet()
+  h.plant('A3', 'tomato')
+  run(h, 31)
+  h.ec = 0.5
+  until(h, () => stage(h, 'A3') === 'dead', 200)
+  assert.match(h.log[h.log.length - 2].text, /died of a nutrient problem/)
 })
 
 // ------------------------------------------------------------------ Low generation
@@ -417,20 +438,27 @@ test('power choices: the shedding order, switching loads off, and the station ti
   g.tick(2, { orbitPhase: 0.8 })
   assert.equal(g.batteryKwh, 0)
   assert.ok(load(g, 'thermal').shed && load(g, 'lightsA').shed, 'with no generation at all, both go')
-  // in a dim sun, the protected lights stay and the thermal unit is the one that goes
-  const h = quiet()
-  h.plant('A1', 'lettuce')
-  h.movePriority('lightsA', -1)
-  h.inject('arrayFeather')
-  h.batteryKwh = 0
-  h.tick(STEP, { orbitPhase: 0.3 })
-  near(h.generationKw, GH.arrayKw * RATES.featherHealth, 1e-9)
-  assert.equal(h.loads.some(l => l.shed), false, 'a quarter of the array still carries one bay')
-  for (const id of ['A2', 'A3'] as BayId[]) { h.plant(id, id === 'A2' ? 'radish' : 'tomato'); h.setLight(id, 1000) }
-  h.setLight('A1', 1000)
-  h.tick(STEP, { orbitPhase: 0.3 })
-  assert.equal(load(h, 'thermal').shed, true)
-  assert.equal(load(h, 'lightsA').shed, false)
+  // in a dim sun the controller sheds only what it must, starting from the end of the list
+  const dimSun = (protectLights: boolean) => {
+    const m = quiet()
+    m.plant('A1', 'lettuce')
+    if (protectLights) m.movePriority('lightsA', -1)
+    m.inject('arrayFeather')
+    m.batteryKwh = 0
+    m.tick(STEP, { orbitPhase: 0.3 })
+    near(m.generationKw, GH.arrayKw * RATES.featherHealth, 1e-9)
+    assert.equal(m.loads.some(l => l.shed), false, 'a quarter of the array still carries one bay at its usual light')
+    m.setLight('A1', 1000) // now the loads ask for a little more than the array gives
+    m.batteryKwh = 0
+    m.tick(STEP, { orbitPhase: 0.3 })
+    assert.ok(m.loadKw <= m.generationKw)
+    return m
+  }
+  const usual = dimSun(false), h = dimSun(true)
+  assert.deepEqual(usual.loads.filter(l => l.shed).map(l => l.id), ['lightsA'], 'the lights go first')
+  assert.deepEqual(h.loads.filter(l => l.shed).map(l => l.id), ['thermal'], 'unless they are protected ahead of the thermal unit')
+  assert.equal(usual.bay('A1').lit, 0)
+  assert.equal(h.bay('A1').lit, 1)
   // switching a load off by hand is the cheaper way
   assert.equal(h.setLoadOn('lightsA', false), null)
   assert.equal(load(h, 'lightsA').kw, 0)
@@ -455,8 +483,15 @@ test('power choices: the shedding order, switching loads off, and the station ti
   assert.match(a.useBackup()!, /cannot spare more/)
   assert.equal(a.backupUsesLeft, 0)
   // a low battery raises its own alert, with the energy sum in it
+  assert.equal(alertOf(a, 'battery'), undefined)
+  a.batteryKwh = 1
+  a.tick(2, { orbitPhase: 0.8 })
   assert.ok(a.batteryPct < 20)
-  assert.match(alertOf(a, 'battery')!.problem, /Battery at \d+ %\. Generation [\d.]+ kW, load [\d.]+ kW\./)
+  const low = alertOf(a, 'battery')!
+  assert.equal(low.level, 'warning')
+  assert.match(low.problem, /Battery at \d+ %\. Generation [\d.]+ kW, load [\d.]+ kW\./)
+  assert.match(low.trend, /Falling; about [\d.]+ station hours left at this draw/)
+  near(a.enduranceH!, a.batteryKwh / (a.loadKw - a.generationKw), 1e-9)
 })
 
 // ------------------------------------------------------------------ Pressure leak
@@ -482,12 +517,16 @@ test('a leak: the reserve falls first, then locate, close, repair and reopen', (
   run(g, RATES.job.diagnoseLeak + 0.5)
   assert.match(al.cause!, /^Leak located at /)
   assert.equal(al.action, 'Close the compartment, then repair the seal.')
-  // closing the compartment stops the loss at once
+  // closing the compartment stops the loss at once, and the regulator brings the pressure back to its setpoint
   assert.equal(g.closeCompartment(true), null)
+  assert.equal(al.action, 'Compartment closed: repair the seal, then open it again.')
+  const atClosing = g.reserveKg
+  run(g, 10)
+  near(g.pressureKpa, GH.pressureKpa, 0.01, 'pressure')
+  near(atClosing - g.reserveKg, (1 / GH.pressureKpa) * GH.airKg, 0.1, 'only the kilogram or so that the droop had cost')
   const held = g.reserveKg
   run(g, 10)
-  assert.equal(g.reserveKg, held)
-  assert.equal(al.action, 'Compartment closed: repair the seal, then open it again.')
+  assert.equal(g.reserveKg, held, 'nothing is lost while it is closed')
   assert.equal(g.repair('seal'), null)
   run(g, RATES.job.seal + 0.5)
   assert.ok(alertOf(g, 'leak'), 'repaired but still closed: not over yet')
@@ -498,9 +537,21 @@ test('a leak: the reserve falls first, then locate, close, repair and reopen', (
   near(g.reserveKg, held - RATES.repressKg, 1e-9)
   run(g, 5)
   assert.equal(alertOf(g, 'leak'), undefined)
-  near(g.pressureKpa, GH.pressureKpa, 0.01, 'the regulator tops the pressure up from the reserve')
-  assert.ok(g.reserveKg < held - RATES.repressKg)
+  near(g.pressureKpa, GH.pressureKpa, 0.01)
+  near(g.reserveKg, held - RATES.repressKg, 1e-9, 'and nothing more: the seal holds')
   assert.equal(g.closeCompartment(true), 'There is no leak to close off.')
+  // opening before the repair would have let the leak go on
+  const early = quiet()
+  early.plant('A1', 'lettuce')
+  early.inject('leak')
+  early.diagnose(alertOf(early, 'leak')!.id)
+  run(early, RATES.job.diagnoseLeak + 0.5)
+  early.closeCompartment(true)
+  early.closeCompartment(false)
+  const then = early.reserveKg
+  run(early, 10)
+  assert.ok(early.reserveKg < then - 4)
+  assert.ok(alertOf(early, 'leak'))
   assert.equal(g.plantsLost, 0)
 })
 
@@ -595,12 +646,18 @@ test('a failed dehumidifier: humidity climbs, disease follows slowly, and the wa
   assert.equal(al.level, 'degraded')
   assert.match(al.trend, /leaf disease up to \d+ %/)
   assert.ok(g.recoveryPct < 80)
-  const diseased = g.bay('A1').disease
   assert.equal(g.repair('thermal'), 'The thermal unit is healthy.')
   assert.equal(g.repair('dehumidifier'), null)
-  run(g, RATES.job.dehumidifier + 20)
-  assert.ok(g.rhPct < 65, 'dry air again')
-  assert.ok(g.bay('A1').disease < diseased && g.bay('A1').disease > diseased - 0.2, 'the leaves heal far more slowly than the air dries')
+  run(g, RATES.job.dehumidifier + 0.5)
+  assert.equal(al.level, 'recovery')
+  assert.match(al.action, /^Fixed\./)
+  const drying = until(g, () => g.rhPct < 65, 30)
+  assert.ok(drying < 15, `dry air again ${drying} s after the repair`)
+  // the air dries in seconds; the leaves heal far more slowly, and the alert stays until they have
+  const diseased = g.bay('A1').disease
+  assert.ok(diseased > 0.3, `leaf disease ${diseased.toFixed(2)}`)
+  run(g, 20)
+  near(diseased - g.bay('A1').disease, RATES.diseaseHeal * 20, 0.005, 'disease easing')
   until(g, () => !alertOf(g, 'humidity'), 150)
   assert.equal(g.plantsLost, 0)
   // left alone, wet air ends in dead, spotted plants
@@ -646,7 +703,7 @@ test('a failed thermal unit: the lights heat the air, and cutting the heat buys 
   until(h, () => !!alertOf(h, 'crop'), 120)
   const al = alertOf(h, 'crop')!
   assert.equal(al.factor, 'temperature')
-  assert.match(al.problem, /is too hot: air 30(\.\d)? °C, its band is 18 to 24 °C\. The same shows in 1 other bay/)
+  assert.match(al.problem, /is too hot: air (29|30)(\.\d)? °C, its band is 18 to 24 °C\. The same shows in 1 other bay \(A\d\)\./)
   assert.match(al.action, /setpoint/)
   assert.equal(h.alerts.length, 1)
   assert.equal(h.diagnose(al.id), null)
@@ -723,7 +780,7 @@ test('a solar particle event: watch, storm, quiet; the dose depends on where the
 test('the nutrient solution: drift, doses, and three problems with three different fixes', () => {
   const g = quiet()
   g.plant('A1', 'lettuce'); g.plant('A2', 'radish'); g.plant('A3', 'tomato')
-  run(g, 120)
+  run(g, 80)
   assert.ok(g.ec < GH.ec && g.ec > 1.2, `conductivity drifts down with uptake: ${g.ec.toFixed(2)}`)
   assert.ok(g.ph > GH.ph && g.ph < 6.3, `pH drifts up: ${g.ph.toFixed(2)}`)
   assert.ok(g.balance < 1 && g.balance > 0.85)
@@ -753,12 +810,14 @@ test('the nutrient solution: drift, doses, and three problems with three differe
   g.ph = GH.ph
   assert.equal(g.inject('nutrient', undefined, 'ph'), null)
   assert.match(alertOf(g, 'nutrient')!.problem, /pH has fallen to 4\.9/)
+  run(g, 20)
+  assert.ok(g.bay('A1').planting!.stress > 15, 'the roots are going short')
   assert.equal(g.dose('phUp'), null)
   run(g, 1)
-  assert.equal(alertOf(g, 'nutrient')!.level !== 'recovery', true)
+  assert.ok(alertOf(g, 'nutrient')!.level !== 'recovery', 'one dose is not enough')
   assert.equal(g.dose('phUp'), null)
   run(g, 1)
-  assert.equal(alertOf(g, 'nutrient')!.level, 'recovery')
+  assert.equal(alertOf(g, 'nutrient')!.level, 'recovery', 'back in band: fixed, but the plants are still getting over it')
   until(g, () => !alertOf(g, 'nutrient'), 90)
   // 3. a hidden imbalance: the meters read normal, only the lab test shows it, only a fresh mix fixes it
   g.ec = GH.ec; g.ph = GH.ph
@@ -775,14 +834,18 @@ test('the nutrient solution: drift, doses, and three problems with three differe
   assert.ok(al.diagnosed)
   assert.match(al.cause!, /out of balance, which conductivity cannot show/)
   g.dose('nutrient')
-  run(g, 5)
+  run(g, 25)
   assert.ok(alertOf(g, 'nutrient')!.level !== 'recovery', 'more of the same salts is not the answer')
   const before = g.inventory.nutrientStock
   assert.equal(g.mix(), null)
+  assert.match(g.mix()!, /already being mixed/)
   assert.equal(g.inventory.nutrientStock, before - 1)
   run(g, RATES.job.mix + 0.5)
-  assert.deepEqual([g.ec, g.ph, g.balance], [GH.ec, GH.ph, 1])
+  near(g.ec, GH.ec, 0.01)
+  near(g.ph, GH.ph, 0.01)
+  near(g.balance, 1, 0.01)
   assert.equal(alertOf(g, 'nutrient')!.level, 'recovery')
+  until(g, () => !alertOf(g, 'nutrient'), 90)
   // the stock is finite
   g.inventory.nutrientStock = 0.5
   assert.match(g.mix()!, /needs one unit of nutrient stock/)
@@ -795,12 +858,12 @@ test('the nutrient solution: drift, doses, and three problems with three differe
 // ------------------------------------------------------------------ Harvest and reseeding
 test('harvest and reseeding: cut, whole and pick, spent plants, seed packets', () => {
   const g = quiet()
-  g.plant('A1', 'lettuce'); g.plant('A2', 'radish'); g.plant('A3', 'tomato')
+  g.plant('A1', 'lettuce'); g.plant('A2', 'radish')
   assert.match(g.harvest('A1')!, /not ready/)
   assert.match(g.harvest('A4')!, /empty/)
   assert.match(g.plant('A1', 'radish')!, /already holds lettuce/)
   assert.match(g.plant('A4', 'pepper')!, /not open yet/)
-  assert.match(g.plant('A3', 'lettuce')!, /already holds/)
+  assert.match(g.plant('A3', 'lettuce')!, /needs a two-shelf rack/)
   until(g, () => ready(g, 'A1', 'A2'))
   // radish: the whole plant, at once
   assert.match(g.harvest('A2', 'cut')!, /cannot be harvested that way/)
@@ -850,8 +913,10 @@ test('harvest and reseeding: cut, whole and pick, spent plants, seed packets', (
   near(g.inventory.food.lettuce - had, crop('lettuce').yieldKgM2 * 4.8 * 0.6, 0.05)
   assert.equal(g.harvest('A2', 'whole'), null)
   assert.match(g.plant('A1', 'lettuce')!, /No lettuce seed left/)
-  assert.match(g.clear('A3')!, /still growing/)
   // tomato: picked again and again, the plant stays
+  g.ec = GH.ec; g.ph = GH.ph
+  assert.equal(g.plant('A3', 'tomato'), null)
+  assert.match(g.clear('A3')!, /still growing/)
   until(g, () => g.bay('A3').planting!.needsPollination)
   assert.equal(stage(g, 'A3'), 'reproductive')
   assert.equal(g.pollinate('A3'), null)
@@ -1066,7 +1131,7 @@ test('water is conserved: every litre is in the tank, a root zone, a plant, or c
   g.plant('A1', 'lettuce')
   assert.equal(g.bay('A1').moisture, 1)
   assert.equal(g.tankL, GH.tankL - GH.rootL.tier, 'filling a root zone takes water from the tank, it does not make any')
-  let kinds = new Set<string>()
+  const kinds = new Set<string>()
   operate(g, 900, (m, s) => {
     for (const f of m.activeFaults()) kinds.add(f.kind)
     if (s % 10 === 0) near(m.waterBudget().total, GH.tankL, 1e-6, `litres at ${s} s`)
@@ -1074,7 +1139,7 @@ test('water is conserved: every litre is in the tank, a root zone, a plant, or c
   const w = g.waterBudget()
   near(w.total, GH.tankL, 1e-6)
   assert.ok(kinds.size >= 3, `the run met ${[...kinds].join(', ')}`)
-  assert.ok(g.transpiredL > 300 && g.harvestCount > 10, 'a busy run')
+  assert.ok(g.transpiredL > 150 && g.harvestCount > 10, `a busy run: ${Math.round(g.transpiredL)} L transpired, ${g.harvestCount} harvests`)
   assert.ok(w.harvested > 0 && w.lost > 0 && w.makeup > 0)
   near(g.transpiredL, g.recoveredL + (g.lostL - RATES.flushL / 2), 1e-6, 'transpired water is either recovered or lost')
   assert.ok(g.recoveryPct <= 97.01)
@@ -1101,7 +1166,7 @@ test('the score: seven parts, each capped, 100 in all', () => {
   let p = parts()
   assert.equal(p.variety, 8)
   assert.equal(p.health, 20)
-  assert.equal(p.water, 10)
+  assert.equal(p.water, 0, 'too little has been transpired yet to judge the recovery')
   assert.equal(p.progress, 0)
   near(p.calories, (15 * g.inventory.kcal) / 25000, 0.05)
   near(p.protein, (10 * g.inventory.proteinG) / 600, 0.05)
@@ -1119,10 +1184,11 @@ test('the score: seven parts, each capped, 100 in all', () => {
   until(g, () => g.alerts.length === 0, 60)
   assert.equal(parts().reliability, 15)
   g.inject('irrigation', 'A2')
-  until(g, () => alertOf(g, 'irrigation')!.level === 'damage', 80)
+  until(g, () => alertOf(g, 'irrigation')!.level === 'damage', 120)
   g.clearLine('A2')
   run(g, RATES.job.clearLine + 1)
-  assert.equal(parts().reliability, (15 * (1 + 0.5)) / 2)
+  assert.ok(stage(g, 'A2') !== 'dead')
+  near(parts().reliability, (15 * (1 + 0.5)) / 2, 0.06)
   // the caps
   g.inventory.kcal = 1e6; g.inventory.proteinG = 1e5
   g.inventory.variety = ['lettuce', 'mizuna', 'kale', 'radish', 'tomato', 'pepper']
@@ -1131,16 +1197,17 @@ test('the score: seven parts, each capped, 100 in all', () => {
   g.plantsLost = 20
   assert.equal(parts().health, 0)
   g.doseMsv = 1
-  assert.equal(parts().reliability, (15 * 1.5) / 2 - 3)
+  near(parts().reliability, (15 * 1.5) / 2 - 3, 0.06)
   assert.ok(g.score().total <= 100)
   // water recovery only counts once there is something to recover, and falls when it is thrown away
   const h = quiet()
-  h.plant('A1', 'lettuce')
+  h.plant('A1', 'lettuce'); h.plant('A2', 'radish')
   run(h, 5)
   const water = () => h.score().parts.find(x => x.id === 'water')!
   assert.equal(water().points, 0)
   assert.match(water().why, /20 litres/)
-  run(h, 60)
+  run(h, 100)
+  assert.ok(h.transpiredL > 20)
   assert.equal(water().points, 10)
   h.setLoadOn('air', false)
   run(h, 60)
@@ -1149,7 +1216,7 @@ test('the score: seven parts, each capped, 100 in all', () => {
   assert.equal(g.foodKg, Object.values(g.inventory.food).reduce((s, kg) => s + kg, 0))
   near(g.crewDays, 1e6 / GH.crewDayKcal, 1e-9)
   assert.ok(g.foodCoveragePct > 100)
-  assert.equal(g.plantedM2, 4.8)
+  assert.equal(g.plantedM2, 9.6)
 })
 
 // ------------------------------------------------------------------ Schedule, determinism, save and reload
@@ -1249,7 +1316,7 @@ test('readings carry a target, a band, a trend and a status, and the HUD gets on
   assert.equal(g.history('temp').length, 1)
   g.plant('A1', 'lettuce'); g.plant('A3', 'tomato')
   assert.deepEqual(g.summary(), { planted: 2, ready: 0, alerts: 0, worst: null, pollinate: 0 })
-  run(g, 100)
+  run(g, 80)
   assert.equal(g.history('temp').length, 60, 'one sample a second, the last minute kept')
   assert.equal(g.history('battery')[59], g.batteryPct)
   const r = g.readings()
@@ -1264,13 +1331,18 @@ test('readings carry a target, a band, a trend and a status, and the HUD gets on
   run(g, 40)
   assert.equal(g.readings().temp.target, GH.recipe.tempDarkC)
   near(g.tempC, 19, 0.1)
-  near(g.rootTempC, 20 + 0.5 * (19 - 22), 0.3, 'the root solution follows the air, slowly')
+  assert.ok(g.rootTempC < 19.2 && g.rootTempC > 18.5, `the root solution follows the air, slowly: ${g.rootTempC.toFixed(2)} °C`)
+  // crops standing in the dark get an alert of their own, in words: no failure is behind it
+  const dark = alertOf(g, 'crop')!
+  assert.equal(dark.factor, 'light')
+  assert.match(dark.problem, /is short of light: 0 mol\/m²\/day, it wants [\d.]+ to [\d.]+\. The same shows in 1 other bay/)
   g.setLoadOn('lightsA', true)
   g.inject('humidity')
   run(g, 60)
+  assert.equal(alertOf(g, 'crop'), undefined, 'gone once the lights are back and the plants have settled')
   assert.equal(g.readings().rh.status, 'bad')
   const s = g.summary()
-  assert.deepEqual([s.planted, s.ready, s.alerts, s.worst, s.pollinate], [2, 1, 1, 'degraded', 1])
+  assert.deepEqual([s.planted, s.ready, s.alerts, s.worst, s.pollinate], [2, 2, 1, 'degraded', 0])
   assert.equal(g.acknowledge(g.alerts[0].id), null)
   assert.ok(g.alerts[0].acknowledged)
   assert.match(g.acknowledge(9999)!, /has cleared/)

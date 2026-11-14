@@ -175,6 +175,7 @@ function cockpitSvg() {
 // ---------------------------------------------------------------- High-detail station, crew, rover, Mars, sites
 import * as HQ from './art-hq.mjs'
 import { stationArt } from './art-station.mjs'
+import { cropSheets } from './art-crops.mjs'
 
 function suitSheets() {
   const phases = [0, 1, 0.35, -1, -0.35]
@@ -197,6 +198,8 @@ function station() {
   const e = HQ.exteriorSvg({ ORANGE, IVORY })
   save('station-exterior.svg', e.W, e.H, e.body, e.defs)
   for (const [k, p] of Object.entries(HQ.relaySvg())) save(`ext-${k}.svg`, p.w, p.h, p.body, HQ.commonDefs)
+  // the greenhouse crops: one sheet each, a column per growth stage and a row per symptom
+  for (const c of cropSheets()) save(c.file, c.w, c.h, c.body, c.defs)
 }
 
 earthSvg()

@@ -2,6 +2,7 @@
 // validation with the co-op server.
 import { OPS_DATES, opsDate, type OpsDate } from '../data/opsDates'
 import { CARGO_REWARD, INSTRUMENTS, SHIPS, byId, type CargoId, type InstrumentId, type ShipId, type SuitId } from './data'
+import { Greenhouse } from './greenhouse'
 import { cargoKg, cargoValue, cleanLoadout, designCost, type LaunchRecord, type Loadout } from './loadout'
 import { DEFAULT_POWER, LIFE_NEED, powerBlock, researchFilter, signalLeg, validPower, type Power } from './power'
 import { ROVERS, type RoverId, type RoverSpec } from './rovers'
@@ -53,6 +54,7 @@ export const TASK_INFO: Record<TaskId, { name: string; group: 'Routine' | 'Missi
   calibration: { name: 'Two-point calibration', group: 'Mission', where: 'Calibration', reward: 'Drilled samples are analysed (uncalibrated: flagged)' },
   relay: { name: 'Relay repair', group: 'Emergency', where: 'Rover Comms', reward: 'Restores the uplink' },
   habitat: { name: 'Habitat commissioning', group: 'Mission', where: 'Mission Report', reward: 'Crew quarters on Mars' },
+  greenhouse: { name: 'Station greenhouse', group: 'Routine', where: 'Greenhouse module', reward: 'A greenhouse score of 0 to 100, counted beside the base score' },
 }
 
 export class Mission {
@@ -98,6 +100,8 @@ export class Mission {
   /** UI drafts for each task panel, kept so closing and reopening a panel preserves work. */
   drafts: Record<string, unknown> = {}
   dockedAt = Date.now()
+  /** The station greenhouse. Optional: it never blocks the mission, and it is scored on its own. */
+  greenhouse = new Greenhouse()
 
   constructor(profile: Profile) {
     this.profile = { ...profile, callSign: cleanCallSign(profile.callSign), loadout: profile.loadout && cleanLoadout(profile.loadout) }
@@ -185,6 +189,7 @@ export class Mission {
     if (this.completed.has(task)) return false
     this.completed.add(task)
     if (task === 'relay') this.relayFault = false
+    if (task === 'water') this.greenhouse.setPurifier(true) // the purifier also returns more of the greenhouse's water
     if (task === 'calibration') this.calibrated = true
     this.note(`${TASK_INFO[task].name} complete — ${detail}`, 'task')
     return true
@@ -438,6 +443,12 @@ export class Mission {
 
   // ---- Judging spots and choosing the base ---------------------------------
   /** Points added to every spot's score: the station water purifier and the real photo places found. */
+  /** What a leaderboard would rank: the base score, the greenhouse score, and their sum (each 0 to 100). */
+  get scoreboard() {
+    const base = this.base?.approved ? this.base.score : 0
+    const greenhouse = this.greenhouse.score().total
+    return { base, greenhouse, total: base + greenhouse, tasks: this.completed.size }
+  }
   get bonus() { return (this.completed.has('water') ? WATER_BONUS : 0) + this.photoBonus + this.cargo('water') }
   report(spot: Spot): SpotReport {
     const rv = this.rover!

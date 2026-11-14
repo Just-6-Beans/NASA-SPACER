@@ -286,7 +286,7 @@ export const RATES = {
   // root zone: seconds to refill with flow, and to drain back to the tank
   fillTau: 1.7,
   drainTau: 42,
-  // solution drift per real second, for each full-grown two-shelf bay on the loop
+  // solution drift per real second, for each full-grown two-shelf bay that is growing on the loop
   ecDrift: 0.0015,
   phDrift: 0.0008,
   balanceDrift: 0.0005,
@@ -608,8 +608,14 @@ export class Greenhouse {
     return k > 0 ? ((h[h.length - 1] - h[h.length - 1 - k]) * 60) / k : 0
   }
   private dir(id: ReadingId, eps: number) { const d = this.trendOf(id); return d > eps ? 'rising' : d < -eps ? 'falling' : 'steady' }
-  /** The air temperature the thermal unit is asked to hold: the lit setpoint while any bay is lit. */
-  private tempTarget() { return this.bays.some(b => b.lit > 0) ? this.recipe.tempLitC : this.recipe.tempDarkC }
+  /**
+   * The air temperature the thermal unit is asked to hold: the lit setpoint while any bay is lit,
+   * the dark setpoint when crops stand in the dark. An empty module idles at the lit setpoint.
+   */
+  private tempTarget() {
+    const live = this.bays.filter(b => this.alive(b))
+    return !live.length || live.some(b => b.lit > 0) ? this.recipe.tempLitC : this.recipe.tempDarkC
+  }
   /** The conductivity every planted crop is happy with: where their bands overlap. */
   private ecBand(): [number, number] {
     const live = this.bays.filter(b => this.alive(b)).map(b => crop(b.planting!.crop).ec)
@@ -1002,6 +1008,7 @@ export class Greenhouse {
       if (!leak.located) return 'Locate the leak first: diagnose the pressure alert.'
       this.compartmentClosed = true
       this.note(`Compartment closed at ${leak.place}.`, 'system')
+      this.retext()
       return null
     }
     // the closed compartment vented; filling it again comes out of the reserve, or out of the cabin
@@ -1010,6 +1017,7 @@ export class Greenhouse {
     this.reserveKg -= from
     this.pressureKpa -= ((RATES.repressKg - from) / GH.airKg) * GH.pressureKpa
     this.note(`Compartment reopened: ${RATES.repressKg} kg of air to fill it again.`, 'system')
+    this.retext()
     return null
   }
 
@@ -1213,20 +1221,27 @@ export class Greenhouse {
       this.batteryKwh = clamp(this.batteryKwh + ((gen - load) * dt * GH.stationRate) / 3600, 0, GH.batteryKwh)
       this.backupLeft = Math.max(0, this.backupLeft - dt)
     }
-    for (const b of this.bays) b.lit = this.alive(b) && b.lightsOn && runs(b.loop === 'A' ? lightsA : lightsB) ? dim : 0
+    // what reaches each bay now: light from its fixtures, water from its loop
+    for (const b of this.bays) {
+      b.lit = this.alive(b) && b.lightsOn && runs(b.loop === 'A' ? lightsA : lightsB) ? dim : 0
+      b.flow = this.flowTo(b)
+    }
   }
 
   // ---- water --------------------------------------------------------------------
+  /** 1 when the loop is delivering to this bay: pump healthy and powered, valve open, line clear, water in the tank. */
+  private flowTo(b: Bay) {
+    return b.planting && !b.isolated && this.powered('pumps') && !this.broken('irrigation', `pump${b.loop}`) && !this.broken('irrigation', `line:${b.id}`) && this.tankL > 5 ? 1 : 0
+  }
   private stepWater(dt: number) {
     const drying = !this.broken('humidity') && this.powered('air')
     const back = Math.min(0.99, GH.recovery + (this.purifier ? 0.02 : 0) + (this.tier >= 4 ? 0.02 : 0))
-    const pumps = this.powered('pumps')
     let out = 0
     for (const b of this.bays) {
       const p = b.planting, a = this.aux[b.id]
-      if (!p) { b.flow = 0; continue }
+      b.flow = this.flowTo(b)
+      if (!p) continue
       const cap = GH.rootL[b.kind]
-      b.flow = pumps && !b.isolated && !this.broken('irrigation', `pump${b.loop}`) && !this.broken('irrigation', `line:${b.id}`) && this.tankL > 5 ? 1 : 0
       if (b.flow > 0) {
         const add = Math.min((cap - a.rootL) * (1 - Math.exp(-dt / RATES.fillTau)), this.tankL)
         a.rootL += add
@@ -1256,8 +1271,14 @@ export class Greenhouse {
 
   // ---- nutrient solution ------------------------------------------------------------
   private stepSolution(dt: number) {
+    // Plants take nutrients up as they grow. A crop standing harvest-ready takes almost nothing,
+    // so a module left alone with ripe crops does not starve them: `cover` counts growing leaves only.
     let cover = 0
-    for (const b of this.bays) if (this.alive(b) && !b.isolated) cover += canopy(b.planting!, this.aux[b.id], crop(b.planting!.crop)) * (b.areaM2 / GH.areaM2.tier)
+    for (const b of this.bays) {
+      const p = b.planting
+      if (!p || p.stage === 'dead' || p.stage === 'ready' || p.spent || b.isolated) continue
+      cover += canopy(p, this.aux[b.id], crop(p.crop)) * (b.areaM2 / GH.areaM2.tier) * this.aux[b.id].rate
+    }
     this.ec = Math.max(0, this.ec - RATES.ecDrift * cover * dt)
     this.ph = Math.min(8, this.ph + RATES.phDrift * cover * dt)
     this.balance = Math.max(0, this.balance - RATES.balanceDrift * cover * dt)
@@ -1434,6 +1455,8 @@ export class Greenhouse {
       if (j.left > 0) continue
       this.jobs = this.jobs.filter(x => x !== j)
       this.finish(j)
+      // what was just done shows in the alerts at once, not at the next second
+      this.retext()
     }
   }
   private finish(j: Job) {
@@ -1553,7 +1576,7 @@ export class Greenhouse {
     }
     this.faults.push(f)
     this.lastFault = kind
-    this.updateExterior({ orbitPhase: this.lastPhase < 0 ? undefined : this.lastPhase })
+    this.resync()
     const al = this.raise(kind, this.describe(f), 'warning')
     f.alertId = al.id
     return null
@@ -1562,8 +1585,14 @@ export class Greenhouse {
     if (f.fixed) return
     f.fixed = true
     f.fixedAt = this.t
+    this.resync()
     const al = this.alerts.find(x => x.id === f.alertId)
     if (al) { al.level = 'recovery'; this.note(`${al.title}: ${f.kind === 'arrayFeather' ? 'the array is tracking the Sun again' : f.kind === 'radiation' ? 'the particle event has passed' : 'fixed'}.`, 'alert') }
+  }
+  /** After a failure starts or ends: the array, the loads, the lights and the flows read right at once, not a step later. */
+  private resync() {
+    this.updateExterior({ orbitPhase: this.lastPhase < 0 ? undefined : this.lastPhase })
+    this.updatePower(0)
   }
 
   private stepFaults(dt: number, input: TickInput) {
@@ -1714,7 +1743,14 @@ export class Greenhouse {
         const spoken = this.alerts.some(x => x.kind === 'crop' && x.factor !== undefined && x.factor === a.cause)
         if (p.stress > 50 && a.gain > 0 && a.cause && !owned && !spoken) this.raise('crop', this.describeCrop(b), p.stress > RATES.harmAbove ? 'damage' : 'degraded').factor = a.cause
       } else if (p.stress < RATES.healBelow || owned) this.alerts = this.alerts.filter(x => x !== cur)
-      else cur.level = p.stress > RATES.harmAbove ? 'damage' : a.gain > 0 ? 'degraded' : 'recovery'
+      else {
+        cur.level = p.stress > RATES.harmAbove ? 'damage' : a.gain > 0 ? 'degraded' : 'recovery'
+        // the trouble can change under an alert: it goes on speaking for what is wrong now
+        if (a.gain > 0 && a.cause && cur.factor !== a.cause) {
+          if (this.alerts.some(x => x !== cur && x.kind === 'crop' && x.factor === a.cause)) this.alerts = this.alerts.filter(x => x !== cur)
+          else cur.factor = a.cause
+        }
+      }
     }
     // battery and tank
     const shed = this.loads.some(l => l.shed)

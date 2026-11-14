@@ -1,0 +1,157 @@
+/* Greenhouse panels and the HUD chip. Loaded after style.css, holo.css and station.css.
+   Status is always text or an icon as well as a colour. */
+:root { --gh: #7fe36a; }
+
+/* ---------- HUD chip ---------- */
+.ghchip { align-self: flex-start; margin-left: auto; padding: 5px 12px; font-family: var(--mono); font-size: 12px; letter-spacing: .03em; color: var(--ivory-dim); background: rgba(4,18,34,.82); border: 1px solid rgba(127,227,106,.4); border-left: 4px solid rgba(127,227,106,.5); border-radius: 3px; white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+.ghchip.ok { color: #cdf7c2; border-left-color: var(--gh); }
+.ghchip.warn { color: #ffe0ae; border-color: rgba(255,179,71,.6); border-left-color: var(--warn); }
+.ghchip.bad { color: #ffd0c8; border-color: rgba(255,90,74,.7); border-left-color: var(--danger); animation: pulse 1.6s ease-in-out infinite; }
+
+/* ---------- status bar ---------- */
+.ghbar { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 0 0 14px; font-family: var(--mono); font-size: 12px; color: var(--ivory-dim); }
+.ghbar > span { padding: 5px 10px; background: rgba(4,18,32,.85); border: 1px solid rgba(63,208,255,.28); border-radius: 3px; white-space: nowrap; }
+.ghbar b { color: var(--ivory); font-weight: 600; }
+.ghbar .dim b { color: #9bb6ff; }
+.ghbar .ok b { color: var(--mint); }
+.ghbar .warn { border-color: rgba(255,179,71,.6); } .ghbar .warn b { color: var(--warn); }
+.ghbar .bad { border-color: rgba(255,90,74,.7); } .ghbar .bad b { color: #ff8a7a; }
+
+/* ---------- sections ---------- */
+.gh-sec { margin-top: 16px; }
+.gh-sec:first-child { margin-top: 0; }
+.gh-sec > h3 { font-size: 17px; color: var(--cyan); margin-bottom: 8px; }
+.gh-sec > h3 small, .gh-info h3 small, .gh-crop h4 small { margin-left: 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em; text-transform: none; color: var(--ivory-dim); font-weight: 400; }
+.gh-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: #a9c4d8; }
+.gh-note b { color: var(--ivory); }
+.gbar { height: 8px; background: #12304a; border-radius: 4px; overflow: hidden; }
+.gbar i { display: block; height: 100%; width: 0; border-radius: 4px; background: linear-gradient(90deg, #4fbf5a, #9df07f); transition: width .25s linear; }
+.gbar.stress i { background: linear-gradient(90deg, #e08a2b, #ff5a4a); }
+
+/* readings: value, target, band, trend */
+.ghrs { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 6px; }
+.ghr { display: grid; grid-template-columns: 1fr auto; gap: 1px 10px; padding: 7px 10px; background: rgba(4,18,32,.8); border-left: 4px solid var(--mint); }
+.ghr > span { font-family: var(--display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase; }
+.ghr > b { font-family: var(--mono); font-size: 15px; text-align: right; }
+.ghr > i { font-style: normal; font-family: var(--mono); font-size: 11px; color: #a9c4d8; }
+.ghr > small { font-family: var(--mono); font-size: 10.5px; color: var(--ivory-dim); text-align: right; }
+.ghr.warn { border-left-color: var(--warn); } .ghr.warn > b { color: var(--warn); }
+.ghr.bad { border-left-color: var(--danger); } .ghr.bad > b { color: #ff8a7a; }
+.ghr.warn > span::after { content: ' ⚠'; } .ghr.bad > span::after { content: ' ✖'; }
+
+.gh-ext, .gh-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 6px; }
+.gx, .gh-metrics > div { padding: 8px 10px; background: rgba(4,18,32,.8); border: 1px solid rgba(63,208,255,.22); display: flex; flex-direction: column; gap: 2px; }
+.gx > span, .gh-metrics span { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ivory-dim); }
+.gx > b, .gh-metrics b { font-family: var(--display); font-size: 21px; letter-spacing: .03em; }
+.gx > small, .gh-metrics small { font-size: 11.5px; line-height: 1.4; color: #a9c4d8; }
+.gx.warn, .gh-metrics > .warn { border-color: rgba(255,179,71,.65); } .gx.warn > b, .gh-metrics > .warn b { color: var(--warn); }
+.gx.bad, .gh-metrics > .bad { border-color: rgba(255,90,74,.7); } .gx.bad > b, .gh-metrics > .bad b { color: #ff8a7a; }
+
+.gh-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 6px; }
+.gh-step { display: grid; grid-template-columns: 1fr 34px auto 34px; align-items: center; gap: 6px; padding: 5px 8px; background: rgba(4,18,32,.8); border: 1px solid rgba(63,208,255,.22); }
+.gh-step > span { font-family: var(--display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase; }
+.gh-step > b { font-family: var(--mono); font-size: 14px; min-width: 82px; text-align: center; }
+
+/* bay cards on the overview */
+.gh-bays { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.ghb { display: flex; flex-direction: column; gap: 2px; padding: 7px 9px; background: rgba(4,18,32,.8); border: 1px solid rgba(63,208,255,.22); border-top: 3px solid #2c343d; min-width: 0; }
+.ghb b { font-family: var(--display); font-size: 19px; }
+.ghb span { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ghb small { font-family: var(--mono); font-size: 10.5px; color: var(--ivory-dim); min-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ghb.st-growing { border-top-color: var(--mint); } .ghb.st-ready { border-top-color: var(--cyan); box-shadow: 0 0 12px rgba(63,208,255,.25); }
+.ghb.st-care, .ghb.st-warn { border-top-color: var(--warn); } .ghb.st-bad, .ghb.st-dead { border-top-color: var(--danger); }
+.ghb.st-locked { opacity: .55; }
+
+/* jobs */
+.gh-jobs { display: grid; gap: 5px; margin-top: 14px; padding: 9px 11px; background: rgba(4,18,32,.85); border: 1px solid rgba(63,208,255,.3); }
+.gh-job { display: grid; grid-template-columns: 1fr 140px 44px; align-items: center; gap: 10px; font-size: 13px; }
+.gh-job small { font-family: var(--mono); font-size: 11px; text-align: right; color: var(--ivory-dim); }
+.gh-job .gbar i { background: linear-gradient(90deg, #2aa7e0, #8fe6ff); }
+
+/* alerts: problem, trend, next action */
+.gh-alert { margin-bottom: 8px; padding: 9px 12px 10px; background: rgba(4,18,32,.88); border-left: 5px solid var(--warn); }
+.gh-alert.lv-degraded { border-left-color: #ff8a4c; } .gh-alert.lv-damage { border-left-color: var(--danger); } .gh-alert.lv-recovery { border-left-color: var(--mint); }
+.gh-alert.acked { opacity: .82; }
+.gh-al-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.gh-al-h .lv { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--warn); }
+.lv-degraded .lv { color: #ffa46e; } .lv-damage .lv { color: #ff8a7a; } .lv-recovery .lv { color: var(--mint); }
+.gh-al-h b { font-family: var(--display); font-size: 19px; letter-spacing: .03em; text-transform: uppercase; }
+.gh-al-h small { font-size: 11.5px; color: var(--ivory-dim); }
+.gh-alert p { margin: 4px 0 0; font-size: 13.5px; line-height: 1.45; }
+.gh-alert p i { display: inline-block; min-width: 46px; font-style: normal; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ivory-dim); }
+.gh-alert .ac { color: #d3ffef; } .gh-alert .ca { color: #ffe0ae; }
+.gh-alert .actions { margin-top: 8px; }
+.gh-drill { margin-top: 14px; padding: 8px 11px; border: 1px dashed rgba(63,208,255,.3); }
+.gh-drill summary { cursor: pointer; font-family: var(--display); font-size: 16px; letter-spacing: .05em; text-transform: uppercase; color: var(--ivory-dim); }
+
+/* score and levels */
+.gh-score { display: flex; align-items: baseline; gap: 8px; }
+.gh-score b { font-family: var(--display); font-size: 56px; line-height: 1; color: var(--gh); text-shadow: 0 0 18px rgba(127,227,106,.35); }
+.gh-score span { font-family: var(--mono); color: var(--ivory-dim); }
+.gh-parts { display: grid; gap: 4px; margin-top: 8px; }
+.gh-part { display: grid; grid-template-columns: 150px 120px 64px 1fr; align-items: center; gap: 10px; padding: 5px 9px; background: rgba(4,18,32,.8); font-size: 13px; }
+.gh-part > span { font-family: var(--display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase; }
+.gh-part > b { font-family: var(--mono); font-size: 12.5px; text-align: right; }
+.gh-part > small { font-size: 12px; color: #a9c4d8; }
+.gh-tier { display: grid; gap: 2px; padding: 8px 11px; margin-bottom: 5px; background: rgba(4,18,32,.8); border-left: 4px solid var(--line); }
+.gh-tier.done { border-left-color: var(--mint); } .gh-tier.now { border-left-color: var(--gh); box-shadow: 0 0 14px rgba(127,227,106,.16); }
+.gh-tier b { font-family: var(--display); font-size: 18px; letter-spacing: .03em; text-transform: uppercase; }
+.gh-tier span { font-size: 13.5px; } .gh-tier small { font-size: 12px; color: #a9c4d8; }
+.gh-tier.done b::after { content: '  ✓'; color: var(--mint); } .gh-tier.now b::after { content: '  ← you are here'; font-family: var(--mono); font-size: 11px; color: var(--gh); text-transform: none; letter-spacing: 0; }
+.gh-miss { font-size: 12.5px; color: var(--warn); align-self: center; }
+
+/* loads */
+.gh-loads { display: grid; gap: 4px; }
+.gh-load { display: grid; grid-template-columns: 1fr 190px 86px auto; align-items: center; gap: 10px; padding: 5px 9px; background: rgba(4,18,32,.8); border-left: 4px solid var(--mint); font-size: 13px; }
+.gh-load b { font-family: var(--display); font-size: 17px; letter-spacing: .03em; text-transform: uppercase; }
+.gh-load > span { font-family: var(--mono); font-size: 12px; }
+.gh-load em { font-style: normal; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--mint); }
+.gh-load.off { border-left-color: #2c343d; } .gh-load.off em { color: var(--ivory-dim); }
+.gh-load.shed { border-left-color: var(--danger); } .gh-load.shed em { color: #ff8a7a; }
+.gh-load-b { display: flex; gap: 4px; justify-content: flex-end; }
+
+/* crops: seed bank and planting */
+.gh-crops { display: grid; gap: 7px; }
+.gh-crop { display: grid; grid-template-columns: 62px 1fr; gap: 12px; padding: 9px 11px; background: rgba(4,18,32,.82); border: 1px solid rgba(63,208,255,.24); }
+.gh-crop.locked { opacity: .6; }
+.gh-thumb { width: 54px; height: 75px; align-self: center; background-color: #0b1826; background-repeat: no-repeat; background-size: 432px 360px; background-position: -270px 0; border: 1px solid rgba(63,208,255,.25); }
+.gh-crop h4 { margin: 0; font-family: var(--display); font-size: 20px; letter-spacing: .04em; text-transform: uppercase; }
+.gh-crop p { margin: 3px 0 0; font-size: 13px; line-height: 1.45; }
+.gh-crop .stats { margin-top: 4px; font-family: var(--mono); font-size: 11px; line-height: 1.5; color: var(--ivory-dim); }
+.gh-crop .why { margin-top: 6px; font-size: 12.5px; color: var(--warn); }
+.gh-crop .actions { margin-top: 8px; align-items: center; }
+.gh-ev { margin-top: 5px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .03em; color: var(--mint); }
+.gh-ev.ground { color: #9be8ff; }
+.gh-raw { display: grid; grid-template-columns: 150px 1fr auto; align-items: center; gap: 12px; padding: 7px 10px; margin-bottom: 5px; background: rgba(4,18,32,.8); font-size: 13px; }
+.gh-raw b { font-family: var(--display); font-size: 18px; letter-spacing: .03em; text-transform: uppercase; }
+
+/* a bay: inspection view and what growth depends on */
+.gh-bay { display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: start; }
+.gh-insp { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.gh-insp small { font-family: var(--mono); font-size: 10px; color: var(--ivory-dim); text-align: center; }
+/* light above the tray line, the dark root chamber below it */
+.gh-sprite { background-color: #0d1b2b; background-repeat: no-repeat; border: 1px solid rgba(63,208,255,.4); box-shadow: inset 0 -40px 0 #070f19, inset 0 -42px 0 rgba(127,227,106,.5), var(--glow); image-rendering: auto; }
+.gh-info h3 { font-size: 26px; }
+.gh-info .kv { margin-top: 8px; }
+.gh-meter { display: grid; grid-template-columns: 170px 1fr 44px; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; }
+.gh-meter > span { font-family: var(--display); font-size: 16px; letter-spacing: .03em; text-transform: uppercase; }
+.gh-meter > b { font-family: var(--mono); font-size: 12px; text-align: right; }
+.gh-meter.warn > span { color: var(--warn); } .gh-meter.warn .gbar i { background: linear-gradient(90deg, #e08a2b, #ffb347); } .gh-meter.warn > span::after { content: ' ← holding growth back'; font-family: var(--mono); font-size: 10px; text-transform: none; letter-spacing: 0; }
+.gh-meter.bad > span { color: #ff8a7a; } .gh-meter.bad .gbar i { background: linear-gradient(90deg, #c03a2a, #ff5a4a); } .gh-meter.bad > span::after { content: ' ← holding growth back'; font-family: var(--mono); font-size: 10px; text-transform: none; letter-spacing: 0; }
+.gh-factors { margin-bottom: 10px; }
+.gh-clue { margin: 10px 0 0; padding: 8px 10px; font-size: 13px; line-height: 1.45; background: rgba(255,255,255,.04); border-left: 3px solid var(--line); }
+.panel-body .kv b .btn.small { padding: 1px 8px; font-size: 13px; }
+
+@media (max-width: 760px) {
+  .ghchip { max-width: none; white-space: normal; margin-left: 0; font-size: 11px; }
+  .gh-bays { grid-template-columns: repeat(2, 1fr); }
+  .gh-bay { grid-template-columns: 1fr; }
+  .gh-part { grid-template-columns: 1fr 70px; } .gh-part .gbar, .gh-part small { grid-column: 1 / -1; }
+  .gh-load { grid-template-columns: 1fr auto; } .gh-load-b { grid-column: 1 / -1; justify-content: flex-start; }
+  .gh-meter { grid-template-columns: 120px 1fr 40px; }
+  .gh-raw { grid-template-columns: 1fr; gap: 4px; }
+  .gh-job { grid-template-columns: 1fr 80px 40px; }
+}
+
+/* greenhouse panels carry more than a task panel does */
+.panel.wide { width: min(960px, 100%); }

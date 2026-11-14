@@ -23,6 +23,7 @@ import { closePanel, openPanel, panelOpen, refreshPanel, type PanelCtx } from '.
 import { reportScreen } from './ui/report'
 import { roverScreen } from './ui/roverView'
 import { NEED, deckMap, objectiveFor, stationView, type DeckMap } from './ui/stationHud'
+import { greenhouseChip, greenhouseProgress, greenhouseView, refreshGreenhousePanel } from './ui/greenhouse'
 
 type ScreenName = 'title' | 'field' | 'station' | 'rover' | 'report'
 
@@ -188,6 +189,7 @@ async function dock() {
   if (coop.connected && sharedPower) mission.setPower(sharedPower)
   prevFault = false
   briefed = false
+  ghSeen.clear()
   enterStation(true)
   toast(`Docked at 408 km. Welcome aboard, ${mission.profile.callSign}.`, 'ok')
   sound.play('dock')
@@ -302,6 +304,7 @@ function buildHud(): HTMLElement {
       <div class="crewn">${ICONS.crew}<span id="crewn">1 / 2 CREW</span></div></div>
     <div class="ops-sub">
       <div class="objline" id="objline" role="status"><span class="box"></span><span id="obj"></span></div>
+      <div class="ghchip" id="ghchip" role="status" title="The station greenhouse: optional, scored on its own"></div>
     </div>
     <div class="statbar" id="meters" aria-label="Station power"></div>
     <div class="clocks" id="clocks"></div>
@@ -385,6 +388,35 @@ setInterval(() => {
   if (st.created) map.update(st.position, objective(), st.remoteInfo())
 }, 100)
 
+// ------------------------------------------------------------------ Greenhouse
+// The module runs on real time from docking. Growth is a cooldown, so it carries on while the
+// pilot works elsewhere on the deck or drives the rover; away from the deck no new failure starts.
+let ghLast = performance.now()
+const ghSeen = new Set<number>() // alerts already announced
+setInterval(() => {
+  const now = performance.now(), dt = Math.min(1, (now - ghLast) / 1000)
+  ghLast = now
+  const m = mission
+  if (!m || (screen !== 'station' && screen !== 'rover')) return
+  const gh = m.greenhouse, onDeck = screen === 'station'
+  const st = onDeck && game && station().created ? station() : null
+  gh.tick(dt, { orbitPhase: st?.exteriorPhase, crewInside: !!st?.inGreenhouse, quiet: !onDeck })
+  for (const a of gh.alerts) {
+    if (ghSeen.has(a.id)) continue
+    ghSeen.add(a.id)
+    sound.play('alert')
+    toast(`Greenhouse: ${a.problem} ${a.action}`, a.level === 'warning' ? 'warn' : 'bad', 7000)
+  }
+  if (gh.complete && !m.completed.has('greenhouse')) completeTask('greenhouse', `first harvest stored, score ${gh.score().total}/100`)
+  st?.setGreenhouse(greenhouseView(gh))
+  if (hud && onDeck) {
+    const chip = greenhouseChip(gh), e = $('#ghchip', hud)
+    if (e.textContent !== chip.text) e.textContent = chip.text
+    e.className = `ghchip ${chip.cls}`
+  }
+  refreshGreenhousePanel()
+}, 200)
+
 // ------------------------------------------------------------------ Task drawer
 function toggleDrawer(force?: boolean) {
   drawerOpen = force ?? !drawerOpen
@@ -399,6 +431,7 @@ function renderDrawer() {
   const d = (k: string) => m.drafts[k] as Record<string, unknown> | undefined
   const prog = (t: TaskId) => m.completed.has(t) ? 'complete' : d(t) ? 'in progress (draft saved)' : 'not started'
   const routine = (['battery', 'cargo', 'water', 'medical'] as TaskId[]).map(t => item(m.completed.has(t), TASK_INFO[t].name, TASK_INFO[t].where, `${prog(t)} · ${TASK_INFO[t].reward}`)).join('')
+    + item(m.greenhouse.complete, TASK_INFO.greenhouse.name, TASK_INFO.greenhouse.where, `${greenhouseProgress(m.greenhouse)} · ${TASK_INFO.greenhouse.reward}`)
   const missionItems = [
     item(briefed, 'Read the mission brief', 'Mission Ops', briefed ? 'read' : 'not read'),
     item(m.payloadActive, 'Select & activate payload', 'Payload', m.payloadActive ? `${m.instrumentInfo!.code} active` : m.instrumentDraft ? 'instrument selected' : 'not started'),

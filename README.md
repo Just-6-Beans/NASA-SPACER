@@ -111,13 +111,18 @@ On the rover screen, tap the map to place points for the rover to drive to. Use 
 
 ## The station
 
-Three pressurised nodes in a row, joined by open hatches. You arrive through the airlock in node B, and the floor guide leads you to the mission brief. You can walk behind the freestanding consoles.
+Eight pressurised modules laid out like the ISS seen in plan: a backbone of Node 3, Node 1, the US Lab and Node 2, with the Cupola and the Docking Port berthed above it and the Greenhouse and the Comms module below. Hatches join the backbone; short tunnels lead up and down. You arrive in the Docking Port, and the floor guide leads you to the mission brief. It is a game layout, not a scale drawing of the real station.
 
-| Node | Rear wall | Front |
-| --- | --- | --- |
-| **A · Utility** | Power Grid, beside the power core. Your ship is docked outside the window. | Hab Systems: water, hydroponics, medical |
-| **B · Command** | The cupola, with the Mission Ops holo-table in front of it | The rover bay (Payload) and the airlock |
-| **C · Science & Comms** | Rover Comms. The relay dish is outside the window. | The Calibration bench |
+| Module | What is there |
+| --- | --- |
+| **Docking Port** | Where you arrive. Your ship is docked behind the window. |
+| **Node 2** | Crew quarters, and the way down to the Comms module. |
+| **US Lab** | The Mission Ops holo-table, the rover bay (Payload) and the Calibration bench. |
+| **Node 1** | Power Grid, beside the power core, and the way down to the Greenhouse. |
+| **Node 3** | Hab Systems: water, medical, and a remote view of the greenhouse. The way up to the Cupola. |
+| **Cupola** | The seven-pane window over the Earth. |
+| **Comms** | Rover Comms. The relay dish is outside the window. |
+| **Greenhouse** | Eight crop bays in two rack bands, the control kiosk, the seed bank and galley, and the service bay. |
 
 The deck shows mission state, so you can read your choices off the room:
 
@@ -126,6 +131,17 @@ The deck shows mission state, so you can read your choices off the room:
 - **The rover** carries the instrument you chose at Payload.
 - **Relay fault**: the beacon flashes, the dish hunts for the carrier, and the link display reads NO LINK until you repair it.
 - **Mission Ops** has three tabs: the mission brief; a live mission status (budget, mass, power, rover battery and Mars days, and one row for each choice saying what it is causing); and the data sources, which name each NASA dataset with its place, date and limits. The same rules drive the rover screen and the report.
+
+## The station greenhouse (optional)
+
+A plant module berthed below Node 1. It never blocks the mission, and it is scored on its own, 0 to 100, beside the base score.
+
+- **Plant** at a bay: lettuce, radish and dwarf tomato at first; then mizuna, kale and pepper; then potato, dwarf wheat and soybean, as you unlock levels at Greenhouse Control.
+- **Growth is a cooldown.** One crop day passes each second in good conditions, so a 30-day lettuce is ready in about 30 seconds. It keeps growing while you work elsewhere or drive the rover.
+- **Growth = temperature × light × water × nutrients × air.** Each bay shows the five and which one is holding the plant back. Leaves that wilt, yellow or spot are a clue, not a diagnosis.
+- **Things fail:** irrigation, the thermal unit, the dehumidifier, the nutrient solution, a hull seal, root contamination, the array, a solar particle event. Each alert says what is known, which way it is going and what to do next, and moves through warning, degraded, damage and recovery. Fixing a pump does not bring back a dead plant.
+- **Service Bay:** the nutrient loop, power (kW, kWh, the shedding order) and air and hull. **Seed Bank & Galley:** seed packets, stored food, and the processor that turns staples into food.
+- **Real and ours:** the crop list follows NASA's space-crop and controlled-environment research. Every number (settings, timers, yields, failure rates, the score) is our game model, and the panel "Real & model" at Greenhouse Control says so.
 
 ## Two-tab co-op
 
@@ -225,4 +241,4 @@ If the service is offline, the crew link says so and offers **Retry** or **Fly s
 
 The station now has eight connected modules: Cupola, Docking Port, Node 3, Node 1, US Lab, Node 2, Greenhouse and Comms. It keeps the launch field already on main (Space Shuttle, Falcon 9 + Crew Dragon, Atlas V + Starliner), with cargo effects carried into the station and rover. The rover saves nearby photos automatically and recharges on a countdown that continues while the pilot works on the station.
 
-The greenhouse area and its terminals are unfinished placeholders. Its simulation, visual layer and draft tests are preserved for later work; they are not connected to gameplay. At the user's request, `npm test` / `npm run check` validate the active launch, station, co-op, rover, data and ownership suites. `npm run test:greenhouse` runs the unfinished greenhouse suite separately (13 known failures when first checked); `npm run test:all` includes both active and draft suites. No greenhouse implementation was changed during this integration.
+The greenhouse is connected to gameplay: the bays, Greenhouse Control, the Service Bay and the Seed Bank & Galley open working panels, the module runs from docking, and the report shows its score beside the base score. `npm test` and `npm run check` include its suite (29 tests). What is still open is listed in [notes/greenhouse-station.md](notes/greenhouse-station.md).

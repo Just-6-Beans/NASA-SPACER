@@ -9,7 +9,7 @@ import * as T from '../core/tasks'
 import type { TaskId } from '../core/tasks'
 import { sound } from '../audio'
 import { $, $$, el, esc } from './dom'
-import { TERMINALS } from '../game/deck'
+import { greenhouseMeta, greenhouseRemoteTabs, greenhouseTabs, isGreenhouseTerminal } from './greenhouse'
 import { opsTabs } from './ops'
 
 export interface PanelCtx {
@@ -60,11 +60,10 @@ export function openPanel(id: string, ctx: PanelCtx, tabId?: string) {
     hab: ['Hab Systems', 'Node 3 · Life support & medical'],
     payload: ['Payload', 'US Lab · Rover bay'],
   }
-  // greenhouse terminals have no panel yet: see notes/greenhouse-station.md
-  const [title, loc] = meta[id] ?? [TERMINALS.find(t => t.id === id)?.name ?? 'Greenhouse', 'Greenhouse module']
+  const [title, loc] = meta[id] ?? greenhouseMeta(id)
   closePanel()
   const root = el(`<div class="overlay" role="dialog" aria-modal="true" aria-label="${title}">
-    <div class="panel">
+    <div class="panel ${isGreenhouseTerminal(id) ? 'wide' : ''}">
       <div class="panel-head"><div style="flex:1"><div class="loc">${loc.toUpperCase()}</div><h2>${title}</h2></div><button class="btn small" id="pclose" aria-label="Close panel">Close · Esc</button></div>
       <div class="tabs" role="tablist"></div>
       <div class="panel-body"></div>
@@ -100,10 +99,10 @@ function tabsFor(id: string, ctx: PanelCtx): Tab[] {
       if (m.relayFault) return [relay, rover]
       return m.completed.has('relay') ? [rover, relay] : [rover]
     }
-    case 'hab': return [{ id: 'water', label: 'Water purification', task: 'water', render: (b, r) => sequenceTab(b, r, ctx, 'water') }, { id: 'medical', label: 'Crew medical', task: 'medical', render: (b, r) => sequenceTab(b, r, ctx, 'medical') }]
+    case 'hab': return [{ id: 'water', label: 'Water purification', task: 'water', render: (b, r) => sequenceTab(b, r, ctx, 'water') }, { id: 'medical', label: 'Crew medical', task: 'medical', render: (b, r) => sequenceTab(b, r, ctx, 'medical') }, ...greenhouseRemoteTabs(ctx)]
     case 'payload': return [{ id: 'inst', label: 'Rover instrument', render: (b, r) => payloadTab(b, r, ctx) }, { id: 'cargo', label: 'Cargo reconciliation', task: 'cargo', render: (b, r) => cargoTab(b, r, ctx) }]
   }
-  return [{ id: 'soon', label: 'Not wired yet', render: b => { b.innerHTML = '<p class="lead">The greenhouse module is built and its simulation is in the code (src/core/greenhouse.ts), but this terminal is not connected to it yet.</p><div class="feedback warn">Work in progress. What is left is listed in notes/greenhouse-station.md.</div>' } }]
+  return greenhouseTabs(id, ctx)
 }
 
 // ------------------------------------------------------------------ Payload

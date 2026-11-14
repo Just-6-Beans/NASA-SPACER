@@ -1,6 +1,6 @@
 // Pure validation for every station task. No DOM, no Phaser.
 
-export type TaskId = 'battery' | 'cargo' | 'water' | 'medical' | 'calibration' | 'relay' | 'habitat'
+export type TaskId = 'battery' | 'cargo' | 'water' | 'medical' | 'calibration' | 'relay' | 'habitat' | 'greenhouse'
 
 // ---- Battery balancing -------------------------------------------------
 export const BATTERY_START = [5, 4, 2, 1]

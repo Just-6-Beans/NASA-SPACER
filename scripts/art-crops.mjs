@@ -158,6 +158,7 @@ function blade(c, x, y, a, L, W, o = {}) {
     if (it > 24) L *= .94
   }
   const tip = mid[n]
+  for (const q of [...R, ...Lf]) mark(q[0], q[1])
   const jag = edge === 'teeth' || edge === 'lobes'
   const d = jag
     ? `M${P(x, y)} ${[...R, tip, ...Lf.slice().reverse()].map(p => P(p[0], p[1])).join(' ')}Z`
@@ -175,11 +176,11 @@ function blade(c, x, y, a, L, W, o = {}) {
     s += line(rd, rc, o.small || c.yellow ? .6 : (o.rib ?? .8), c.dead ? '' : c.yellow ? ' opacity=".85"' : ' opacity=".7"')
   }
   if (c.spots) {
-    const cnt = o.small ? (c.rs() < (o.spotP ?? .5) ? 1 : 0) : 1 + (c.rs() < .7 ? 1 : 0) + (W > 14 ? 1 : 0)
+    const cnt = o.spotN ?? (o.small ? (c.rs() < (o.spotP ?? .5) ? 1 : 0) : 1 + (c.rs() < .7 ? 1 : 0) + (W > 14 ? 1 : 0))
     for (let j = 0; j < cnt; j++) {
       const i = 1 + Math.floor(c.rs() * (n - 2)), sd = c.rs() < .5 ? -1 : 1, off = c.rs() * .5
       const [nx, ny] = nrm(ang[i])
-      s += lesion(c, mid[i][0] + sd * nx * ws[i] * off, mid[i][1] + sd * ny * ws[i] * off, Math.min(1.9, .6 + W * .06 + c.rs() * .5))
+      s += lesion(c, mid[i][0] + sd * nx * ws[i] * off, mid[i][1] + sd * ny * ws[i] * off, Math.max(o.spotR ?? 0, Math.min(1.9, .6 + W * .06 + c.rs() * .5)))
     }
   }
   c.geo = { mid, ang, ws, tip, a: a + curl }
@@ -284,10 +285,11 @@ function star(x, y, r, n, rot) {
   for (let i = 0; i < n * 2; i++) { const rr = i % 2 ? r * .42 : r, t = rad(rot + (i * 180) / n); d += `${i ? ' ' : 'M'}${P(x + Math.sin(t) * rr, y - Math.cos(t) * rr)}` }
   return d + 'Z'
 }
-function flower(c, x, y, r, col, eye, n = 5) {
+function flower(c, x, y, r, col, eye, n = 5, eyeK = .34) {
   const rot = (c.rf() * 360) / n
+  x = Math.max(2.6 + r, Math.min(69.4 - r, x)); y = Math.max(2.6 + r, Math.min(FLOOR - r * .5, y))
   if (c.dead) return dot(x, y, r * .45, '#5c4326')
-  return `<path d="${star(x, y, r, n, rot)}" fill="${c.droop ? mix(col, '#9a8f6a', .5) : col}" stroke-width=".6"/>` + dot(x, y, r * .34, eye, NS)
+  return `<path d="${star(x, y, r, n, rot)}" fill="${c.droop ? mix(col, '#9a8f6a', .5) : col}" stroke-width=".6"/>` + dot(x, y, r * eyeK, eye, NS)
 }
 /** A round fruit with a calyx. kind: R ripe, O turning, G green. */
 function fruit(c, x, y, r, kind) {
@@ -322,7 +324,7 @@ function rootZone(c, amt) {
   let d = ''
   for (const j of [4, 3, 5, 2, 6, 1, 7, 0, 8].slice(0, show)) {
     const [sx, sy, ex0, ey0, kx, ky] = all[j], k = Math.min(1, amt * 1.15)
-    const ex = sx + (ex0 - sx) * k, ey = Math.min(118, sy + (ey0 - sy) * k)
+    const ex = sx + (ex0 - sx) * k, ey = Math.min(117.2, sy + (ey0 - sy) * k)
     d += `M${P(sx, sy)}Q${C((sx + ex) / 2 + kx, ey - 1 + ky * .4)} ${P(ex, ey)}`
   }
   return s + line(d, c.dead ? '#8a7354' : '#ece2c8', .8)
@@ -363,9 +365,12 @@ function raceme(c, N, col, eye, o = {}) {
 }
 
 // ------------------------------------------------------------------ leaf and root crops
+/** How far a rosette leaf sags when the plant wilts: the outer leaves go down first, the heart last. */
+const limp = (a, k = 1) => ({ dA: (5 + Math.abs(a) * .3) * k, dC: (14 + Math.abs(a) * .5) * k })
+
 function lettuce(c, st) {
   const jit = k => (c.r() - .5) * k
-  const lf = (a, L, W, tone, age, o = {}) => blade(c, CX + a * .03, o.y ?? SOIL + .5, a, L, W, { wp: .62, q: .5, edge: 'wave', amp: .1, phase: a * .7, curl: a * .2, tone, age, hl: true, ...o })
+  const lf = (a, L, W, tone, age, o = {}) => blade(c, CX + a * .03, o.y ?? SOIL + .5, a, L, W, { wp: .62, q: .5, edge: 'wave', amp: .13, phase: a * .7, curl: a * .2, tone, age, hl: true, ...limp(a), ...o })
   let s = ''
   if (st === 1) s = sprout(c, { h: 5.5, L: 5, W: 3.3 })
   if (st === 2) for (const [a, L, t] of [[-64, 11, 'b'], [62, 11.5, 'b'], [-22, 13, 'a'], [20, 12, 'a']]) s += lf(a + jit(8), L, 8, t, .4, { amp: .05, n: 5 })
@@ -394,8 +399,8 @@ function lettuce(c, st) {
     for (const [a, L] of [[-90, 16], [88, 15]]) s += lf(a + jit(4), L, 12, 'b', 1, { tint: a < 0 ? 'u' : 'v', curl: a * .32 })
   }
   if (st === 6) {
-    s += stem2(`M${P(CX, SOIL)}L${P(CX, SOIL - 4)}`, 3.6, tint(c, '#cfe9a0'))
-    for (const a of [-74, -38, 40, 72]) s += stub(c, CX, SOIL - 2, a + jit(6), 7.5, 5, '#cfe9a0')
+    s += stem2(`M${P(CX, SOIL)}L${P(CX, SOIL - 4)}`, 3.6, tint(c, '#b4d984'))
+    for (const a of [-74, -38, 40, 72]) s += stub(c, CX, SOIL - 2, a + jit(6), 7.5, 5, '#b4d984')
     for (const [a, L] of [[-26, 10], [24, 9.5], [-2, 12]]) s += lf(a + jit(6), L, 7, 'a', .2, { amp: .05, n: 5, y: SOIL - 3.5 })
   }
   return { plant: s, roots: [0, .25, .5, .8, 1, 1, .85, .7][st] }
@@ -405,8 +410,8 @@ function mizuna(c, st) {
   const jit = k => (c.r() - .5) * k
   // a thin pale stalk carrying a feathery, deeply cut blade
   const lf = (a, L, tone, age, o = {}) => {
-    const p = petiole(c, CX + a * .03, o.y ?? SOIL, a, L * .42, a * .14, 1.1, c.pal.stalk)
-    return p.svg + blade(c, p.x, p.y, p.a, L * .62, o.W ?? 10.5, { edge: 'lobes', amp: .66, n: 9, wp: .45, q: .7, curl: a * .14, tone, age, sw: '.8', dA: 10, dC: 24, ...o })
+    const p = petiole(c, CX + a * .03, o.y ?? SOIL, a, L * .42, a * .14, 1.1, c.pal.stalk, limp(a, .55))
+    return p.svg + blade(c, p.x, p.y, p.a, L * .62, o.W ?? 10.5, { edge: 'lobes', amp: .66, n: 9, wp: .45, q: .7, curl: a * .14, tone, age, sw: '.8', ...limp(a, .6), ...o })
   }
   let s = ''
   if (st === 1) s = sprout(c, { h: 6, kind: 'kidney', L: 4, W: 5 })
@@ -442,8 +447,8 @@ function kale(c, st) {
   const jit = k => (c.r() - .5) * k
   // a stout pale stalk and midrib, and a blade with a tightly frilled edge
   const lf = (y, a, L, W, tone, age, o = {}) => {
-    const p = petiole(c, CX + a * .02, y, a, L * .3, a * .12, 1.7, c.pal.stalk)
-    return p.svg + blade(c, p.x, p.y, p.a, L * .74, W, { edge: 'frill', amp: .22, n: 10, wp: .5, q: .5, curl: a * .24, tone, age, rib: 1.3, ribCol: c.pal.stalk, hl: true, dA: 14, dC: 30, ...o })
+    const p = petiole(c, CX + a * .02, y, a, L * .3, a * .12, 1.7, c.pal.stalk, limp(a, .5))
+    return p.svg + blade(c, p.x, p.y, p.a, L * .74, W, { edge: 'frill', amp: .3, n: 12, wp: .5, q: .5, curl: a * .24, tone, age, rib: 1.3, ribCol: c.pal.stalk, hl: true, ...limp(a, .7), ...o })
   }
   const trunk = h => stem2(`M${P(CX, SOIL)}L${P(CX, SOIL - h)}`, 3, tint(c, '#cfe6d8'))
   let s = ''
@@ -484,18 +489,18 @@ function kale(c, st) {
 }
 
 // A radish leaf: small side lobes, then one big rounded lobe at the end.
-const lyre = t => (t < .42 ? .16 + .3 * Math.abs(Math.sin((t / .42) * Math.PI * 2)) : Math.pow(Math.sin(Math.PI * Math.pow((t - .42) / .58, .75)), .55))
+const lyre = t => (t < .42 ? .15 + .17 * Math.abs(Math.sin((t / .42) * Math.PI * 2)) : Math.pow(Math.sin(Math.PI * Math.pow((t - .42) / .58, .75)), .55))
 
 function radish(c, st) {
   const jit = k => (c.r() - .5) * k
   const lf = (a, L, W, tone, age, o = {}) => {
-    const p = petiole(c, CX + a * .03, o.y ?? SOIL, a, L * .34, a * .1, 1.3, c.pal.stalk)
-    return p.svg + blade(c, p.x, p.y, p.a, L * .7, W, { prof: lyre, n: 10, curl: a * .2, tone, age, hl: true, rib: .9, dA: 12, dC: 26, ...o })
+    const p = petiole(c, CX + a * .03, o.y ?? SOIL, a, L * .34, a * .1, 1.3, c.pal.stalk, limp(a, .5))
+    return p.svg + blade(c, p.x, p.y, p.a, L * .7, W, { prof: lyre, n: 10, curl: a * .2, tone, age, hl: true, rib: .9, ...limp(a, .7), ...o })
   }
   // the swollen root, drawn in front of the collar once its shoulder shows
   const bulb = () => {
-    mark(27.4, 91); mark(44.6, 118)
-    return `<path d="M36 91C44.6 91 45 100 43.6 104C42 109 38.6 111.4 36.7 112.4Q36.3 115.6 37.7 118Q35 115.6 35.3 112.4C33.4 111.4 30 109 28.4 104C27 100 27.4 91 36 91Z" fill="url(#${c.k}R)"/>`
+    mark(27, 91); mark(45.4, 116.4)
+    return `<path d="M36 91C45 91 45.6 99.6 43.4 103.4C41.6 106.6 38.6 108.2 36.8 109Q36.4 112.6 37.6 116.4Q35 112.8 35.2 109C33.4 108.2 30.4 106.6 28.6 103.4C26.4 99.6 27 91 36 91Z" fill="url(#${c.k}R)"/>`
       + line('M31.4 95.4Q30.1 99 31.5 103.2', '#fff', 1.3, ' opacity=".55"') + oval(36, 91.7, 2.7, 1, '#e9f2c0', ' stroke-width=".6"')
   }
   let s = '', under = ''
@@ -545,7 +550,7 @@ function truss(c, nd, sd, items) {
   const K = { R: ['R', 3.9], r: ['R', 3.2], O: ['O', 3.5], g: ['G', 2.3], G: ['G', 3.2] }
   ;[...items].forEach((ch, j) => {
     const fx = x + sd * [0, 4.8, 1.4][j % 3] + (c.rf() - .5), fy = y + [0, 3.4, 7][j % 3] + (c.rf() - .5)
-    s += ch === 'F' || ch === 'f' ? flower(c, fx, Math.min(fy, 95.5), ch === 'F' ? 2.9 : 2.3, '#ffd83a', '#f09a1c') : fruit(c, fx, Math.min(fy, 95.4 - K[ch][1]), K[ch][1], K[ch][0])
+    s += ch === 'F' || ch === 'f' ? flower(c, fx, Math.min(fy, 95.5), ch === 'F' ? 3.3 : 2.6, '#ffd83a', '#f09a1c') : fruit(c, fx, Math.min(fy, 95.4 - K[ch][1]), K[ch][1], K[ch][0])
   })
   return s
 }
@@ -553,13 +558,13 @@ function truss(c, nd, sd, items) {
 function tomato(c, st) {
   const jit = k => (c.r() - .5) * k
   if (st === 1) return { plant: sprout(c, { h: 7.5, L: 6.5, W: 2.3, col: '#c5d99a' }), roots: .25 }
-  const H = [0, 0, 18, 44, 66, 78, 78, 46][st], n = [0, 0, 3, 6, 8, 9, 9, 6][st]
+  const H = [0, 0, 18, 44, 63, 74, 74, 46][st], n = [0, 0, 3, 6, 7, 8, 8, 6][st]
   const N = stalk(c, CX, SOIL, H, n, { wob: 3.5 }), green = tint(c, c.pal.stem)
   const mat = st >= 4 && st <= 6 ? 1 : .82
   let back = '', front = '', twigs = '', deco = ''
   const leafAt = (nd, sd, t, o) => {
     const big = Math.pow(Math.sin(Math.PI * Math.min(.94, .1 + t * .86)), .65)
-    return compound(c, nd.x, nd.y, nd.a + sd * (86 - 34 * t) + jit(10), (st === 2 ? 5 : 8) + 13 * big * mat, { n: st === 2 || t > .86 ? 3 : 5, ll: 5.6 + 4.6 * big * mat, lw: 3.5 + 2.6 * big * mat, age: 1 - t, side: sd, ...o })
+    return compound(c, nd.x, nd.y, nd.a + sd * (86 - 34 * t) + jit(10), (st === 2 ? 5 : 8) + 13 * big * mat, { n: st === 2 || t > .8 || t < .2 ? 3 : 5, ll: 5.8 + 4.8 * big * mat, lw: 3.6 + 2.7 * big * mat, age: 1 - t, side: sd, ...o })
   }
   if (st === 2) for (const sd of [-1, 1]) back += lens(c, N[1].x, N[1].y, N[1].a + sd * 76, 6.5, 2.3, { tone: 'b', age: 1, side: sd })
   for (let i = st === 2 ? 2 : 1; i <= n; i++) {
@@ -576,7 +581,7 @@ function tomato(c, st) {
   }
   const top = N[n]
   front += lens(c, top.x, top.y, top.a - 34, 7, 3.6, { tone: 'a', age: 0 }) + lens(c, top.x, top.y, top.a + 30, 6.5, 3.4, { tone: 'a', age: 0 })
-  const TR = { 4: [[3, 'gg'], [5, 'FF'], [7, 'Ff']], 5: [[2, 'RRr'], [4, 'RRO'], [6, 'Og'], [8, 'F']], 6: [[4, 'gg'], [6, 'g'], [8, 'Ff']], 7: [[3, 'r']] }[st] ?? []
+  const TR = { 4: [[3, 'gg'], [5, 'FF'], [6, 'Ff']], 5: [[2, 'RRr'], [4, 'RRO'], [6, 'Og'], [7, 'F']], 6: [[4, 'gg'], [6, 'g'], [7, 'Ff']], 7: [[3, 'r']] }[st] ?? []
   for (const [i, items] of TR) deco += truss(c, N[i], i % 2 ? 1 : -1, items)
   const stem = stemSvg(N, 1.5, green) + stemSvg(N.slice(0, Math.ceil(n * .45) + 1), 2.3, green)
   return { plant: back + twigs + stem + front + deco, roots: [0, .25, .5, .8, 1, 1, 1, .7][st] }
@@ -599,22 +604,20 @@ function pepperPod(c, x, y, L, W, kind, lean) {
 function pepper(c, st) {
   const jit = k => (c.r() - .5) * k
   if (st === 1) return { plant: sprout(c, { h: 7, L: 6.5, W: 2.6, col: '#c5d99a' }), roots: .25 }
-  const [H0, n0, H1, H2] = { 2: [15, 2, 0, 0], 3: [24, 3, 17, 0], 4: [28, 3, 22, 14], 5: [30, 3, 24, 19], 6: [30, 3, 24, 19], 7: [24, 3, 15, 0] }[st]
-  const green = tint(c, c.pal.stem)
-  // a glossy, pointed leaf on a short stalk
-  const lf = (nd, a, L, tone, age) => {
-    const p = petiole(c, nd.x, nd.y, a, 2.6, 0, .9, c.pal.stem)
-    return p.svg + blade(c, p.x, p.y, p.a, L, L * .47, { wp: .38, q: .85, n: 5, curl: sgn(a) * 12, tone, age, hl: true, gloss: true, rib: .7, dA: 22, dC: 44 })
-  }
+  const [H0, n0, H1, H2] = { 2: [14, 2, 0, 0], 3: [20, 3, 17, 0], 4: [24, 3, 23, 16], 5: [26, 3, 26, 21], 6: [26, 3, 26, 21], 7: [20, 3, 15, 0] }[st]
+  const green = tint(c, c.pal.stem), k = st === 2 ? .62 : 1
+  // a glossy, pointed leaf
+  const lf = (nd, a, L, tone, age) => blade(c, nd.x, nd.y, a, L, L * .52, { wp: .4, q: .78, n: 5, curl: sgn(a) * 12, tone, age, hl: true, gloss: true, rib: .7, dA: 30, dC: 62 })
   const T = stalk(c, CX, SOIL, H0, n0, { wob: 3 })
   let stems = stemSvg(T, 2.2, green), back = '', front = '', deco = ''
   if (st === 2) for (const sd of [-1, 1]) back += lens(c, T[1].x, T[1].y, T[1].a + sd * 76, 6.5, 2.6, { tone: 'b', age: 1, side: sd })
-  for (let i = 1; i <= n0; i++) {
-    const sd = i % 2 ? -1 : 1, s = lf(T[i], T[i].a + sd * (78 - i * 6) + jit(8), (st === 2 ? 8 : 13) + i * 1.2, i === 1 ? 'c' : 'b', 1 - i / (n0 + 4))
-    if (i % 2) back += s; else front += s
+  // the trunk keeps a pair of leaves at each node below the fork
+  for (let i = st === 2 ? 2 : 1; i < n0 || (i === n0 && !H1); i++) {
+    back += lf(T[i], T[i].a - (76 - i * 8) + jit(8), (12 + i * 1.5) * k, 'c', 1 - i / 8)
+    front += lf(T[i], T[i].a + (72 - i * 8) + jit(8), (12.5 + i * 1.5) * k, 'b', .9 - i / 8)
   }
   const top = T[n0], forks = [], mids = []
-  if (st === 2) front += lf(top, top.a - 22, 8, 'a', .1) + lf(top, top.a + 26, 7.5, 'a', .1)
+  if (!H1) front += lf(top, top.a - 22, 12 * k, 'a', .1) + lf(top, top.a + 26, 11.5 * k, 'a', .1)
   if (H1) for (const sd of [-1, 1]) {
     const M = stalk(c, top.x, top.y, H1, 2, { lean: top.a + sd * 25, wob: 4, side: sd })
     stems += stemSvg(M, 1.6, green)
@@ -633,20 +636,21 @@ function pepper(c, st) {
   }
   // fruit hangs under the forks, flowers nod on the young wood
   const hang = (nd, dx, L, W, kind, lean) => { deco += stem2(`M${P(nd.x, nd.y)}Q${C(nd.x + dx, nd.y - .5)} ${P(nd.x + dx, nd.y + 2)}`, .8, green) + pepperPod(c, nd.x + dx, nd.y + 2, L, W, kind, lean) }
-  const bloom = (nd, sd) => { deco += flower(c, nd.x - sd * 2.4, Math.min(95, nd.y + 2.6), 2.7, '#fbf7ea', '#cfe08a', 6) }
-  if (st === 4) { hang(top, 2.5, 7.5, 4.6, 'G', 8); if (forks[0]) hang(forks[0][0], -2.5, 6, 4, 'G', -6); for (const [nd, sd] of mids.slice(1)) bloom(nd, sd) }
+  const bloom = (nd, sd) => { deco += flower(c, nd.x - sd * 2.4, Math.min(95, nd.y + 2.6), 3, '#fbf7ea', '#cfe08a', 6) }
+  if (st === 4) { hang(top, 3, 7.5, 4.8, 'G', 8); if (forks[0]) hang(forks[0][0], -2.5, 6, 4.2, 'G', -6); for (const [nd, sd] of mids.slice(1)) bloom(nd, sd) }
   if (st === 5) {
-    hang(top, 2.6, 11.5, 6.4, 'R', 6)
-    if (forks[0]) hang(forks[0][0], -2.6, 11, 6.2, 'R', -8)
-    if (forks[1]) hang(forks[1][0], 2.6, 10, 6, 'G', 8)
-    if (mids[2]) hang(mids[2][0], -2.2, 9.5, 5.6, 'R', -4)
-    if (mids[4]) hang(mids[4][0], 2.2, 8.5, 5.2, 'G', 6)
+    hang(top, 3, 12.5, 7, 'R', 6)
+    if (forks[0]) hang(forks[0][0], -3, 12, 6.6, 'R', -8)
+    if (forks[1]) hang(forks[1][0], 3, 11, 6.4, 'G', 8)
+    if (mids[0]) hang(mids[0][0], -2.4, 10.5, 6, 'G', -4)
+    if (mids[3]) hang(mids[3][0], 2.4, 10.5, 6, 'R', 6)
+    if (mids[2]) hang(mids[2][0], -2, 8.5, 5.2, 'R', -4)
   }
   if (st === 6) {
-    if (forks[1]) hang(forks[1][0], 2.6, 6.5, 4.2, 'G', 8)
-    if (mids[2]) hang(mids[2][0], -2.2, 5.5, 3.8, 'G', -4)
+    if (forks[1]) hang(forks[1][0], 3, 6.5, 4.4, 'G', 8)
+    if (mids[0]) hang(mids[0][0], -2.4, 5.5, 4, 'G', -4)
     if (mids[5]) bloom(mids[5][0], mids[5][1])
-    if (mids[3]) bloom(mids[3][0], mids[3][1])
+    if (mids[2]) bloom(mids[2][0], mids[2][1])
   }
   if (st === 7 && mids[0]) hang(mids[0][0], 2, 7, 4.6, 'R', 6)
   return { plant: back + stems + front + deco, roots: [0, .25, .5, .8, 1, 1, 1, .7][st] }
@@ -678,34 +682,35 @@ function potato(c, st) {
     }
     return { plant: s + lens(c, 29, 93.8, -78, 7, 3.4, { tone: 'c', age: 1, floor: 97 }), under: line('M31 108Q26 111 22 110M41 108Q47 112 52 110.6M34 112Q32 115.6 28.6 116.6', '#ece2c8', .8), roots: .45 }
   }
-  const plan = { 2: [[-16, 15, 2], [3, 20, 3], [18, 14, 2]], 3: [[-17, 38, 4], [2, 46, 5], [18, 40, 4]], 4: [[-15, 58, 6], [1, 70, 7], [16, 61, 6]], 5: [[-16, 62, 6], [1, 76, 7], [17, 65, 6]], 7: [[-18, 34, 4], [4, 42, 5], [20, 36, 4]] }[st]
+  // three stems from the seed piece: [lean, height, nodes]
+  const plan = { 2: [[-16, 15, 2], [3, 20, 3], [18, 14, 2]], 3: [[-17, 38, 3], [2, 46, 4], [18, 40, 3]], 4: [[-15, 58, 5], [1, 70, 6], [16, 61, 5]], 5: [[-16, 60, 5], [1, 73, 6], [17, 63, 5]], 7: [[-18, 34, 3], [4, 42, 4], [20, 36, 3]] }[st]
   let back = '', mid = '', front = '', deco = ''
   plan.forEach(([lean, H, n], si) => {
-    const N = stalk(c, CX + lean * .12, SOIL, H, n, { lean, wob: 4, bend: -lean * .4 })
+    const N = stalk(c, CX + lean * .12, SOIL, H, n, { lean, wob: 4, bend: -lean * .4, drop: 16, side: si === 1 ? undefined : sgn(lean) })
     let leaves = ''
     for (let i = 1; i <= n; i++) {
       const sd = (i + si) % 2 ? -1 : 1, t = i / n, big = Math.pow(Math.sin(Math.PI * Math.min(.92, .14 + t * .8)), .7), full = st >= 4 ? 1 : .8
-      const fade = st === 5 && t < .36
-      leaves += compound(c, N[i].x, N[i].y, N[i].a + sd * (80 - 28 * t) + jit(10) + (fade ? sd * 10 : 0), (st === 2 ? 5 : 7) + 9 * big * full, { n: st === 2 || t > .8 ? 3 : 5, ll: 5.4 + 4.4 * big * full, lw: 4 + 3 * big * full, tone: si === 1 ? (t > .7 ? 'a' : 'b') : 'c', age: 1 - t, side: sd, tint: fade ? 'm' : undefined })
+      const fade = st === 5 && t < .4
+      leaves += compound(c, N[i].x, N[i].y, N[i].a + sd * (80 - 28 * t) + jit(10) + (fade ? sd * 10 : 0), (st === 2 ? 5 : 7.5) + 10 * big * full, { n: si === 1 && st > 2 && t < .8 ? 5 : 3, ll: (si === 1 ? 5.6 : 6.4) + 4.8 * big * full, lw: (si === 1 ? 4.2 : 4.8) + 3.2 * big * full, tone: si === 1 ? (t > .7 ? 'a' : 'b') : 'c', age: 1 - t, side: sd, tint: fade ? 'm' : undefined })
     }
     const top = N[n]
     leaves += lens(c, top.x, top.y, top.a - 30, 7, 4.2, { tone: 'a', age: 0 }) + lens(c, top.x, top.y, top.a + 28, 6.5, 4, { tone: 'a', age: 0 })
     const all = stemSvg(N, si === 1 ? 2 : 1.6, green) + leaves
     if (si === 1) front += all; else if (si === 0) back += all; else mid += all
-    if (st === 4 && si !== 0) for (const [dx, dy] of [[-3.4, -4.6], [3, -5.4], [0, -8.6]]) deco += flower(c, Math.max(6, Math.min(66, top.x + dx)), Math.max(6, top.y + dy), 2.8, '#f3ecff', '#ffd23c')
+    if (st === 4 && si !== 0) for (const [dx, dy] of [[-3.6, -4.6], [3.2, -5.6], [0, -9]]) deco += flower(c, Math.max(6, Math.min(66, top.x + dx)), Math.max(6, top.y + dy), 3.3, '#f6f0ff', '#ffd23c')
   })
   let under = line('M31 107Q25 109 20 108M41 107Q47 110 52 108', '#ece2c8', .8)
   if (st === 2 || st === 3) under = tuber(c, 36, 106.6, 4.2, 3, -8, 'U') + (st === 3 ? under : '')
   if (st === 4) under += tuber(c, 19, 108.4, 3, 2.3, 10) + tuber(c, 53, 108.2, 2.8, 2.2, -12) + tuber(c, 30, 113.6, 2.4, 1.9, 0)
   if (st === 5) under = line('M31 107Q25 108 20 107M41 107Q47 109 52 107M33 111Q30 114 28 113M39 111Q42 114 45 113M24 108Q14 110 10 112', '#ece2c8', .8)
-    + tuber(c, 9.6, 113, 4.6, 3.4, -14) + tuber(c, 20.4, 107.6, 6.4, 4.5, 8) + tuber(c, 52.6, 107.4, 6, 4.3, -10) + tuber(c, 29, 114, 5, 3.5, -6) + tuber(c, 45.4, 114.2, 5.4, 3.4, 8) + tuber(c, 62.6, 112.6, 4.2, 3.2, 12)
+    + tuber(c, 9.6, 113, 4.6, 3.4, -14) + tuber(c, 20.4, 107.6, 6.4, 4.5, 8) + tuber(c, 52.6, 107.4, 6, 4.3, -10) + tuber(c, 29, 113.4, 5, 3.5, -6) + tuber(c, 45.4, 113, 5.4, 3.4, 8) + tuber(c, 62.6, 112.6, 4.2, 3.2, 12)
   if (st === 7) under = tuber(c, 22, 108.4, 2.8, 2.1, 10, 'U') + tuber(c, 50, 109, 2.4, 1.9, -10, 'U')
   return { plant: back + mid + front + deco, under, roots: [0, .3, .5, .7, .85, .85, .45, .6][st] }
 }
 
 /** An ear of wheat on the end of a stem, with its awns. */
 function ear(c, x, y, a, ripe) {
-  const s = blade(c, x, y, a, 12.5, 4.8, { edge: 'frill', amp: .17, n: 8, wp: .42, q: .45, curl: sgn(a) * (ripe ? 18 : 5), keep: ripe ? 'g' : 'h', small: true, sw: '.8', dA: 6, dC: 26, tone: 'b' })
+  const s = blade(c, x, y, a, 12.5, 4.8, { edge: 'frill', amp: .17, n: 8, wp: .42, q: .45, curl: sgn(a) * (ripe ? 18 : 5), keep: ripe ? 'g' : 'h', small: true, sw: '.8', dA: 16, dC: 52, tone: 'b', spotP: 0 })
   if (c.dead) return s
   const g = c.geo
   let aw = '', rows = ''
@@ -722,7 +727,7 @@ function ear(c, x, y, a, ripe) {
 function wheat(c, st) {
   const jit = k => (c.r() - .5) * k
   // a long narrow blade that arcs outward
-  const bl = (x, y, a, L, tone, age, o = {}) => blade(c, x, y, a, L, o.W ?? 3.2, { wp: .2, q: .9, n: 6, curl: a * 1.5 + sgn(a) * 24 + jit(14), tone, age, small: true, sw: '.8', dA: 18, dC: 58, ...o })
+  const bl = (x, y, a, L, tone, age, o = {}) => blade(c, x, y, a, L, o.W ?? 3.2, { wp: .2, q: .9, n: 6, curl: a * 1.5 + sgn(a) * 24 + jit(14), tone, age, small: true, sw: '.8', dA: 20, dC: 62, spotN: 2, spotR: 1, ...o })
   let s = ''
   if (st === 1) s = bl(CX, SOIL, 3, 10.5, 'a', .2, { W: 2.6, curl: 8 }) + bl(CX, SOIL, -24, 5.5, 'a', .2, { W: 2.2, curl: -14 })
   if (st === 2) for (const [a, L, t] of [[-21, 18, 'b'], [22, 17, 'b'], [-6, 26, 'a'], [8, 23, 'a']]) s += bl(CX + a * .05, SOIL, a + jit(4), L, t, .4)
@@ -733,9 +738,10 @@ function wheat(c, st) {
   if (st === 4 || st === 5) {
     const ripe = st === 5, sc = tint(c, ripe ? '#d9c56a' : c.pal.stem), kk = ripe ? { tintAll: 's' } : {}
     let stems = '', leaves = '', ears = ''
-    for (const [th, H] of [[-13, 61], [12, 62], [-8, 66], [7, 67], [-3, 70], [2, 69]]) {
+    for (const [th, H] of [[-13, 59], [12, 60], [-8, 64], [7, 65], [-3, 68], [2, 67]]) {
       const lean = th + jit(2), sd = sgn(th)
-      const N = stalk(c, CX + th * .16, SOIL, H + (ripe ? 1 : 0), 4, { lean, wob: 1.2, bend: th * .3, drop: 46, side: sd })
+      // the straw stays up when the plant wilts: the blades and the ears are what droop
+      const N = stalk(c, CX + th * .16, SOIL, H + (ripe ? 1 : 0), 4, { lean, wob: 1.2, bend: th * .3, drop: 9, side: sd })
       stems += stemSvg(N, 1.1, sc)
       leaves += bl(N[1].x, N[1].y, N[1].a + sd * 16, 25, 'c', .9, kk) + bl(N[2].x, N[2].y, N[2].a - sd * 14, 22, 'b', .6, kk) + bl(N[3].x, N[3].y, N[3].a + sd * 26, 14, 'a', .2, { W: 2.8, ...kk })
       ears += ear(c, N[4].x, N[4].y, N[4].a, ripe)
@@ -763,7 +769,7 @@ function soybean(c, st) {
     for (const sd of [-1, 1]) s += blade(c, x, y, lean + sd * 56, 6.2, 4.4, { wp: .55, q: .5, n: 4, tone: 'a', age: .2, small: true, side: sd, sw: '.9' })
     return { plant: s, roots: .3 }
   }
-  const H = [0, 0, 19, 44, 66, 76, 72, 46][st], n = [0, 0, 2, 5, 7, 8, 7, 5][st]
+  const H = [0, 0, 19, 44, 61, 70, 69, 46][st], n = [0, 0, 2, 4, 6, 7, 7, 4][st]
   const N = stalk(c, CX, SOIL, H, n, { wob: 6 })
   if (st === 6) {
     // threshed: bare stems, leaf stalk stubs, a few empty pod stalks
@@ -774,7 +780,7 @@ function soybean(c, st) {
       s += stem2(`M${P(N[i].x, N[i].y)}L${P(N[i].x + ux * (4 + (i % 3)), N[i].y + uy * (4 + (i % 3)))}`, .8, tan)
       if (i % 2) s += stem2(`M${P(N[i].x, N[i].y)}L${P(N[i].x + vx * 3, N[i].y + vy * 3)}`, .6, tan)
     }
-    for (const [i, sd, len] of [[2, 1, 12], [3, -1, 10]]) s += stemSvg(stalk(c, N[i].x, N[i].y, len, 2, { lean: N[i].a + sd * 46, wob: 4, side: sd }), 1, tan)
+    for (const [i, sd, len] of [[2, 1, 12], [3, -1, 10]]) s += stemSvg(stalk(c, N[i].x, N[i].y, len, 2, { lean: N[i].a + sd * 46, wob: 4, side: sd }), 1.1, tan)
     return { plant: s + lens(c, N[n].x, N[n].y, N[n].a + 40, 6, 3, { keep: 'x', tone: 'b' }), roots: .85 }
   }
   let back = '', front = '', twigs = '', deco = ''
@@ -784,42 +790,42 @@ function soybean(c, st) {
     const sd = i % 2 ? -1 : 1, t = i / n, big = Math.pow(Math.sin(Math.PI * Math.min(.92, .16 + t * .8)), .7), full = st >= 4 ? 1 : .82
     if (i === 1 && st <= 3) {
       // the first true leaves are a simple pair
-      for (const s2 of [-1, 1]) back += blade(c, N[1].x, N[1].y, N[1].a + s2 * 66 + jit(6), st === 2 ? 9 : 10, st === 2 ? 7.4 : 8, { wp: .42, q: .7, n: 5, tone: 'c', age: .9, hl: true, side: s2 })
+      for (const s2 of [-1, 1]) back += blade(c, N[1].x, N[1].y, N[1].a + s2 * 66 + jit(6), st === 2 ? 9 : 11, st === 2 ? 7.4 : 8.6, { wp: .42, q: .7, n: 5, tone: 'c', age: .9, hl: true, side: s2 })
       continue
     }
-    if (ripe && i <= 2) continue // the oldest leaves have dropped
+    if (ripe && i === 1) continue // the oldest leaves have dropped
     const o = { tone: i % 3 === 0 ? 'c' : t > .7 ? 'a' : 'b', age: 1 - t, ...(ripe && t < .8 ? { tintAll: 'm' } : {}) }
-    const leaf = trifoliate(c, N[i].x, N[i].y, N[i].a + sd * (60 - 16 * t) + jit(8), (st === 2 ? 4 : 6) + 6 * big * full, 6.6 + 4.6 * big * full, 4.8 + 3.2 * big * full, o)
+    const leaf = trifoliate(c, N[i].x, N[i].y, N[i].a + sd * (64 - 18 * t) + jit(8), (st === 2 ? 4 : 7) + 8 * big * full, 7.6 + 6 * big * full, 5.8 + 4.2 * big * full, o)
     if (i % 3 === 0) back += leaf; else front += leaf
   }
-  const shoots = st === 4 || st === 5 ? [[2, 1, 13], [3, -1, 11]] : st === 3 ? [[2, 1, 9]] : []
+  const shoots = st === 4 || st === 5 ? [[1, 1, 13], [2, -1, 12]] : st === 3 ? [[1, 1, 9]] : []
   for (const [i, sd, len] of shoots) {
-    const B = stalk(c, N[i].x, N[i].y, len, 2, { lean: N[i].a + sd * 48, wob: 4, side: sd })
-    twigs += stemSvg(B, 1, green)
-    front += trifoliate(c, B[2].x, B[2].y, B[2].a + sd * 8 + jit(8), 4, 8, 5.6, { tone: 'b', age: .5, ...(ripe ? { tintAll: 'm' } : {}) })
+    const B = stalk(c, N[i].x, N[i].y, len, 2, { lean: N[i].a + sd * 50, wob: 4, side: sd })
+    twigs += stemSvg(B, 1.1, green)
+    front += trifoliate(c, B[2].x, B[2].y, B[2].a + sd * 8 + jit(8), 4, 10, 7, { tone: 'b', age: .5, ...(ripe ? { tintAll: 'm' } : {}) })
     if (ripe) deco += podsAt(c, B[1], sd, 'T', 2)
   }
   const top = N[n]
-  front += trifoliate(c, top.x, top.y, top.a + jit(10), 2.5, 7, 4.8, { tone: 'a', age: 0 })
+  front += trifoliate(c, top.x, top.y, top.a + jit(10), 2.5, 8, 5.6, { tone: 'a', age: 0 })
   if (st === 4) {
-    for (const i of [3, 4, 5, 6]) deco += flower(c, N[i].x + (i % 2 ? 2.2 : -2.2), N[i].y - .6, 2, '#c58be8', '#f4e6ff')
-    for (const i of [2, 3]) deco += podsAt(c, N[i], i % 2 ? 1 : -1, 'G', 2)
+    for (const i of [2, 3, 4, 5]) deco += flower(c, N[i].x + (i % 2 ? 2.8 : -2.8), N[i].y - .6, 2.9, '#b86be6', '#f6e9ff', 5, .22)
+    for (const i of [1, 2]) deco += podsAt(c, N[i], i % 2 ? 1 : -1, 'G', 2)
   }
-  if (ripe) for (let i = 2; i <= 7; i++) deco += podsAt(c, N[i], i % 2 ? 1 : -1, 'T', i % 3 === 0 ? 3 : 2)
+  if (ripe) for (let i = 1; i <= 6; i++) deco += podsAt(c, N[i], i % 2 ? 1 : -1, 'T', i % 3 === 0 ? 3 : 2)
   if (st === 7) deco += podsAt(c, N[2], 1, 'T', 1)
-  return { plant: back + twigs + stemSvg(N, 1.5, green) + front + deco, roots: [0, .3, .5, .8, 1, 1, .85, .7][st] }
+  return { plant: back + twigs + stemSvg(N, 1.6, green) + front + deco, roots: [0, .3, .5, .8, 1, 1, .85, .7][st] }
 }
 /** A cluster of soybean pods hanging from a node. kind: G green, T dry. */
 function podsAt(c, nd, sd, kind, count) {
   let s = ''
-  for (let j = 0; j < count; j++) s += lens(c, nd.x + sd * (.8 + j * 1.2), Math.min(92, nd.y + .8 + j * .7), sd * (152 - j * 22), kind === 'T' ? 8.6 : 6.2, kind === 'T' ? 3.2 : 2.4, { keep: kind, tone: 'c', stiff: true, plain: true, side: sd, sw: '.8', floor: 98.5 })
+  for (let j = 0; j < count; j++) s += lens(c, nd.x + sd * (.8 + j * 1.2), Math.min(92, nd.y + .8 + j * .7), sd * (150 - j * 24), kind === 'T' ? 9.4 : 7.4, kind === 'T' ? 3.6 : 3, { keep: kind, tone: 'c', stiff: true, plain: true, side: sd, sw: '.8', floor: 98.5 })
   return s
 }
 
 // ------------------------------------------------------------------ sheets
 const DRAW = { lettuce, mizuna, kale, radish, tomato, pepper, potato, wheat, soybean }
 
-function frame(id, st, row, overflow) {
+function frame(id, st, row, sheet) {
   const pal = PAL[id], i = IDS.indexOf(id)
   // The post-harvest tomato and pepper are the same plant as the ripe one, so they share its shape.
   const shape = (id === 'tomato' || id === 'pepper') && st === 6 ? 5 : st
@@ -832,22 +838,27 @@ function frame(id, st, row, overflow) {
   box = [999, 999, -999, -999]
   // A seed plug has no plant yet: just the seed inside the plug (the potato draws its seed piece).
   const art = st === 0 && id !== 'potato' ? { under: oval(36, 104.2, 1.6, 1, '#d9c9a0', ' stroke-width=".5"') } : DRAW[id](c, st)
-  const s = rootZone(c, art.roots ?? 0) + (art.under ?? '') + collar(c) + tag(c) + (art.plant ?? '')
-  if (box[0] < 1.5 || box[1] < 1.5 || box[2] > FW - 1.5 || box[3] > FH - 1.5) overflow.push(`${id} stage ${st} row ${row}: ${box.map(v => Math.round(v * 10) / 10).join(', ')}`)
+  // The plug is the same in every frame and the roots repeat, so each is drawn once and reused.
+  const key = `r${Math.round((art.roots ?? 0) * 100)}${c.dead ? 'd' : ''}`
+  sheet.parts[key] ??= rootZone(c, art.roots ?? 0)
+  mark(26, 79.6); mark(48, 114.4)
+  const s = `<use href="#${pal.k}${key}"/>` + (art.under ?? '') + `<use href="#${pal.k}K"/>` + (art.plant ?? '')
+  if (box[0] < 2.5 || box[1] < 2.5 || box[2] > FW - 2.5 || box[3] > FH - 2.5) sheet.overflow.push(`${id} stage ${st} row ${row}: ${box.map(v => Math.round(v * 10) / 10).join(', ')}`)
   return s
 }
 
 /** The nine sheets, ready for the caller to wrap in an <svg> and save. */
 export function cropSheets() {
   return IDS.map(id => {
-    const pal = PAL[id], overflow = []
+    const pal = PAL[id], sheet = { parts: { K: collar({ k: pal.k }) + tag({ pal }) }, overflow: [] }
     let body = ''
     for (let row = 0; row < CROP_FRAME.rows; row++) for (let col = 0; col < CROP_FRAME.cols; col++)
-      body += `<g transform="translate(${col * FW} ${row * FH})" clip-path="url(#${pal.k}clip)">${frame(id, col, row, overflow)}</g>`
+      body += `<g transform="translate(${col * FW} ${row * FH})" clip-path="url(#${pal.k}clip)">${frame(id, col, row, sheet)}</g>`
     return {
       file: `crop-${id}.svg`, w: FW * CROP_FRAME.cols, h: FH * CROP_FRAME.rows,
       body: `<g stroke="${OUTL}" stroke-width="1" stroke-linejoin="round" stroke-linecap="round">${body}</g>`,
-      defs: defsFor(pal), overflow,
+      defs: defsFor(pal) + Object.entries(sheet.parts).map(([key, svg]) => `<g id="${pal.k}${key}">${svg}</g>`).join(''),
+      overflow: sheet.overflow,
     }
   })
 }
