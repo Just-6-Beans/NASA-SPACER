@@ -19,12 +19,6 @@
 .feedback { background: rgba(4,18,32,.85); }
 .ship-card, .crew-panel { border-color: rgba(63,208,255,.45); border-radius: 3px; clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px); }
 .ship-card .role { color: var(--orange-2); }
-.title .logo { color: #eafaff; text-shadow: 0 0 30px rgba(63,208,255,.65), 0 0 2px #fff; font-style: italic; }
-.title .logo i { color: var(--orange); letter-spacing: -.1em; font-size: .5em; vertical-align: middle; }
-.holo-rings { position: absolute; pointer-events: none; border-radius: 50%; border: 1px solid rgba(63,208,255,.35); box-shadow: 0 0 40px rgba(63,208,255,.12) inset; }
-.holo-rings::before, .holo-rings::after { content: ""; position: absolute; inset: 12%; border-radius: 50%; border: 2px dashed rgba(63,208,255,.35); animation: spin 40s linear infinite; }
-.holo-rings::after { inset: 28%; border-style: solid; border-color: rgba(95,242,197,.4) transparent rgba(95,242,197,.4) transparent; animation-duration: 18s; animation-direction: reverse; }
-@keyframes spin { to { transform: rotate(360deg); } }
 .scanlines { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(rgba(63,208,255,.035) 0 1px, transparent 1px 3px); }
 .holo-frame { position: absolute; inset: 14px; pointer-events: none; border: 1px solid rgba(63,208,255,.25); clip-path: polygon(30px 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%, 0 30px); }
 

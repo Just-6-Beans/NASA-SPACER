@@ -1,5 +1,6 @@
 import './style.css'
 import './holo.css'
+import './title.css'
 import { ICONS } from './ui/icons'
 import type Phaser from 'phaser'
 import { SHIPS, SUITS, byId, type ShipId, type SuitId } from './core/data'
@@ -7,13 +8,13 @@ import { Mission, TASK_INFO } from './core/mission'
 import { powerBlock, validPower, type Power } from './core/power'
 import { fmt } from './core/rover'
 import type { TaskId } from './core/tasks'
-import type { CrewMember } from './core/protocol'
+import { ROOM_NAME, type CrewMember } from './core/protocol'
 import { sound } from './audio'
 import { Coop, coopUrl } from './coop'
 import { createGame, type MarsScene, type StationScene, type Terminal } from './game/game'
 import { bindDpad, clearHeld, input, setBlocked } from './game/input'
 import { $, el, esc, isTouch, toast } from './ui/dom'
-import { crewScreen, fleetScreen, launchScreen, titleScreen, type Draft } from './ui/intro'
+import { crewScreen, fleetScreen, launchScreen, titleScreen, type CrewLink, type Draft, type LinkStatus, type Mode, type TitleUi } from './ui/intro'
 import { closePanel, openPanel, panelOpen, refreshPanel, type PanelCtx } from './ui/panels'
 import { reportScreen, sitesScreen } from './ui/report'
 import { roverScreen } from './ui/roverView'
@@ -41,8 +42,10 @@ let debugOn = false
 let prevFault = false
 const coop = new Coop()
 let coopPanel: HTMLElement | null = null
-let coopStatus: 'offline' | 'connecting' | 'connected' | 'error' = 'offline'
+let coopStatus: LinkStatus = 'offline'
 let coopError = ''
+let titleUi: TitleUi | null = null
+let soloOnly = false // the player chose a solo mission while a co-op join was still in flight
 let powerInFlight = false
 let powerWanted: Power | null = null
 const gameReady = createGame(gameHost).then(g => { game = g; g.loop.sleep(); return g })
@@ -71,7 +74,14 @@ function show(name: ScreenName, node: HTMLElement | null) {
 // ------------------------------------------------------------------ Intro flow
 function goTitle() {
   leaveGameplay()
-  show('title', titleScreen(goFleet))
+  titleUi = titleScreen(crewLink, mode => void startMission(mode))
+  show('title', titleUi.el)
+}
+/** Solo drops any co-op link first. Co-op keeps the link opened in the title lobby through docking. */
+async function startMission(mode: Mode) {
+  soloOnly = mode === 'solo'
+  if (soloOnly && coop.connected) await leaveCoop()
+  goFleet()
 }
 function goFleet() { show('fleet', fleetScreen(draft, goTitle, ship => { draft.ship = ship; saveDraft(); goCrew() })) }
 function goCrew() { show('crew', crewScreen(draft, goFleet, d => { draft = d; saveDraft(); goLaunch() })) }
@@ -417,7 +427,24 @@ function closeCoop() {
   setBlocked(panelOpen())
   refresh()
 }
+/** The title lobby's view of the co-op service: the same Colyseus room the in-station Co-op panel uses. */
+const crewLink: CrewLink = {
+  state: () => ({ status: coopStatus, error: coopError, url: coopUrl(), room: ROOM_NAME, roomId: coop.roomId, players: coop.players }),
+  join: () => void joinCoop(),
+  leave: leaveCoop,
+}
+
+async function leaveCoop() {
+  await coop.leave()
+  coopStatus = 'offline'
+  if (game) station().clearRemotes()
+  renderCoop()
+  refresh()
+}
+
+/** Redraws whichever co-op view is on screen: the title lobby, the in-station panel, or neither. */
 function renderCoop() {
+  if (screen === 'title') titleUi?.update()
   if (!coopPanel) return
   const b = $('#cbody', coopPanel)
   const statusText = { offline: 'Not connected', connecting: 'Connecting…', connected: 'Connected', error: 'Connection failed' }[coopStatus]
@@ -427,26 +454,32 @@ function renderCoop() {
     ${coopStatus === 'error' ? `<div class="feedback bad">${esc(coopError)}<br/>Start the local service in a terminal with <code>npm run server</code>, keep it running, then retry.</div>` : ''}
     <div class="actions">${coop.connected ? '<button class="btn" id="cleave">Leave room</button>' : `<button class="btn primary" id="cjoin" ${coopStatus === 'connecting' ? 'disabled' : ''}>${coopStatus === 'error' ? 'Retry' : 'Join co-op room'}</button>`}</div>`
   $('#cjoin', b)?.addEventListener('click', joinCoop)
-  $('#cleave', b)?.addEventListener('click', async () => { await coop.leave(); coopStatus = 'offline'; station().clearRemotes(); toast('Left co-op. Solo play continues.', 'info'); renderCoop(); refresh() })
+  $('#cleave', b)?.addEventListener('click', async () => { await leaveCoop(); toast('Left co-op. Solo play continues.', 'info') })
 }
 
+// The room can be joined from the title lobby, before the station scene exists, so every handler
+// that touches the deck checks that the player is actually on it.
 async function joinCoop() {
+  if (coopStatus === 'connecting' || coop.connected) return
+  soloOnly = false
   coopStatus = 'connecting'; renderCoop()
   try {
     await coop.join({
       onSnapshot: s => {
         coopStatus = 'connected'
         applyShared(s.power)
-        for (const c of s.crew) if (c.id !== s.you && screen === 'station') station().upsertRemote(c)
-        station().forcePoseSend()
+        if (screen === 'station') {
+          for (const c of s.crew) if (c.id !== s.you) station().upsertRemote(c)
+          station().forcePoseSend()
+        }
         renderCoop()
         toast(`Joined co-op room ${s.roomId} (${s.players}/2).`, 'ok')
       },
       onPower: s => { applyShared(s.power); renderCoop() },
       onPose: (c: CrewMember) => { if (screen === 'station') station().upsertRemote(c) },
       onCrew: list => { if (screen !== 'station') return; for (const c of list) station().upsertRemote(c) },
-      onGone: id => station().removeRemote(id),
-      onRespawn: p => { station().respawn(p.x, p.y); toast('Moved aside so you do not overlap your crewmate.', 'info') },
+      onGone: id => { if (game) station().removeRemote(id) },
+      onRespawn: p => { if (screen !== 'station') return; station().respawn(p.x, p.y); toast('Moved aside so you do not overlap your crewmate.', 'info') },
       onNotice: n => {
         if (n.kind === 'allocate' && !n.ok) { powerInFlight = false; toast(n.text, 'warn') }
         if (n.kind === 'limit') toast(n.text, 'warn')
@@ -459,6 +492,7 @@ async function joinCoop() {
         renderCoop(); refresh()
       },
     })
+    if (soloOnly) await leaveCoop() // the join landed after the player had already started a solo mission
   } catch (e) {
     coopStatus = 'error'
     coopError = `Could not reach the co-op service at ${coopUrl()} (${(e as Error).message || 'offline'}).`
