@@ -14,10 +14,12 @@ export function validPower(p: unknown): p is Power {
 
 export const unassigned = (p: Power) => POWER_TOTAL - p.life - p.comms - p.research
 
+/** Units life support needs before transmitting. Oxygen tanks carried up on the launch lower it. */
+export const LIFE_NEED = 3
 /** Why transmission is blocked by power alone, or null when power is ready. */
-export function powerBlock(p: Power): string | null {
+export function powerBlock(p: Power, lifeNeed = LIFE_NEED): string | null {
   if (!validPower(p)) return 'Power allocation is invalid.'
-  if (p.life < 3) return 'Life support needs at least 3 units before transmitting.'
+  if (p.life < lifeNeed) return `Life support needs at least ${lifeNeed} unit${lifeNeed === 1 ? '' : 's'} before transmitting.`
   if (p.comms < 4) return 'Communications needs at least 4 units to reach Mars.'
   return null
 }

@@ -6,7 +6,9 @@
       "src/data/",
       "scripts/fetch-nasa-data.mjs",
       "scripts/build-ops-dates.mjs",
-      "notes/data.md"
+      "scripts/fetch-launch-vehicles.mjs",
+      "notes/data.md",
+      "scripts/fetch-rover-data.mjs"
     ],
     "rules": [
       "src/core/",
@@ -24,22 +26,47 @@
       "scripts/gen-art.mjs",
       "scripts/art-hq.mjs",
       "src/art/",
-      "notes/experience.md"
+      "notes/experience.md",
+      "scripts/build-geo.mjs",
+      "scripts/art-station.mjs",
+      "scripts/art-crops.mjs",
+      "notes/greenhouse-station.md"
     ]
   },
   "frozen": {
     "why": "Co-op works; leave it alone unless it breaks (CHALLENGE.md section 2). A change needs a human's yes.",
-    "paths": ["server/", "src/coop.ts", "src/core/protocol.ts"]
+    "paths": [
+      "server/",
+      "src/coop.ts",
+      "src/core/protocol.ts"
+    ]
   },
   "humanOnly": {
     "why": "Humans own these, or a change here means a new dependency (AGENTS.md rule 7).",
-    "paths": ["CHALLENGE.md", "package-lock.json"]
+    "paths": [
+      "CHALLENGE.md",
+      "package-lock.json"
+    ]
   },
   "shared": {
     "why": "Anyone may make small edits. Keep them short and say what changed in the commit message.",
     "paths": [
-      "README.md", "AGENTS.md", "CLAUDE.md", "CREDITS.md", "PROGRESS.md", "package.json", "tsconfig.json", "vite.config.ts",
-      "play.bat", ".gitignore", ".gitattributes", "lanes.json", "scripts/lane-check.mjs", ".githooks/", ".github/", ".devcontainer/"
+      "README.md",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "CREDITS.md",
+      "PROGRESS.md",
+      "package.json",
+      "tsconfig.json",
+      "vite.config.ts",
+      "play.bat",
+      ".gitignore",
+      ".gitattributes",
+      "lanes.json",
+      "scripts/lane-check.mjs",
+      ".githooks/",
+      ".github/",
+      ".devcontainer/"
     ]
   }
 }

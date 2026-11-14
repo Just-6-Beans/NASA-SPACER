@@ -1,5 +1,5 @@
 // Messages shared by the co-op client and server, with server-side validation.
-import { SUITS, type SuitId } from './data'
+import { SHIPS, SUITS, type ShipId, type SuitId } from './data'
 import type { Power } from './power'
 
 export const ROOM_NAME = 'spacer_power'
@@ -20,9 +20,17 @@ export interface Pose {
 export interface CrewMember extends Pose { id: string }
 
 export interface PowerState { power: Power; revision: number; players: number }
-export interface Snapshot extends PowerState { crew: CrewMember[]; you: string; roomId: string }
-export type NoticeKind = 'allocate' | 'transmit' | 'limit'
+/**
+ * The launch decision a room shares. The host is the pilot who has been in the room longest; only
+ * the host chooses the rocket and starts the countdown. `launches` counts the host's launches, so a
+ * client can tell a new countdown from a launch that happened before it arrived.
+ */
+export interface FlightState { host: string; ship: ShipId | null; launched: boolean; launches: number }
+export interface Snapshot extends PowerState { crew: CrewMember[]; you: string; roomId: string; flight: FlightState }
+export type NoticeKind = 'allocate' | 'transmit' | 'limit' | 'flight'
 export interface Notice { kind: NoticeKind; ok: boolean; text: string }
+
+export const validShip = (v: unknown): v is ShipId => typeof v === 'string' && SHIPS.some(s => s.id === v)
 
 const finite = (v: unknown, lo: number, hi: number): v is number => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi
 

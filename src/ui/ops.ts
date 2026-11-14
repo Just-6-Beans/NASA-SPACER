@@ -6,7 +6,7 @@ import { WATER_BONUS, type Mission } from '../core/mission'
 import { fastRelay, researchFilter, unassigned } from '../core/power'
 import { ROVERS, mmrtgNowW, type RoverSpec } from '../core/rovers'
 import {
-  BASE_LOAD_W, GOOD_SCORE, MAX_BASE_TILT, MISSION_SOLS, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, RADIATION, RESERVE_FRACTION, ROUGHNESS_SOURCE, WEATHER_SOURCE, costPct, driveWhPerM,
+  BASE_LOAD_W, GOOD_SCORE, MAX_BASE_TILT, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, RADIATION, RESERVE_FRACTION, ROUGHNESS_SOURCE, WEATHER_SOURCE, costPct, driveWhPerM,
   fullRechargeSols, photoPlaces, rangeM, rechargeW, region, spendPct, testWh,
 } from '../core/survey'
 import { SOURCES, formatDate, lightTimeSource } from '../data/opsDates'
@@ -33,7 +33,7 @@ function briefTab(body: HTMLElement, ctx: PanelCtx) {
   const m = ctx.m, ship = m.ship, d = m.ops
   body.innerHTML = `<div class="sim">Simulated scenario · the rover, its ground, the weather and the signal delay are NASA data</div>
     <div class="brief-goal"><h3>Your mission</h3>
-      <p>You are docked 408 km above Earth, commanding a real NASA rover on Mars. Drive it across its real surroundings, test the ground, and decide <b>where the crew's base goes</b> before the mission's ${MISSION_SOLS} Mars days run out.</p></div>
+      <p>You are docked 408 km above Earth, commanding a real NASA rover on Mars. Drive it across its real surroundings, test the ground, and decide <b>where the crew's base goes</b> before the mission's ${m.missionSols} Mars days run out.</p></div>
     <div class="brief-cols">
       <div class="brief-box"><h3>You decide</h3><ol>
         <li><b>Payload.</b> Which instrument studies the rock the rover drills.</li>
@@ -47,7 +47,7 @@ function briefTab(body: HTMLElement, ctx: PanelCtx) {
         <span>Rover battery</span><b>arrives at ${ship.battery}%, safe mode at NASA's ${Math.round(RESERVE_FRACTION * 100)}% line</b>
         <span>Station power</span><b>${POWER_TOTAL} units</b>
         <span>Signal delay</span><b>${fmt(m.signalMin)} min each way on ${d.label}</b>
-        <span>Time</span><b>${MISSION_SOLS} Mars days</b></div></div>
+        <span>Time</span><b>${m.missionSols} Mars days</b></div></div>
     </div>
     <div class="brief-box"><h3>What counts as success</h3>
       <p>A <b>base built on a good place</b> with the <b>habitat commissioned</b>. A good place is level ground (${MAX_BASE_TILT}° or less) with a site score of ${GOOD_SCORE} or more out of 100. The score is the average of six checks: level ground, smooth terrain, sunlight, warmth, low radiation and a rock sample. A check nobody measured counts as 0. Real photo spots the rover passes add up to +${PHOTO_BONUS_MAX}. The habitat also needs a crew medical clearance from Hab Systems.</p>
@@ -56,11 +56,11 @@ function briefTab(body: HTMLElement, ctx: PanelCtx) {
       <div>${REAL}<b>The rover and its ground.</b> Where each rover is parked, the tilt it measured at every stop, its photos, its battery and power source, and the picture of the ground from orbit. NASA/JPL-Caltech.</div>
       <div>${REAL}<b>Weather and radiation.</b> Curiosity's REMS and RAD instruments at Gale Crater.</div>
       <div>${REAL}<b>Signal delay.</b> The Earth to Mars light time on ${d.label}. ${esc(SOURCES.lightTime.name)}.</div>
-      <div>${MODEL}Everything else: what each test costs, recharge times, the ${MISSION_SOLS}-day limit, the scores, the relay hand-off, budgets and station power.</div>
+      <div>${MODEL}Everything else: what each test costs, recharge times, the ${m.missionSols}-day limit, the scores, the relay hand-off, budgets and station power.</div>
     </div>
     <div class="actions"><button class="btn primary" id="begin">Begin mission</button><button class="btn" id="tostatus">See mission status</button></div>`
   $('#begin', body).addEventListener('click', () => ctx.close())
-  $('#tostatus', body).addEventListener('click', () => (document.querySelector('.tab[data-id=status]') as HTMLElement | null)?.click())
+  $('#tostatus', body).addEventListener('click', () => document.querySelector<HTMLButtonElement>('.tab[data-id=status]')?.click())
 }
 
 // ------------------------------------------------------------------ Status
@@ -75,7 +75,8 @@ function statusTab(body: HTMLElement, ctx: PanelCtx) {
   const instId = m.instrument ?? m.instrumentDraft
   const inst = instId ? byId(INSTRUMENTS, instId) : null
   const rv = m.rover
-  const total = ship.budget + (m.completed.has('cargo') ? CARGO_REWARD : 0)
+  const need = { ...NEED, life: m.lifeNeed }
+  const total = ship.budget - m.launchSpent + (m.completed.has('cargo') ? CARGO_REWARD : 0)
   const free = unassigned(p)
   const pct = rv ? spendPct(rv, m.batteryWh) : ship.battery
   const B = m.base
@@ -83,16 +84,16 @@ function statusTab(body: HTMLElement, ctx: PanelCtx) {
   const bars = [
     bar('Supply budget', `${m.funds} of ${total} cr`, (m.funds / total) * 100, 'info'),
     bar('Payload mass', `${inst?.massKg ?? 0} of ${ship.payloadKg} kg`, ((inst?.massKg ?? 0) / ship.payloadKg) * 100, 'info'),
-    bar('Station power', `${POWER_TOTAL - free} of ${POWER_TOTAL} routed`, ((POWER_TOTAL - free) / POWER_TOTAL) * 100, p.life >= NEED.life && p.comms >= NEED.comms ? 'good' : 'bad'),
+    bar('Station power', `${POWER_TOTAL - free} of ${POWER_TOTAL} routed`, ((POWER_TOTAL - free) / POWER_TOTAL) * 100, p.life >= need.life && p.comms >= need.comms ? 'good' : 'bad'),
     rv ? bar('Rover battery', `${pct}%${m.charging ? ', charging' : ''}`, pct, m.stranded ? 'bad' : pct <= 15 ? 'warn' : 'good') : bar('Rover battery', `arrives at ${ship.battery}%`, ship.battery, 'info'),
-    bar('Mars days', rv ? `${f1(m.solsLeft)} of ${MISSION_SOLS} left` : `${MISSION_SOLS} to use`, (m.solsLeft / MISSION_SOLS) * 100, m.timeUp ? 'bad' : m.solsLeft <= 2 ? 'warn' : 'good'),
+    bar('Mars days', rv ? `${f1(m.solsLeft)} of ${m.missionSols} left` : `${m.missionSols} to use`, (m.solsLeft / m.missionSols) * 100, m.timeUp ? 'bad' : m.solsLeft <= 2 ? 'warn' : 'good'),
   ].join('')
 
   const rows: string[] = []
   // the deployment gate: what the station's power allows
-  rows.push(why(p.life >= NEED.life ? 'good' : 'bad', 'Power Grid', `Life support ${p.life}`, p.life >= NEED.life ? 'Enough to send the rover out.' : `Below ${NEED.life}: deployments are blocked.`))
-  rows.push(why(p.comms < NEED.comms ? 'bad' : fastRelay(p) ? 'good' : 'info', 'Power Grid', `Communications ${p.comms}`,
-    p.comms < NEED.comms ? `Below ${NEED.comms}: commands cannot reach Mars.` : fastRelay(p) ? `Direct link: no relay hand-off, so the signal delay is ${fmt(m.signalMin)} min.` : `Enough to send the rover out. The relay adds ${ship.handoffMin} min to the signal delay; one more unit would skip it.`))
+  rows.push(why(p.life >= need.life ? 'good' : 'bad', 'Power Grid', `Life support ${p.life}`, p.life >= need.life ? 'Enough to send the rover out.' : `Below ${need.life}: deployments are blocked.`))
+  rows.push(why(p.comms < need.comms ? 'bad' : fastRelay(p) ? 'good' : 'info', 'Power Grid', `Communications ${p.comms}`,
+    p.comms < need.comms ? `Below ${need.comms}: commands cannot reach Mars.` : fastRelay(p) ? `Direct link: no relay hand-off, so the signal delay is ${fmt(m.signalMin)} min.` : `Enough to send the rover out. The relay adds ${ship.handoffMin} min to the signal delay; one more unit would skip it.`))
   rows.push(why(researchFilter(p) ? 'good' : 'info', 'Power Grid', `Research ${p.research}`, researchFilter(p) ? 'Rover drilling uses 30 % less battery.' : 'At 3 or more, rover drilling would use 30 % less battery.'))
   if (free > 0) rows.push(why('warn', 'Power Grid', `${free} unit${free === 1 ? '' : 's'} unassigned`, 'Power you have and are not using.'))
   // payload and bench
@@ -109,7 +110,7 @@ function statusTab(body: HTMLElement, ctx: PanelCtx) {
     rows.push(why('info', 'Rover Comms', `${esc(rv.name)}, ${esc(region(m.region!).name)}`, `About ${tens(rangeM(rv))} m on one charge (${f1(driveWhPerM(rv, m.balanced))} Wh for each metre now). A full recharge takes about ${f1(fullRechargeSols(rv))} Mars days.`))
     if (m.charging) rows.push(why('info', 'Rover', 'Recharging', `The battery is at ${pct}% and filling. The rover cannot drive or test until the recharge ends.`))
     else if (m.stranded) rows.push(why('bad', 'Rover', 'Safe mode', 'A drive was longer than the battery allowed. Recharge the rover to carry on.'))
-    if (m.timeUp && !B) rows.push(why('bad', 'Rover', `The ${MISSION_SOLS} Mars days are over`, 'Build on a spot already visited, or stay in orbit.'))
+    if (m.timeUp && !B) rows.push(why('bad', 'Rover', `The ${m.missionSols} Mars days are over`, 'Build on a spot already visited, or stay in orbit.'))
     for (const c of m.causes()) rows.push(why(c.good ? 'good' : 'bad', 'Rover', esc(c.text), ''))
     if (!B && m.spots.length) {
       const best = m.reports().sort((a, b) => b.score - a.score)[0]
@@ -120,7 +121,7 @@ function statusTab(body: HTMLElement, ctx: PanelCtx) {
 
   const head = B
     ? `<div class="feedback ${B.approved ? 'ok' : 'warn'}">${B.approved ? `Base built at ${esc(B.name)}: ${B.score} out of 100.` : 'No base built. The crew remains in orbit.'}</div>`
-    : rv ? `<div class="feedback ok">${esc(rv.name)} is on day ${m.sol} of ${MISSION_SOLS}. These are the numbers it is working with.</div>`
+    : rv ? `<div class="feedback ok">${esc(rv.name)} is on day ${m.sol} of ${m.missionSols}. These are the numbers it is working with.</div>`
       : '<div class="feedback">Choose your rover at Rover Comms to see how your design shapes the expedition.</div>'
   const prov = `<div class="prov">
       <div>${REAL}Signal delay <b>${fmt(m.signalMin)} min</b>: light time ${fmt(d.lightMin)} min · ${esc(lightTimeSource(d))}${fastRelay(p) ? '' : `, plus ${ship.handoffMin} min relay hand-off (our model)`}</div>
@@ -172,7 +173,7 @@ function sourceRows(m: Mission): Row[] {
     { kind: 'model', what: 'Relay hand-off', note: 'Two or three minutes added to the signal delay by the station relay, and skipped by a direct link.', origin: 'Added to JPL Horizons light time' },
     { kind: 'model', what: 'Battery cost of each test', note: 'NASA publishes no per-activity figures, so these are game rules: photograph 80 Wh, weather and radiation 40 Wh, drill 300 or 380 Wh. The photos the rover saves by itself on the way cost nothing.', origin: 'Set against the real battery size' },
     { kind: 'model', what: 'Site score, verdict and stars', note: `Six checks scored 0 to 100 and averaged, a ${MAX_BASE_TILT}° limit for a base, ${GOOD_SCORE} or more for a good place, and +${PHOTO_BONUS_EACH} for each photo spot found.`, origin: 'Built on the real measurements above' },
-    { kind: 'simulated', what: `The ${MISSION_SOLS}-day mission limit`, note: 'A game rule that makes waiting for a recharge cost something. Real rover missions last years.', origin: '' },
+    { kind: 'simulated', what: `The ${m.missionSols}-day mission limit`, note: 'A game rule that makes waiting for a recharge cost something. Real rover missions last years.', origin: '' },
     { kind: 'simulated', what: 'Budgets, costs and masses', note: 'Game rules for each spacecraft, instrument and supply.', origin: '' },
     { kind: 'simulated', what: 'Station power units', note: 'Ten abstract units with fixed thresholds.', origin: '' },
     { kind: 'simulated', what: 'Station orbit', note: 'A 408 km, 92-minute orbit, played back 30 times faster in the windows.', origin: '' },

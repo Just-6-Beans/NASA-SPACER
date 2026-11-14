@@ -4,7 +4,7 @@ import '../station.css'
 import { SUITS, byId } from '../core/data'
 import type { Mission } from '../core/mission'
 import { fastRelay, powerBlock, type Power } from '../core/power'
-import { MISSION_SOLS, spendPct } from '../core/survey'
+import { spendPct } from '../core/survey'
 import { DECK, LINKS, MODULES, SOLIDS, TERMINALS, moduleAt, terminal, type TerminalId } from '../game/deck'
 import type { StationView } from '../game/stationFx'
 import { el } from './dom'
@@ -24,15 +24,15 @@ export function objectiveFor(m: Mission, briefed: boolean): Objective {
   if (!m.payloadActive) return at('payload', m.instrumentDraft ? 'Activate the payload at the Payload terminal in the rover bay (US Lab).' : 'Choose a rover instrument at the Payload terminal in the rover bay (US Lab).')
   if (m.relayFault) return at('comms', 'EMERGENCY: repair the relay at Rover Comms (Comms module, below Node 2).', true)
   if (m.base) return { text: 'Mission decided. Review the report.', target: null, urgent: false }
-  const pb = powerBlock(m.power)
+  const pb = powerBlock(m.power, m.lifeNeed)
   const rv = m.rover
   if (!rv) return pb ? at('power', `Route power at the Power Grid (Node 1): ${pb}`) : at('comms', 'Open Rover Comms (Comms module, below Node 2) and choose your rover.')
   if (pb) return at('power', `Route power at the Power Grid (Node 1): ${pb}`)
   if (m.charging) return at('comms', `${rv.name} is recharging (${spendPct(rv, m.batteryWh)}%). Do station tasks meanwhile, or watch the timer at Rover Comms.`)
-  if (m.timeUp) return at('comms', `The ${MISSION_SOLS} Mars days are over. Choose the base at Rover Comms.`)
+  if (m.timeUp) return at('comms', `The ${m.missionSols} Mars days are over. Choose the base at Rover Comms.`)
   if (m.stranded || !m.canDrive) return at('comms', `${rv.name} is low on battery. Recharge it or choose the base at Rover Comms.`)
   if (!m.calibrated && !m.drives.length) return at('comms', 'Optional: calibrate at the Calibration bench (US Lab). Then drive your rover at Rover Comms.')
-  return at('comms', `Plan ${rv.name}'s drive on the map at Rover Comms (day ${m.sol} of ${MISSION_SOLS}).`)
+  return at('comms', `Plan ${rv.name}'s drive on the map at Rover Comms (day ${m.sol} of ${m.missionSols}).`)
 }
 
 /** Mission state in the shape the live deck layer draws. */
@@ -44,7 +44,7 @@ export function stationView(m: Mission, o: Objective, guide: boolean): StationVi
   return {
     ship: m.ship.id,
     power: { ...m.power },
-    need: NEED,
+    need: { ...NEED, life: m.lifeNeed },
     relayFault: m.relayFault,
     instrument: m.instrument,
     instrumentDraft: m.instrumentDraft,

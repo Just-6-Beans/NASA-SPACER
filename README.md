@@ -220,3 +220,9 @@ If the service is offline, the crew link says so and offers **Retry** or **Fly s
 - `src/ui/`: title (with its WebGL2 backdrop in `titleScene.ts`), fleet, crew, launch, task panels, rover operations (`roverView.ts`, `roverPanels.ts`, `mapView.ts`), and the report.
 - `server/`: the Colyseus `spacer_power` room.
 - `scripts/`: the art generator, the NASA downloads (`fetch-nasa-data.mjs` for the operations dates, `fetch-rover-data.mjs` for the rover expedition) and the operations-date builder (`build-ops-dates.mjs`). `test/` holds the tests.
+
+## Current local review build
+
+The station now has eight connected modules: Cupola, Docking Port, Node 3, Node 1, US Lab, Node 2, Greenhouse and Comms. It keeps the launch field already on main (Space Shuttle, Falcon 9 + Crew Dragon, Atlas V + Starliner), with cargo effects carried into the station and rover. The rover saves nearby photos automatically and recharges on a countdown that continues while the pilot works on the station.
+
+The greenhouse area and its terminals are unfinished placeholders. Its simulation, visual layer and draft tests are preserved for later work; they are not connected to gameplay. At the user's request, `npm test` / `npm run check` validate the active launch, station, co-op, rover, data and ownership suites. `npm run test:greenhouse` runs the unfinished greenhouse suite separately (13 known failures when first checked); `npm run test:all` includes both active and draft suites. No greenhouse implementation was changed during this integration.

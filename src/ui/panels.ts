@@ -1,6 +1,7 @@
 // Terminal task panels. Every panel re-renders from mission state + its saved draft, so closing
 // and reopening keeps work in progress.
-import { INSTRUMENTS, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
+import { INSTRUMENTS, MISSION_BUDGET, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
+import { aboard, cargoKg, designCost } from '../core/loadout'
 import type { Mission } from '../core/mission'
 import { fastRelay, powerBlock, researchFilter, signalLeg, unassigned, type Power } from '../core/power'
 import { spendPct } from '../core/survey'
@@ -111,7 +112,10 @@ function payloadTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
   const sel = m.instrument ?? m.instrumentDraft
   const inst = sel ? byId(INSTRUMENTS, sel) : null
   const mass = inst?.massKg ?? 0
-  body.innerHTML = `<p class="lead">Choose one rover instrument for ${esc(m.ship.name)}. Activating the payload locks the choice and powers up the rover link.</p>
+  const l = m.loadout, c = l ? designCost(m.ship, l) : null
+  const lead = !l ? `Choose one rover instrument for ${esc(m.ship.name)}. Activating the payload locks the choice and powers up the rover link.`
+    : `Choose one rover instrument. It is paid for from what the launch left (${c!.left} cr). Activating the payload locks the choice and powers up the rover link.`
+  body.innerHTML = `<p class="lead">${lead}</p>
     <div class="cards">${INSTRUMENTS.map(i => {
       const block = m.instrumentBlock(i.id)
       return `<button class="card" data-id="${i.id}" aria-pressed="${sel === i.id}" ${block || m.payloadActive ? 'disabled' : ''}>
@@ -119,12 +123,19 @@ function payloadTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
         <div class="stats">Cost ${i.cost} cr · Mass ${i.massKg} kg<br/>Rover drilling uses ${i.id === 'gpr' ? 380 : 300} Wh (game model)</div>
         ${block ? `<div class="why">Blocked: ${esc(block)}</div>` : ''}</button>`
     }).join('')}</div>
-    <div class="ledger">
+    ${l && c ? `<div class="ledger">
+      <span>Mission budget</span><b>${MISSION_BUDGET} cr</b>
+      <span>Launch on the ${esc(m.ship.rocketName)}</span><b>−${c.launch} cr</b>
+      <span>Station cargo</span><b>${c.cargo ? `−${c.cargo} cr · ${cargoKg(l).toLocaleString('en-US')} kg` : 'none'}</b>
+      <span>Rover instrument</span><b>${inst ? `−${inst.cost} cr` : '—'}</b>
+      <span>Remaining</span><b>${m.credits} cr</b>
+      <span>Cargo aboard</span><b>${aboard(l).map(x => esc(x.item.name.toLowerCase())).join(', ') || 'none'}</b>
+    </div>` : `<div class="ledger">
       <span>Supply budget</span><b>${m.ship.budget} cr</b>
       <span>Instrument</span><b>${inst ? `−${inst.cost} cr` : '—'}</b>
       <span>Remaining</span><b>${m.credits} cr</b>
       <span>Payload mass</span><b>${mass} / ${m.ship.payloadKg} kg</b>
-    </div>
+    </div>`}
     ${m.payloadActive ? `<div class="feedback ok">Payload active: ${esc(inst!.name)} locked. Rover Comms is online${m.relayFault ? ' — but the relay just faulted.' : '.'}</div>` : '<div class="feedback">No payload active.</div>'}
     <div class="actions">${m.payloadActive ? '' : `<button class="btn primary" id="act" ${sel ? '' : 'disabled'}>Activate payload</button>`}</div>`
   $$('.card', body).forEach(c => c.addEventListener('click', () => {
@@ -290,7 +301,7 @@ function relayTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
 function roverTab(body: HTMLElement, ctx: PanelCtx) {
   const m = ctx.m
   const block = m.roverAccess()
-  const pb = powerBlock(m.power)
+  const pb = powerBlock(m.power, m.lifeNeed)
   const d = m.ops
   const rv = m.rover
   const status = m.base ? 'Base decided. Open the rover screen for the report.'

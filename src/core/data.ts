@@ -1,46 +1,68 @@
 // Static mission catalogue and game rules.
 // Every number in this file is OUR MODEL for a simulated scenario. The two real inputs to the
 // rover pass, the signal light time and the night temperature, come from NASA data in src/data/.
+import type { RocketId } from '../data/launchVehicles'
 
-export type ShipId = 'odyssey' | 'atlas' | 'vector'
+export type ShipId = 'shuttle' | 'falcon9' | 'atlasv'
 export type InstrumentId = 'ir' | 'gpr'
+export type CargoId = 'water' | 'oxygen' | 'food' | 'parts' | 'shielding' | 'rack'
 export type SuitId = 'ember' | 'aurora' | 'sage' | 'violet'
 export type RouteId = 'ridge' | 'basin'
 export type ScanId = 'quick' | 'deep'
 export type SiteId = 'shelf' | 'hollow' | 'plain'
 
+/** What the whole mission may spend, in credits: the launch, the station cargo, and the rover instrument chosen aboard. */
+export const MISSION_BUDGET = 136
+
+/** A launch system: a real rocket and the real spacecraft it carries to the station. */
 export interface Ship {
   id: ShipId
   name: string
+  /** The rocket and the spacecraft on their own, for short labels. */
+  rocketName: string
+  craft: string
   role: string
+  /** Credits the launch costs: one credit for each $10 million of NASA's cost figure for a flight
+   *  of the real system (`cost` in data/nasa/launch-vehicles.json). The scale is ours. */
+  launchCost: number
+  /** Station cargo in kilograms that a clean ascent carries with propellant to spare (our model).
+   *  More can fly on a thinner margin: the limit comes out of the ascent model in ascent.ts. */
   payloadKg: number
+  /** Credits left for instruments, supplies and the landing once the launch is paid: MISSION_BUDGET - launchCost. */
   budget: number
   battery: number
   /** Minutes the station relay adds to each signal leg, on top of the light time. */
   handoffMin: number
+  /** The real launch system. Its facts are NASA data in src/data/launchVehicles.ts; every other
+   *  number on this line is our model. */
+  rocket: RocketId
   blurb: string
   pros: string[]
   cons: string[]
 }
 
+/** In the order they first flew crews to the station. */
 export const SHIPS: Ship[] = [
   {
-    id: 'odyssey', name: 'Odyssey', role: 'Survey transport', payloadKg: 18, budget: 100, battery: 100, handoffMin: 3,
-    blurb: 'A balanced survey hauler with a full-charge rover cradle.',
-    pros: ['Full rover battery', 'Carries either instrument'],
-    cons: ['Middling supply budget'],
+    id: 'shuttle', name: 'Space Shuttle', rocketName: 'Space Shuttle', craft: 'Orbiter', role: 'Heavy lift',
+    launchCost: 45, payloadKg: 4800, budget: 91, battery: 100, handoffMin: 2, rocket: 'space-shuttle',
+    blurb: 'The orbiter is spacecraft and rocket in one, with a cargo bay nothing else matches.',
+    pros: ['Carries 4,800 kg of cargo with propellant to spare', 'Shortest relay hand-off (2 min)'],
+    cons: ['The most expensive launch', 'Winged stack: breaks up under the least sideways air load'],
   },
   {
-    id: 'atlas', name: 'Atlas', role: 'Heavy logistics', payloadKg: 25, budget: 113, battery: 92, handoffMin: 3,
-    blurb: 'Deep cargo bays and the richest supply line in the fleet.',
-    pros: ['Largest payload', 'Largest supply budget'],
-    cons: ['Rover arrives at 92% charge'],
+    id: 'falcon9', name: 'Falcon 9 + Crew Dragon', rocketName: 'Falcon 9 Block 5', craft: 'Crew Dragon', role: 'Lowest cost',
+    launchCost: 22, payloadKg: 3000, budget: 114, battery: 92, handoffMin: 3, rocket: 'falcon-9-crew-dragon',
+    blurb: 'A booster that lands and flies again, under a capsule that docks itself.',
+    pros: ['The cheapest launch: most left to spend', 'Carries 3,000 kg of cargo with propellant to spare'],
+    cons: ['Lowest thrust for its weight: slowest off the pad', 'The rover starts at 92% charge'],
   },
   {
-    id: 'vector', name: 'Vector', role: 'Fast-response shuttle', payloadKg: 12, budget: 88, battery: 100, handoffMin: 2,
-    blurb: 'A lean shuttle with a high-gain relay and a tight cargo cage.',
-    pros: ['Shortest relay hand-off (2 min)', 'Full rover battery'],
-    cons: ['Too small for Ground Radar', 'Smallest budget'],
+    id: 'atlasv', name: 'Atlas V N22 + Starliner', rocketName: 'Atlas V N22', craft: 'Starliner', role: 'Steady climb',
+    launchCost: 36, payloadKg: 2100, budget: 100, battery: 100, handoffMin: 3, rocket: 'atlas-v-n22-starliner',
+    blurb: 'Built for crew: no nose cone, and a two-engine upper stage that flies a gentler path.',
+    pros: ['Sturdiest stack: takes the roughest steering without breaking up', 'Full rover battery'],
+    cons: ['Carries only 2,100 kg of cargo with propellant to spare', 'Mid-priced launch'],
   },
 ]
 
@@ -70,6 +92,63 @@ export const INSTRUMENTS: Instrument[] = [
 ]
 
 export interface Suit { id: SuitId; name: string; primary: string; shade: string; light: string }
+
+/**
+ * Station cargo that can be loaded on the launch. Each item can go up in one of a few amounts: more
+ * mass costs more credits and more of the rocket's margin, and does more for the station.
+ * OUR MODEL: the masses follow the team's cargo table, the prices and effects are game rules.
+ */
+export interface CargoStep {
+  kg: number
+  cost: number
+  /** Size of the effect at this amount; what it means depends on the item (see `effect`). */
+  value: number
+}
+export interface CargoItem {
+  id: CargoId
+  name: string
+  note: string
+  steps: CargoStep[]
+  /** What the item does aboard, at an effect size. */
+  effect: (value: number) => string
+}
+const s_ = (n: number) => (n === 1 ? '' : 's')
+export const CARGO: CargoItem[] = [
+  {
+    id: 'water', name: 'Water storage tanks', note: 'Full tanks of drinking and wash water for the crew.',
+    steps: [{ kg: 500, cost: 3, value: 2 }, { kg: 1000, cost: 6, value: 4 }, { kg: 1500, cost: 9, value: 6 }, { kg: 2000, cost: 12, value: 8 }],
+    effect: v => `+${v} to the base score: less water the base has to find (adds to the purifier).`,
+  },
+  {
+    id: 'oxygen', name: 'Oxygen storage tanks', note: 'Breathing oxygen in reserve for the station.',
+    steps: [{ kg: 400, cost: 6, value: 1 }, { kg: 800, cost: 12, value: 2 }],
+    effect: v => `Life support needs ${3 - v} power unit${s_(3 - v)} instead of 3, freeing ${v} for comms or research.`,
+  },
+  {
+    id: 'food', name: 'Food supply container', note: 'Packed meals for the crew in orbit.',
+    steps: [{ kg: 300, cost: 4, value: 1 }, { kg: 450, cost: 7, value: 2 }, { kg: 600, cost: 10, value: 3 }],
+    effect: v => `The crew can wait in orbit ${v} more Mars day${s_(v)} before the base must be chosen.`,
+  },
+  {
+    id: 'parts', name: 'Spare parts container', note: 'Replacement electronics, seals and battery modules.',
+    steps: [{ kg: 400, cost: 8, value: 1 }, { kg: 1000, cost: 16, value: 2 }],
+    effect: v => v === 1 ? 'The relay that faults on payload power-up is fixed from spares: no repair needed.'
+      : 'Relay spares, plus a balanced battery pack sent down for the rover: driving draws 30 W less.',
+  },
+  {
+    id: 'shielding', name: 'Radiation shielding panels', note: 'Panels to shield the crew habitat at the base.',
+    steps: [{ kg: 500, cost: 5, value: 10 }, { kg: 1000, cost: 10, value: 20 }, { kg: 1500, cost: 15, value: 30 }],
+    effect: v => `+${v} on the base site's Low radiation score.`,
+  },
+  {
+    id: 'rack', name: 'Scientific experiment rack', note: 'A lab rack for the station that works on the rover\'s samples.',
+    steps: [{ kg: 200, cost: 8, value: 1 }, { kg: 500, cost: 18, value: 2 }],
+    effect: v => v === 1 ? 'Drilling uses 30% less rover battery, whatever the research power.'
+      : 'Drilling uses 30% less battery, and drilled samples are studied even without calibration.',
+  },
+]
+/** The step an item is loaded at, or null when it is not aboard. */
+export const cargoStep = (id: CargoId, kg: number | undefined): CargoStep | null => CARGO.find(c => c.id === id)!.steps.find(st => st.kg === kg) ?? null
 
 export const SUITS: Suit[] = [
   { id: 'ember', name: 'Ember', primary: '#c8582a', shade: '#8a3618', light: '#ec8a55' },
