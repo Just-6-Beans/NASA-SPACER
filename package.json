@@ -14,7 +14,8 @@
     "server": "tsx server/index.ts",
     "test": "tsx --test test/*.test.ts",
     "art": "node scripts/gen-art.mjs",
-    "check": "tsc --noEmit && npm test"
+    "check": "tsc --noEmit && npm test",
+    "data:rovers": "node scripts/fetch-rover-data.mjs"
   },
   "dependencies": {
     "@colyseus/core": "^0.17.56",

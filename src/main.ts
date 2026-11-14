@@ -1,21 +1,22 @@
 import './style.css'
 import './holo.css'
+import './survey.css'
 import { ICONS } from './ui/icons'
 import type Phaser from 'phaser'
 import { SHIPS, SUITS, byId, type ShipId, type SuitId } from './core/data'
 import { Mission, TASK_INFO } from './core/mission'
 import { powerBlock, validPower, type Power } from './core/power'
-import { fmt } from './core/rover'
+import { MISSION_SOLS } from './core/survey'
 import type { TaskId } from './core/tasks'
 import type { CrewMember } from './core/protocol'
 import { sound } from './audio'
 import { Coop, coopUrl } from './coop'
-import { createGame, type MarsScene, type StationScene, type Terminal } from './game/game'
+import { createGame, type StationScene, type Terminal } from './game/game'
 import { bindDpad, clearHeld, input, setBlocked } from './game/input'
 import { $, el, esc, isTouch, toast } from './ui/dom'
 import { crewScreen, fleetScreen, launchScreen, titleScreen, type Draft } from './ui/intro'
 import { closePanel, openPanel, panelOpen, refreshPanel, type PanelCtx } from './ui/panels'
-import { reportScreen, sitesScreen } from './ui/report'
+import { reportScreen } from './ui/report'
 import { roverScreen } from './ui/roverView'
 
 type ScreenName = 'title' | 'fleet' | 'crew' | 'launch' | 'station' | 'rover' | 'report'
@@ -31,7 +32,6 @@ let screen: ScreenName = 'title'
 let screenEl: HTMLElement | null = null
 let hud: HTMLElement | null = null
 let rover: ReturnType<typeof roverScreen> | null = null
-let overlay: HTMLElement | null = null // sites overlay
 let drawerOpen = false
 let debugOn = false
 let prevFault = false
@@ -44,7 +44,6 @@ let powerWanted: Power | null = null
 const gameReady = createGame(gameHost).then(g => { game = g; g.loop.sleep(); return g })
 
 const station = () => game!.scene.getScene('station') as StationScene
-const mars = () => game!.scene.getScene('mars') as MarsScene
 
 function loadDraft(): Draft {
   try {
@@ -60,7 +59,7 @@ function show(name: ScreenName, node: HTMLElement | null) {
   screenEl = node
   screen = name
   if (node) app.append(node)
-  gameHost.style.visibility = name === 'station' || name === 'rover' ? 'visible' : 'hidden'
+  gameHost.style.visibility = name === 'station' ? 'visible' : 'hidden'
   document.title = `SPACER · ${name[0].toUpperCase()}${name.slice(1)}`
 }
 
@@ -88,7 +87,6 @@ function enterStation(fresh = false) {
   const g = game!
   g.loop.wake()
   rover?.stop()
-  overlay?.remove(); overlay = null
   if (g.scene.isActive('mars') || g.scene.isPaused('mars')) g.scene.sleep('mars')
   const st = station()
   if (!g.scene.isActive('station') && !g.scene.isSleeping('station')) {
@@ -174,15 +172,13 @@ function objective(): string {
   const m = mission!
   if (!m.payloadActive) return m.instrumentDraft ? 'Activate the payload at the Payload terminal (center).' : 'Choose a rover instrument at the Payload terminal (center, just ahead).'
   if (m.relayFault) return 'EMERGENCY: repair the relay at Rover Comms (rear right).'
-  if (!m.pass) {
-    const pb = powerBlock(m.power)
-    if (pb) return `Route power at the Power Grid (rear left): ${pb}`
-    if (!m.calibrated) return 'Optional: calibrate at Calibration (rear center). Then plan and transmit at Rover Comms.'
-    return 'Plan the Drive → Scan → Return pass and transmit at Rover Comms.'
-  }
-  if (!m.passDone) return `Rover pass under way (T+${fmt(m.clock)}). Follow telemetry at Rover Comms.`
-  if (!m.landing) return 'Final telemetry received. Choose a landing site at Rover Comms.'
-  return 'Mission decided. Review the report.'
+  const pb = powerBlock(m.power)
+  if (!m.region) return pb ? `Route power at the Power Grid (rear left): ${pb}` : 'Open Rover Comms (rear right) and choose your rover.'
+  if (m.base) return 'Base decided. Review the report at Rover Comms.'
+  if (pb) return `Route power at the Power Grid (rear left): ${pb}`
+  if (m.timeUp) return `The ${MISSION_SOLS} Mars days are over. Choose the base at Rover Comms.`
+  if (m.stranded || !m.canDrive) return `${m.rover!.name} is low on battery. Recharge it or choose the base at Rover Comms.`
+  return `Plan ${m.rover!.name}'s drive on the map at Rover Comms (day ${m.sol} of ${MISSION_SOLS}).`
 }
 
 function buildHud(): HTMLElement {
@@ -251,9 +247,9 @@ setInterval(() => {
   const st = game && station()
   const ph = st?.exteriorPhase ?? 0
   const ext = Math.floor(ph * 184)
-  $('#clocks', hud).innerHTML = `Docked <b>${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</b> real · Exterior 30× <b>${Math.floor(ext / 60)}:${String(ext % 60).padStart(2, '0')}</b>/3:04 ${ph < 0.62 ? 'day' : 'night'}<br/>Rover <b>${mission.pass ? `T+${fmt(mission.clock)}` : 'not transmitted'}</b>`
+  $('#clocks', hud).innerHTML = `Docked <b>${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</b> real · Exterior 30× <b>${Math.floor(ext / 60)}:${String(ext % 60).padStart(2, '0')}</b>/3:04 ${ph < 0.62 ? 'day' : 'night'}<br/>Rover <b>${mission.rover ? `${mission.rover.name} · day ${mission.sol}/${MISSION_SOLS} · ${mission.batteryWh} Wh` : 'not chosen yet'}</b>`
   if (debugOn && st) {
-    $('#dstats', hud).innerHTML = `FPS <b>${Math.round(game!.loop.actualFps)}</b> · DPR ${window.devicePixelRatio.toFixed(2)}<br/>Docked clock ${s}s real · Exterior ${(ph * 100).toFixed(0)}% of 30× orbit<br/>Rover clock ${mission.pass ? `T+${fmt(mission.clock)}` : '—'} (simulated)<br/>Player ${Math.round(st.position.x)}, ${Math.round(st.position.y)} · remote crew ${st.remoteCount}<br/>Visual-only sprites <b>${st.loadCount}</b> / 3000`
+    $('#dstats', hud).innerHTML = `FPS <b>${Math.round(game!.loop.actualFps)}</b> · DPR ${window.devicePixelRatio.toFixed(2)}<br/>Docked clock ${s}s real · Exterior ${(ph * 100).toFixed(0)}% of 30× orbit<br/>Rover ${mission.rover ? `${mission.rover.name}, ${mission.batteryWh} Wh` : '—'}<br/>Player ${Math.round(st.position.x)}, ${Math.round(st.position.y)} · remote crew ${st.remoteCount}<br/>Visual-only sprites <b>${st.loadCount}</b> / 3000`
   }
 }, 250)
 
@@ -275,9 +271,10 @@ function renderDrawer() {
     item(m.payloadActive, 'Select & activate payload', 'Payload', m.payloadActive ? `${m.instrumentInfo!.code} active` : m.instrumentDraft ? 'instrument selected' : 'not started'),
     item(!powerBlock(m.power), 'Route transmission power', 'Power Grid', `life ${m.power.life}/3 · comms ${m.power.comms}/4`),
     item(m.completed.has('calibration'), 'Two-point calibration (optional)', 'Calibration', prog('calibration')),
-    item(!!m.pass, 'Transmit rover plan', 'Rover Comms', m.pass ? `sent · T+${fmt(m.clock)}` : 'not sent'),
-    item(!!m.landing, 'Landing decision', 'Rover Comms', m.landing ? m.landing.site : m.passDone ? 'ready' : 'awaiting telemetry'),
-    item(m.completed.has('habitat'), 'Habitat commissioning', 'Mission Report', m.completed.has('habitat') ? 'complete' : m.landing?.approved ? (m.completed.has('medical') ? 'available' : 'needs medical clearance') : 'needs approved landing'),
+    item(!!m.region, 'Choose your rover', 'Rover Comms', m.rover ? `${m.rover.name}, for the whole mission` : 'not chosen'),
+    item(m.spots.some(x => x.tests.includes('photo')), 'Drive the rover and test a spot', 'Rover Comms', m.rover ? `${m.drives.length} deployment${m.drives.length === 1 ? '' : 's'} · ${m.spots.length} spot${m.spots.length === 1 ? '' : 's'}` : 'choose your rover first'),
+    item(!!m.base, 'Build the base', 'Rover Comms', m.base ? (m.base.approved ? m.base.name : 'stayed in orbit') : m.rover ? 'any spot, good or bad' : 'after the drive'),
+    item(m.completed.has('habitat'), 'Habitat commissioning', 'Mission Report', m.completed.has('habitat') ? 'complete' : m.base?.approved ? (m.completed.has('medical') ? 'available' : 'needs medical clearance') : 'needs an approved base'),
   ].join('')
   const emergency = m.payloadActive ? item(m.completed.has('relay'), 'Relay repair', 'Rover Comms', m.relayFault ? 'FAULT ACTIVE' : 'repaired', true) : '<div class="task"><span></span><small>No emergencies.</small></div>'
   const dr = el(`<aside class="drawer" id="drawer" aria-label="Tasks"><div class="row" style="justify-content:space-between"><h2 style="font-size:26px">Tasks</h2><button class="btn small" id="dclose">Close</button></div>
@@ -297,45 +294,26 @@ function goRover() {
   coop.away()
   game!.scene.sleep('station')
   station().clearRemotes()
-  if (game!.scene.isSleeping('mars')) game!.scene.wake('mars')
-  else if (!game!.scene.isActive('mars')) game!.scene.start('mars')
-  rover = roverScreen({
-    m: mission,
-    mars,
-    transmit: doTransmit,
-    back: () => enterStation(),
-    sites: goSites,
-    refresh: () => {},
-  })
+  rover = roverScreen({ m: mission, transmit: doTransmit, back: () => enterStation(), report: goReport, refresh: () => {} })
   show('rover', rover.el)
   setBlocked(true)
-  const init = () => { rover!.layoutMap(); rover!.render() }
-  const ms = mars()
-  if ((ms as unknown as { rover?: unknown }).rover) requestAnimationFrame(init)
-  else ms.events.once('create', () => requestAnimationFrame(init))
+  rover.render()
 }
 
 async function doTransmit(): Promise<string | null> {
   const m = mission!
-  const local = m.transmitBlock()
+  const local = m.deployBlock()
   if (local) return local
   if (coop.connected) {
     const n = await coop.checkTransmit()
     if (!n.ok) return n.text
     toast(n.text, 'ok')
   }
-  return m.transmit()
-}
-
-function goSites() {
-  overlay?.remove()
-  overlay = sitesScreen(mission!, () => { overlay?.remove(); overlay = null }, () => { overlay?.remove(); overlay = null; goReport() })
-  document.body.append(overlay)
+  return m.deploy()
 }
 
 function goReport() {
   rover?.stop()
-  game?.scene.sleep('mars')
   coop.away()
   show('report', reportScreen(mission!, panelCtx(), replay, goTitle))
 }
@@ -348,7 +326,6 @@ function replay() {
 function leaveGameplay() {
   rover?.stop()
   closePanel()
-  overlay?.remove(); overlay = null
   drawerOpen = false
   hud = null
   if (game) {
@@ -410,7 +387,7 @@ function renderCoop() {
   if (!coopPanel) return
   const b = $('#cbody', coopPanel)
   const statusText = { offline: 'Not connected', connecting: 'Connecting…', connected: 'Connected', error: 'Connection failed' }[coopStatus]
-  b.innerHTML = `<p class="lead">Share the station deck and the power grid with a second pilot in another tab or device. Each pilot keeps their own tasks, rover, clock and landing decision.</p>
+  b.innerHTML = `<p class="lead">Share the station deck and the power grid with a second pilot in another tab or device. Each pilot keeps their own tasks, rover and base decision.</p>
     <div class="ledger"><span>Status</span><b style="color:${coop.connected ? '#6ef2c6' : coopStatus === 'error' ? '#ff5a4a' : '#b9ae95'}">${statusText}</b>
     <span>Service</span><b>${esc(coopUrl())}</b><span>Room</span><b>${coop.connected ? `spacer_power · ${esc(coop.roomId)}` : '—'}</b><span>Players</span><b>${coop.connected ? `${coop.players} / 2` : '—'}</b><span>Power revision</span><b>${coop.connected ? coop.revision : '—'}</b></div>
     ${coopStatus === 'error' ? `<div class="feedback bad">${esc(coopError)}<br/>Start the local service in a terminal with <code>npm run server</code>, keep it running, then retry.</div>` : ''}

@@ -1,0 +1,33 @@
+{
+ "rover": "Perseverance",
+ "source": "https://mars.nasa.gov/mmgis-maps/M20/Layers/M20_HiRISE_RGB_CTX_mosaic_25cm_v7_Merge_LERC_clip/{z}/{x}/{y}.png",
+ "layer": "M20_HiRISE_RGB_CTX_mosaic_25cm_v7_Merge_LERC_clip",
+ "provider": "NASA/JPL-Caltech: colour basemap of NASA's Perseverance location map (Mars Reconnaissance Orbiter HiRISE images, University of Arizona)",
+ "credit": "NASA/JPL-Caltech/University of Arizona",
+ "page": "https://science.nasa.gov/mission/mars-2020-perseverance/location-map/",
+ "retrieved": "2026-11-14",
+ "note": "Real pictures of the ground taken from orbit, saved as the unchanged 256-pixel map tiles NASA serves. Tile \"col_row\" counts from the top-left tile of the block. The game square is the part of the block given in \"square\".",
+ "centre": {
+  "lat": 18.43559434,
+  "lon": 77.23322287,
+  "sol": 2022
+ },
+ "sizeM": 3000,
+ "zoom": 16,
+ "tilePx": 256,
+ "cols": 10,
+ "rows": 11,
+ "firstTile": {
+  "x": 46823,
+  "y": 36188
+ },
+ "files": "nasa/map/perseverance/{col}_{row}.png",
+ "missing": [],
+ "square": {
+  "left": 5.92,
+  "top": 151.25,
+  "width": 2486.28,
+  "height": 2486.28
+ },
+ "metresPerPixel": 1.21
+}

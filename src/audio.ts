@@ -1,5 +1,5 @@
 // Web Audio synthesis for every cue. Unlocks on the first user gesture.
-type Cue = 'ui' | 'step' | 'launch' | 'success' | 'fail' | 'relay' | 'telemetry' | 'alert' | 'dock'
+type Cue = 'ui' | 'step' | 'launch' | 'success' | 'fail' | 'relay' | 'telemetry' | 'alert' | 'dock' | 'drive' | 'shutter' | 'drill' | 'charge' | 'heat'
 
 class Sound {
   private ctx: AudioContext | null = null
@@ -78,6 +78,11 @@ class Sound {
       case 'fail': this.tone(180, t, 0.18, 'sawtooth', 0.1, 120); this.tone(150, t + 0.16, 0.22, 'sawtooth', 0.1, 90); break
       case 'relay': for (let i = 0; i < 3; i++) { this.tone(740, t + i * 0.36, 0.16, 'square', 0.08); this.tone(520, t + i * 0.36 + 0.17, 0.16, 'square', 0.08) } break
       case 'alert': this.tone(660, t, 0.12, 'square', 0.07); this.tone(660, t + 0.18, 0.12, 'square', 0.07); break
+      case 'drive': this.noise(t, 1.4, 0.18, 140, 1.2); this.tone(90, t, 1.4, 'sawtooth', 0.04, 120); break
+      case 'shutter': this.noise(t, 0.04, 0.3, 2400, 3); this.noise(t + 0.09, 0.04, 0.25, 1800, 3); break
+      case 'drill': for (let i = 0; i < 10; i++) this.noise(t + i * 0.09, 0.06, 0.2, 900 + (i % 2) * 400, 4); break
+      case 'charge': this.tone(330, t, 0.6, 'sine', 0.08, 660); this.tone(495, t + 0.1, 0.6, 'sine', 0.05, 990); break
+      case 'heat': this.tone(196, t, 0.8, 'triangle', 0.07, 220); break
       case 'telemetry': this.tone(1200, t, 0.05, 'sine', 0.1); this.tone(1600, t + 0.07, 0.05, 'sine', 0.1); this.tone(2000, t + 0.14, 0.12, 'sine', 0.1, 1400); break
     }
   }

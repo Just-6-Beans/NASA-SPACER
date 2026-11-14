@@ -1,0 +1,128 @@
+{
+ "note": "Hand-checked references used by the base-site bars. Each entry names its source.",
+ "retrieved": "2026-11-14",
+ "radiation": {
+  "label": "Curiosity RAD, Gale Crater, 2024-05-01 to 2024-06-03",
+  "source": "https://visualization.osdr.nasa.gov/radlab/api/?instrument_id=MSL-RAD-Surface&timestamp>=2024-05-01&timestamp<2024-06-04&absorbed_dose_rate&format=json",
+  "info": "https://visualization.osdr.nasa.gov/radlab/gui/data-api/",
+  "provider": "NASA OSDR RadLab, Curiosity Radiation Assessment Detector (instrument MSL-RAD-Surface)",
+  "retrieved": "2026-11-14",
+  "readings": 2842,
+  "meanMicroGyPerHour": 8.084,
+  "mGyPerSol": 0.199,
+  "note": "Mean of 2842 absorbed-dose readings (about one every 17 min) over the last month RadLab holds. Measured at Gale Crater only; used for every site."
+ },
+ "ice": {
+  "label": "NASA SWIM subsurface ice map",
+  "swim": "https://science.nasa.gov/photojournal/swim-map-shows-subsurface-water-ice-on-mars",
+  "note": "The SWIM map covers roughly the equator to 60° N between about 172° E and 299° E, so neither Jezero nor Gale is on it. No ice score is given."
+ },
+ "videos": [
+  {
+   "rover": "perseverance",
+   "file": "nasa/video/how-perseverance-drives.mp4",
+   "title": "How Perseverance Drives on Mars",
+   "date": "2022-04-11",
+   "credit": "NASA/JPL-Caltech",
+   "page": "https://images.nasa.gov/details/JPL-20220405-M2020f-0001-How%20Perseverance%20Drives%20on%20Mars-1080cc",
+   "source": "http://images-assets.nasa.gov/video/JPL-20220405-M2020f-0001-How%20Perseverance%20Drives%20on%20Mars-1080cc/JPL-20220405-M2020f-0001-How%20Perseverance%20Drives%20on%20Mars-1080cc~mobile.mp4"
+  },
+  {
+   "rover": "curiosity",
+   "file": "nasa/video/curiosity-challenging-climb.mp4",
+   "title": "Curiosity Rover’s Most Challenging Climb Yet (Mars Report - August 2023)",
+   "date": "2023-08-03",
+   "credit": "NASA/JPL-Caltech",
+   "page": "https://images.nasa.gov/details/JPL-20230803-MARSf-0001-Mars%20Report%20Curiosity%20Challenging%20Climb%20August%202023",
+   "source": "http://images-assets.nasa.gov/video/JPL-20230803-MARSf-0001-Mars%20Report%20Curiosity%20Challenging%20Climb%20August%202023/JPL-20230803-MARSf-0001-Mars%20Report%20Curiosity%20Challenging%20Climb%20August%202023~mobile.mp4"
+  }
+ ],
+ "driveFilms": [
+  {
+   "rover": "perseverance",
+   "file": "nasa/video/perseverance-drive.mp4",
+   "kind": "video",
+   "id": "PIA24743",
+   "title": "Perseverance Rover Camera View of Long Autonomous Drive",
+   "date": "2021-07-21",
+   "credit": "NASA/JPL-Caltech",
+   "page": "https://images.nasa.gov/details/PIA24743",
+   "source": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia24/pia24743/PIA24743.mp4",
+   "note": "Filmed by Perseverance's own navigation camera on 1 July 2021 (sol 130), one picture about every 5 m of driving."
+  },
+  {
+   "rover": "curiosity",
+   "file": "nasa/video/curiosity-drive.gif",
+   "kind": "gif",
+   "id": "PIA17938",
+   "title": "Movie of Curiosity View Backwards While Crossing Dune",
+   "date": "2014-02-11",
+   "credit": "NASA/JPL-Caltech",
+   "page": "https://images.nasa.gov/details/PIA17938",
+   "source": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia17/pia17938/PIA17938.gif",
+   "note": "Filmed by Curiosity looking backwards as it drove over the Dingo Gap dune in February 2014."
+  }
+ ],
+ "pictures": [
+  {
+   "rover": "perseverance",
+   "use": "selfie",
+   "kind": "Real photo",
+   "file": "nasa/rovers/perseverance-selfie.jpg",
+   "id": "PIA26344",
+   "title": "Perseverance's Selfie With 'Cheyava Falls'",
+   "date": "2024-07-25",
+   "credit": "NASA/JPL-Caltech/MSSS",
+   "page": "https://images.nasa.gov/details/PIA26344",
+   "source": "http://images-assets.nasa.gov/image/PIA26344/PIA26344~medium.jpg",
+   "width": 1280,
+   "height": 908,
+   "note": "A real selfie: 62 pictures taken by the camera on the end of the arm on 23 July 2024 (sol 1218), joined together. The arm is not in the picture because it is holding the camera."
+  },
+  {
+   "rover": "perseverance",
+   "use": "parts",
+   "kind": "NASA artist's concept",
+   "file": "nasa/rovers/perseverance-parts.jpg",
+   "id": "PIA22105",
+   "title": "NASA's Mars 2020 Rover Artist's Concept #2",
+   "date": "2017-11-17",
+   "credit": "NASA/JPL-Caltech",
+   "page": "https://images.nasa.gov/details/PIA22105",
+   "source": "http://images-assets.nasa.gov/image/PIA22105/PIA22105~large.jpg",
+   "width": 1920,
+   "height": 1080,
+   "note": "A computer picture NASA made before launch, when the rover was still called Mars 2020. It is not a photo, but it shows every part clearly."
+  },
+  {
+   "rover": "curiosity",
+   "use": "selfie",
+   "kind": "Real photo",
+   "file": "nasa/rovers/curiosity-selfie.jpg",
+   "id": "PIA24543",
+   "title": "Curiosity's Selfie at Mont Mercou",
+   "date": "2021-03-30",
+   "credit": "NASA/JPL-Caltech/MSSS",
+   "page": "https://images.nasa.gov/details/PIA24543",
+   "source": "http://images-assets.nasa.gov/image/PIA24543/PIA24543~medium.jpg",
+   "width": 1280,
+   "height": 845,
+   "note": "A real selfie in front of Mont Mercou: 60 pictures taken by the camera on the end of the arm on 26 March 2021 (sol 3070), joined with 11 from the mast camera."
+  },
+  {
+   "rover": "curiosity",
+   "use": "parts",
+   "kind": "NASA artist's concept",
+   "file": "nasa/rovers/curiosity-parts.jpg",
+   "id": "PIA14760",
+   "title": "Curiosity at Work on Mars Artist Concept",
+   "date": "2011-11-15",
+   "credit": "NASA/JPL-Caltech",
+   "page": "https://images.nasa.gov/details/PIA14760",
+   "source": "http://images-assets.nasa.gov/image/PIA14760/PIA14760~orig.jpg",
+   "width": 2127,
+   "height": 1259,
+   "note": "A computer picture NASA made before launch. It is not a photo, but it shows every part clearly. The red line shows where the ChemCam laser is aimed."
+  }
+ ]
+}

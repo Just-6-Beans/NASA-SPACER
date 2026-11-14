@@ -1,0 +1,1505 @@
+{
+ "rover": "Curiosity",
+ "source": [
+  "https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_waypoints.json",
+  "https://mars.nasa.gov/rss/api/?feed=raw_images&category=msl&feedtype=json&ver=1.2"
+ ],
+ "provider": "NASA/JPL-Caltech: Curiosity localized waypoints (MMGIS) and raw images",
+ "location": "Gale Crater, Mars",
+ "retrieved": "2026-11-14",
+ "gallery": "https://mars.nasa.gov/msl/multimedia/raw-images/",
+ "sizeM": 3000,
+ "method": "Every localized rover position inside a 3 km square centred on the newest one. x is metres east and y metres north of the centre. Tilt is the rover attitude NASA recorded there.",
+ "units": {
+  "elevationM": "m relative to the Mars geoid",
+  "tiltDeg": "degrees from level"
+ },
+ "credit": "Raw images: NASA/JPL-Caltech and partners (see each photo for its exact credit line). Raw images are unprocessed and not science-calibrated.",
+ "centre": {
+  "lat": -4.82602331,
+  "lon": 137.388886,
+  "sol": 5073,
+  "elevationM": -3472.1,
+  "tiltDeg": 12.45,
+  "odometerM": 38638
+ },
+ "stops": [
+  {
+   "x": -376.2,
+   "y": 1473.5,
+   "sol": 4573,
+   "tiltDeg": 4.5,
+   "elevationM": -3644.2
+  },
+  {
+   "x": -400,
+   "y": 1429.4,
+   "sol": 4575,
+   "tiltDeg": 4.85,
+   "elevationM": -3644.4
+  },
+  {
+   "x": -424.1,
+   "y": 1428.1,
+   "sol": 4578,
+   "tiltDeg": 5.3,
+   "elevationM": -3645.5
+  },
+  {
+   "x": -450.9,
+   "y": 1404.6,
+   "sol": 4580,
+   "tiltDeg": 3.5,
+   "elevationM": -3643.9
+  },
+  {
+   "x": -450.9,
+   "y": 1403.4,
+   "sol": 4582,
+   "tiltDeg": 3.18,
+   "elevationM": -3643.8
+  },
+  {
+   "x": -462.7,
+   "y": 1390.3,
+   "sol": 4585,
+   "tiltDeg": 4.36,
+   "elevationM": -3644.1
+  },
+  {
+   "x": -478.2,
+   "y": 1380.3,
+   "sol": 4587,
+   "tiltDeg": 7.87,
+   "elevationM": -3643.5
+  },
+  {
+   "x": -489.7,
+   "y": 1398.5,
+   "sol": 4588,
+   "tiltDeg": 6.97,
+   "elevationM": -3645.3
+  },
+  {
+   "x": -498.3,
+   "y": 1393.8,
+   "sol": 4591,
+   "tiltDeg": 13.9,
+   "elevationM": -3644.6
+  },
+  {
+   "x": -499.3,
+   "y": 1366.9,
+   "sol": 4594,
+   "tiltDeg": 6.9,
+   "elevationM": -3642.4
+  },
+  {
+   "x": -520.5,
+   "y": 1328.8,
+   "sol": 4596,
+   "tiltDeg": 6.54,
+   "elevationM": -3640.5
+  },
+  {
+   "x": -539.3,
+   "y": 1304.5,
+   "sol": 4598,
+   "tiltDeg": 9.21,
+   "elevationM": -3635.9
+  },
+  {
+   "x": -543.4,
+   "y": 1294.2,
+   "sol": 4600,
+   "tiltDeg": 16.96,
+   "elevationM": -3632.9
+  },
+  {
+   "x": -547.1,
+   "y": 1283.7,
+   "sol": 4602,
+   "tiltDeg": 6.81,
+   "elevationM": -3630.8
+  },
+  {
+   "x": -551,
+   "y": 1279.7,
+   "sol": 4605,
+   "tiltDeg": 3.96,
+   "elevationM": -3631.5
+  },
+  {
+   "x": -565,
+   "y": 1261.6,
+   "sol": 4609,
+   "tiltDeg": 13.43,
+   "elevationM": -3624.3
+  },
+  {
+   "x": -566.4,
+   "y": 1249.4,
+   "sol": 4612,
+   "tiltDeg": 10.04,
+   "elevationM": -3623.5
+  },
+  {
+   "x": -557.5,
+   "y": 1233.9,
+   "sol": 4614,
+   "tiltDeg": 6.59,
+   "elevationM": -3622.4
+  },
+  {
+   "x": -552.9,
+   "y": 1219.3,
+   "sol": 4616,
+   "tiltDeg": 7.41,
+   "elevationM": -3620.6
+  },
+  {
+   "x": -552.3,
+   "y": 1216.8,
+   "sol": 4618,
+   "tiltDeg": 9.85,
+   "elevationM": -3620.5
+  },
+  {
+   "x": -553.6,
+   "y": 1221.6,
+   "sol": 4621,
+   "tiltDeg": 4.8,
+   "elevationM": -3620.1
+  },
+  {
+   "x": -529.7,
+   "y": 1217.5,
+   "sol": 4623,
+   "tiltDeg": 7.41,
+   "elevationM": -3621.6
+  },
+  {
+   "x": -539.1,
+   "y": 1195.2,
+   "sol": 4625,
+   "tiltDeg": 9.83,
+   "elevationM": -3617.7
+  },
+  {
+   "x": -556.7,
+   "y": 1187.5,
+   "sol": 4628,
+   "tiltDeg": 11.82,
+   "elevationM": -3613.9
+  },
+  {
+   "x": -541.2,
+   "y": 1177,
+   "sol": 4629,
+   "tiltDeg": 12.08,
+   "elevationM": -3614
+  },
+  {
+   "x": -544.1,
+   "y": 1159.7,
+   "sol": 4633,
+   "tiltDeg": 13.64,
+   "elevationM": -3611.2
+  },
+  {
+   "x": -577,
+   "y": 1165.8,
+   "sol": 4634,
+   "tiltDeg": 17.53,
+   "elevationM": -3609.9
+  },
+  {
+   "x": -563.9,
+   "y": 1155,
+   "sol": 4636,
+   "tiltDeg": 13.27,
+   "elevationM": -3607.1
+  },
+  {
+   "x": -565.2,
+   "y": 1154.1,
+   "sol": 4639,
+   "tiltDeg": 15.04,
+   "elevationM": -3606.7
+  },
+  {
+   "x": -563,
+   "y": 1145.9,
+   "sol": 4641,
+   "tiltDeg": 13.3,
+   "elevationM": -3608.1
+  },
+  {
+   "x": -559.6,
+   "y": 1139.7,
+   "sol": 4643,
+   "tiltDeg": 13.24,
+   "elevationM": -3604.7
+  },
+  {
+   "x": -535.9,
+   "y": 1134.1,
+   "sol": 4647,
+   "tiltDeg": 8.33,
+   "elevationM": -3610.5
+  },
+  {
+   "x": -534.2,
+   "y": 1134,
+   "sol": 4650,
+   "tiltDeg": 11.93,
+   "elevationM": -3610.5
+  },
+  {
+   "x": -531,
+   "y": 1122.8,
+   "sol": 4653,
+   "tiltDeg": 10,
+   "elevationM": -3608
+  },
+  {
+   "x": -531,
+   "y": 1117.6,
+   "sol": 4655,
+   "tiltDeg": 4.71,
+   "elevationM": -3607.7
+  },
+  {
+   "x": -521.3,
+   "y": 1100.8,
+   "sol": 4660,
+   "tiltDeg": 8.2,
+   "elevationM": -3605.5
+  },
+  {
+   "x": -513.7,
+   "y": 1090.4,
+   "sol": 4662,
+   "tiltDeg": 8.63,
+   "elevationM": -3606.1
+  },
+  {
+   "x": -510.1,
+   "y": 1072.8,
+   "sol": 4664,
+   "tiltDeg": 5.63,
+   "elevationM": -3605.2
+  },
+  {
+   "x": -494.9,
+   "y": 1066.9,
+   "sol": 4667,
+   "tiltDeg": 8.16,
+   "elevationM": -3604.8
+  },
+  {
+   "x": -472.7,
+   "y": 1065.2,
+   "sol": 4669,
+   "tiltDeg": 7.37,
+   "elevationM": -3606.5
+  },
+  {
+   "x": -449.9,
+   "y": 1052.3,
+   "sol": 4671,
+   "tiltDeg": 8.35,
+   "elevationM": -3608.3
+  },
+  {
+   "x": -432.1,
+   "y": 1025.9,
+   "sol": 4673,
+   "tiltDeg": 8.61,
+   "elevationM": -3606.6
+  },
+  {
+   "x": -425,
+   "y": 1026.1,
+   "sol": 4677,
+   "tiltDeg": 4.39,
+   "elevationM": -3606.6
+  },
+  {
+   "x": -451.2,
+   "y": 1052.2,
+   "sol": 4680,
+   "tiltDeg": 8.87,
+   "elevationM": -3608
+  },
+  {
+   "x": -464.7,
+   "y": 1067.7,
+   "sol": 4684,
+   "tiltDeg": 9.26,
+   "elevationM": -3607.9
+  },
+  {
+   "x": -463.7,
+   "y": 1077.9,
+   "sol": 4687,
+   "tiltDeg": 6.71,
+   "elevationM": -3610.4
+  },
+  {
+   "x": -462.9,
+   "y": 1068.4,
+   "sol": 4709,
+   "tiltDeg": 9.65,
+   "elevationM": -3608.7
+  },
+  {
+   "x": -465.5,
+   "y": 1067.9,
+   "sol": 4711,
+   "tiltDeg": 11,
+   "elevationM": -3607.7
+  },
+  {
+   "x": -465,
+   "y": 1082.4,
+   "sol": 4741,
+   "tiltDeg": 12.23,
+   "elevationM": -3611.5
+  },
+  {
+   "x": -458.7,
+   "y": 1073.8,
+   "sol": 4748,
+   "tiltDeg": 14.12,
+   "elevationM": -3610.3
+  },
+  {
+   "x": -466.2,
+   "y": 1066.4,
+   "sol": 4752,
+   "tiltDeg": 9.53,
+   "elevationM": -3607.6
+  },
+  {
+   "x": -466.2,
+   "y": 1068,
+   "sol": 4789,
+   "tiltDeg": 11.46,
+   "elevationM": -3608
+  },
+  {
+   "x": -441,
+   "y": 1078,
+   "sol": 4805,
+   "tiltDeg": 4.38,
+   "elevationM": -3610.9
+  },
+  {
+   "x": -436,
+   "y": 1095.7,
+   "sol": 4810,
+   "tiltDeg": 7.19,
+   "elevationM": -3613.2
+  },
+  {
+   "x": -426.3,
+   "y": 1106.9,
+   "sol": 4813,
+   "tiltDeg": 11.49,
+   "elevationM": -3615.7
+  },
+  {
+   "x": -410.3,
+   "y": 1096.4,
+   "sol": 4816,
+   "tiltDeg": 6.68,
+   "elevationM": -3615.2
+  },
+  {
+   "x": -373.5,
+   "y": 1074,
+   "sol": 4818,
+   "tiltDeg": 4.85,
+   "elevationM": -3615.8
+  },
+  {
+   "x": -367.1,
+   "y": 1081.1,
+   "sol": 4820,
+   "tiltDeg": 3.69,
+   "elevationM": -3617
+  },
+  {
+   "x": -369.6,
+   "y": 1075.3,
+   "sol": 4823,
+   "tiltDeg": 7.62,
+   "elevationM": -3616.3
+  },
+  {
+   "x": -356.3,
+   "y": 1060.4,
+   "sol": 4827,
+   "tiltDeg": 9.14,
+   "elevationM": -3615.5
+  },
+  {
+   "x": -368.2,
+   "y": 1019.6,
+   "sol": 4830,
+   "tiltDeg": 9.99,
+   "elevationM": -3609.2
+  },
+  {
+   "x": -365.5,
+   "y": 976.9,
+   "sol": 4834,
+   "tiltDeg": 9.17,
+   "elevationM": -3604.7
+  },
+  {
+   "x": -385.5,
+   "y": 966.6,
+   "sol": 4837,
+   "tiltDeg": 6.21,
+   "elevationM": -3603.6
+  },
+  {
+   "x": -414.9,
+   "y": 954.9,
+   "sol": 4839,
+   "tiltDeg": 12.79,
+   "elevationM": -3598.5
+  },
+  {
+   "x": -421.1,
+   "y": 924.8,
+   "sol": 4841,
+   "tiltDeg": 12.89,
+   "elevationM": -3595.8
+  },
+  {
+   "x": -425.8,
+   "y": 918,
+   "sol": 4844,
+   "tiltDeg": 16.57,
+   "elevationM": -3595.5
+  },
+  {
+   "x": -427.7,
+   "y": 914.2,
+   "sol": 4845,
+   "tiltDeg": 5.31,
+   "elevationM": -3593.7
+  },
+  {
+   "x": -417.8,
+   "y": 857.8,
+   "sol": 4848,
+   "tiltDeg": 8.84,
+   "elevationM": -3590.1
+  },
+  {
+   "x": -404.5,
+   "y": 830.3,
+   "sol": 4851,
+   "tiltDeg": 5.35,
+   "elevationM": -3588
+  },
+  {
+   "x": -398,
+   "y": 780.9,
+   "sol": 4855,
+   "tiltDeg": 7.52,
+   "elevationM": -3583.1
+  },
+  {
+   "x": -415.8,
+   "y": 761.9,
+   "sol": 4857,
+   "tiltDeg": 12.05,
+   "elevationM": -3578.4
+  },
+  {
+   "x": -443.9,
+   "y": 758.5,
+   "sol": 4861,
+   "tiltDeg": 5.37,
+   "elevationM": -3579.3
+  },
+  {
+   "x": -465.7,
+   "y": 725.2,
+   "sol": 4865,
+   "tiltDeg": 9.09,
+   "elevationM": -3574.2
+  },
+  {
+   "x": -424.1,
+   "y": 696.8,
+   "sol": 4868,
+   "tiltDeg": 8.49,
+   "elevationM": -3570.4
+  },
+  {
+   "x": -416.6,
+   "y": 686.3,
+   "sol": 4889,
+   "tiltDeg": 11.03,
+   "elevationM": -3568.9
+  },
+  {
+   "x": -430.2,
+   "y": 696.1,
+   "sol": 4891,
+   "tiltDeg": 5.65,
+   "elevationM": -3570.6
+  },
+  {
+   "x": -431.5,
+   "y": 689.1,
+   "sol": 4893,
+   "tiltDeg": 6.71,
+   "elevationM": -3569.6
+  },
+  {
+   "x": -417.3,
+   "y": 661.9,
+   "sol": 4912,
+   "tiltDeg": 9.6,
+   "elevationM": -3566.1
+  },
+  {
+   "x": -397.6,
+   "y": 639.3,
+   "sol": 4914,
+   "tiltDeg": 7.5,
+   "elevationM": -3563.6
+  },
+  {
+   "x": -382.4,
+   "y": 615.9,
+   "sol": 4916,
+   "tiltDeg": 6.99,
+   "elevationM": -3562.2
+  },
+  {
+   "x": -383.9,
+   "y": 587.7,
+   "sol": 4919,
+   "tiltDeg": 6.76,
+   "elevationM": -3558.8
+  },
+  {
+   "x": -373.1,
+   "y": 571.3,
+   "sol": 4921,
+   "tiltDeg": 7.46,
+   "elevationM": -3557.6
+  },
+  {
+   "x": -349.9,
+   "y": 543.3,
+   "sol": 4923,
+   "tiltDeg": 7.04,
+   "elevationM": -3554.1
+  },
+  {
+   "x": -344,
+   "y": 509.5,
+   "sol": 4928,
+   "tiltDeg": 7.89,
+   "elevationM": -3550.7
+  },
+  {
+   "x": -341.8,
+   "y": 480.5,
+   "sol": 4932,
+   "tiltDeg": 10.34,
+   "elevationM": -3546.4
+  },
+  {
+   "x": -352.3,
+   "y": 443,
+   "sol": 4936,
+   "tiltDeg": 10.05,
+   "elevationM": -3543.3
+  },
+  {
+   "x": -336.1,
+   "y": 405.8,
+   "sol": 4939,
+   "tiltDeg": 8.76,
+   "elevationM": -3539
+  },
+  {
+   "x": -336.3,
+   "y": 395.7,
+   "sol": 4942,
+   "tiltDeg": 10.16,
+   "elevationM": -3538
+  },
+  {
+   "x": -331.1,
+   "y": 379.6,
+   "sol": 4946,
+   "tiltDeg": 6.75,
+   "elevationM": -3535.7
+  },
+  {
+   "x": -329.7,
+   "y": 345,
+   "sol": 4948,
+   "tiltDeg": 9.43,
+   "elevationM": -3531.7
+  },
+  {
+   "x": -290.5,
+   "y": 286.8,
+   "sol": 4950,
+   "tiltDeg": 8.98,
+   "elevationM": -3523.9
+  },
+  {
+   "x": -276.6,
+   "y": 267.2,
+   "sol": 4953,
+   "tiltDeg": 6.96,
+   "elevationM": -3521.7
+  },
+  {
+   "x": -250.3,
+   "y": 262.2,
+   "sol": 4955,
+   "tiltDeg": 12.42,
+   "elevationM": -3519.3
+  },
+  {
+   "x": -242.8,
+   "y": 308.9,
+   "sol": 4957,
+   "tiltDeg": 11.09,
+   "elevationM": -3526.3
+  },
+  {
+   "x": -225.2,
+   "y": 362.3,
+   "sol": 4959,
+   "tiltDeg": 4.63,
+   "elevationM": -3531.1
+  },
+  {
+   "x": -205.6,
+   "y": 346.2,
+   "sol": 4963,
+   "tiltDeg": 7.34,
+   "elevationM": -3528.5
+  },
+  {
+   "x": -199.5,
+   "y": 313.6,
+   "sol": 4966,
+   "tiltDeg": 15.32,
+   "elevationM": -3523.4
+  },
+  {
+   "x": -193.9,
+   "y": 299.9,
+   "sol": 4970,
+   "tiltDeg": 24.02,
+   "elevationM": -3520.9
+  },
+  {
+   "x": -188,
+   "y": 284.1,
+   "sol": 4973,
+   "tiltDeg": 11.56,
+   "elevationM": -3516.7
+  },
+  {
+   "x": -181.4,
+   "y": 272.3,
+   "sol": 4977,
+   "tiltDeg": 16.12,
+   "elevationM": -3514.6
+  },
+  {
+   "x": -164.6,
+   "y": 268.3,
+   "sol": 4983,
+   "tiltDeg": 7.68,
+   "elevationM": -3512.6
+  },
+  {
+   "x": -133.9,
+   "y": 234,
+   "sol": 4987,
+   "tiltDeg": 10.72,
+   "elevationM": -3508.3
+  },
+  {
+   "x": -131.2,
+   "y": 209.5,
+   "sol": 4989,
+   "tiltDeg": 8.43,
+   "elevationM": -3505.5
+  },
+  {
+   "x": -127.9,
+   "y": 178.5,
+   "sol": 4994,
+   "tiltDeg": 12.14,
+   "elevationM": -3501.8
+  },
+  {
+   "x": -129.3,
+   "y": 143.8,
+   "sol": 4996,
+   "tiltDeg": 11.18,
+   "elevationM": -3498.7
+  },
+  {
+   "x": -130.6,
+   "y": 139.3,
+   "sol": 4998,
+   "tiltDeg": 12.81,
+   "elevationM": -3498.5
+  },
+  {
+   "x": -133.8,
+   "y": 131,
+   "sol": 5004,
+   "tiltDeg": 7.2,
+   "elevationM": -3496.9
+  },
+  {
+   "x": -104.8,
+   "y": 111.6,
+   "sol": 5008,
+   "tiltDeg": 11.73,
+   "elevationM": -3493.7
+  },
+  {
+   "x": -76.4,
+   "y": 84.2,
+   "sol": 5011,
+   "tiltDeg": 11.65,
+   "elevationM": -3488.9
+  },
+  {
+   "x": -45.2,
+   "y": 82.7,
+   "sol": 5014,
+   "tiltDeg": 14.65,
+   "elevationM": -3486.3
+  },
+  {
+   "x": -24.2,
+   "y": 84.1,
+   "sol": 5016,
+   "tiltDeg": 10.02,
+   "elevationM": -3484.8
+  },
+  {
+   "x": -2.9,
+   "y": 53.2,
+   "sol": 5018,
+   "tiltDeg": 9.83,
+   "elevationM": -3480
+  },
+  {
+   "x": -2.3,
+   "y": 52.4,
+   "sol": 5021,
+   "tiltDeg": 8.18,
+   "elevationM": -3479.9
+  },
+  {
+   "x": -65.4,
+   "y": 85.2,
+   "sol": 5041,
+   "tiltDeg": 10.99,
+   "elevationM": -3488.3
+  },
+  {
+   "x": -75.1,
+   "y": 80.5,
+   "sol": 5045,
+   "tiltDeg": 13.67,
+   "elevationM": -3488
+  },
+  {
+   "x": 2.9,
+   "y": 45.3,
+   "sol": 5069,
+   "tiltDeg": 12.75,
+   "elevationM": -3478.8
+  },
+  {
+   "x": 15.8,
+   "y": 20.5,
+   "sol": 5070,
+   "tiltDeg": 14.68,
+   "elevationM": -3473.7
+  },
+  {
+   "x": 0,
+   "y": 0,
+   "sol": 5073,
+   "tiltDeg": 12.45,
+   "elevationM": -3472.1
+  }
+ ],
+ "photos": [
+  {
+   "x": 0,
+   "y": 0,
+   "sol": 5073,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-11-13T16:01:24.64222",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_847853302EDR_F1252490NCAM00354M_",
+   "file": "nasa/curiosity/NLB_847853302EDR_F1252490NCAM00354M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/05073/opgs/edr/ncam/NLB_847853302EDR_F1252490NCAM00354M_-br.jpg"
+  },
+  {
+   "x": 0,
+   "y": 0,
+   "sol": 5073,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-11-13T15:38:30.97273",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_847851928EDR_F1252490FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_847851928EDR_F1252490FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/05073/opgs/edr/fcam/FLB_847851928EDR_F1252490FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -376.2,
+   "y": 1473.5,
+   "sol": 4573,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2025-06-17T23:54:27.36434",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_803472508EDR_F1162562NCAM00354M_",
+   "file": "nasa/curiosity/NLB_803472508EDR_F1162562NCAM00354M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04573/opgs/edr/ncam/NLB_803472508EDR_F1162562NCAM00354M_-br.jpg"
+  },
+  {
+   "x": -376.2,
+   "y": 1473.5,
+   "sol": 4573,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2025-06-17T23:25:54.27852",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_803470795EDR_F1162562FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_803470795EDR_F1162562FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04573/opgs/edr/fcam/FLB_803470795EDR_F1162562FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -416.6,
+   "y": 686.3,
+   "sol": 4889,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-05-08T11:44:14.30484",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_831508427EDR_F1220138NCAM00354M_",
+   "file": "nasa/curiosity/NLB_831508427EDR_F1220138NCAM00354M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04889/opgs/edr/ncam/NLB_831508427EDR_F1220138NCAM00354M_-br.jpg"
+  },
+  {
+   "x": -416.6,
+   "y": 686.3,
+   "sol": 4889,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-05-08T11:27:08.90351",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_831507402EDR_F1220138FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_831507402EDR_F1220138FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04889/opgs/edr/fcam/FLB_831507402EDR_F1220138FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -290.5,
+   "y": 286.8,
+   "sol": 4950,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-07-10T08:25:14.75709",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_836939636EDR_F1231116NCAM00354M_",
+   "file": "nasa/curiosity/NLB_836939636EDR_F1231116NCAM00354M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04950/opgs/edr/ncam/NLB_836939636EDR_F1231116NCAM00354M_-br.jpg"
+  },
+  {
+   "x": -290.5,
+   "y": 286.8,
+   "sol": 4950,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-07-10T07:57:27.54054",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_836937969EDR_F1231116FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_836937969EDR_F1231116FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04950/opgs/edr/fcam/FLB_836937969EDR_F1231116FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -513.7,
+   "y": 1090.4,
+   "sol": 4662,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2025-09-17T05:47:50.07449",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_811356035EDR_F1182832NCAM00354M_",
+   "file": "nasa/curiosity/NLB_811356035EDR_F1182832NCAM00354M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04662/opgs/edr/ncam/NLB_811356035EDR_F1182832NCAM00354M_-br.jpg"
+  },
+  {
+   "x": -513.7,
+   "y": 1090.4,
+   "sol": 4662,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2025-09-17T05:21:47.93331",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_811354473EDR_F1182832FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_811354473EDR_F1182832FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04662/opgs/edr/fcam/FLB_811354473EDR_F1182832FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -539.3,
+   "y": 1304.5,
+   "sol": 4598,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2025-07-13T15:27:17.30815",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_805688456EDR_F1172166CCAM05597M_",
+   "file": "nasa/curiosity/NLB_805688456EDR_F1172166CCAM05597M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04598/opgs/edr/ncam/NLB_805688456EDR_F1172166CCAM05597M_-br.jpg"
+  },
+  {
+   "x": -539.3,
+   "y": 1304.5,
+   "sol": 4598,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2025-07-13T14:56:24.22562",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_805686603EDR_F1172166FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_805686603EDR_F1172166FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04598/opgs/edr/fcam/FLB_805686603EDR_F1172166FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -341.8,
+   "y": 480.5,
+   "sol": 4932,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-06-21T18:48:34.80935",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_835335451EDR_F1222352CCAM05930M_",
+   "file": "nasa/curiosity/NLB_835335451EDR_F1222352CCAM05930M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04932/opgs/edr/ncam/NLB_835335451EDR_F1222352CCAM05930M_-br.jpg"
+  },
+  {
+   "x": -341.8,
+   "y": 480.5,
+   "sol": 4932,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-06-21T18:07:34.5504",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_835332991EDR_F1222352FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_835332991EDR_F1222352FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04932/opgs/edr/fcam/FLB_835332991EDR_F1222352FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -427.7,
+   "y": 914.2,
+   "sol": 4845,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-03-24T09:40:16.60723",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_827613027EDR_F1210990NCAM00353M_",
+   "file": "nasa/curiosity/NLB_827613027EDR_F1210990NCAM00353M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04845/opgs/edr/ncam/NLB_827613027EDR_F1210990NCAM00353M_-br.jpg"
+  },
+  {
+   "x": -427.7,
+   "y": 914.2,
+   "sol": 4845,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-03-24T08:29:39.06378",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_827608789EDR_F1210990FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_827608789EDR_F1210990FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04845/opgs/edr/fcam/FLB_827608789EDR_F1210990FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -127.9,
+   "y": 178.5,
+   "sol": 4994,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-08-24T11:20:06.60136",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_840838091EDR_F1241482NCAM00354M_",
+   "file": "nasa/curiosity/NLB_840838091EDR_F1241482NCAM00354M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04994/opgs/edr/ncam/NLB_840838091EDR_F1241482NCAM00354M_-br.jpg"
+  },
+  {
+   "x": -127.9,
+   "y": 178.5,
+   "sol": 4994,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-08-24T10:54:25.36654",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_840836550EDR_F1241482FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_840836550EDR_F1241482FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04994/opgs/edr/fcam/FLB_840836550EDR_F1241482FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -356.3,
+   "y": 1060.4,
+   "sol": 4827,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-03-05T21:04:54.38429",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_826012520EDR_F1202366CCAM08825M_",
+   "file": "nasa/curiosity/NLB_826012520EDR_F1202366CCAM08825M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04827/opgs/edr/ncam/NLB_826012520EDR_F1202366CCAM08825M_-br.jpg"
+  },
+  {
+   "x": -356.3,
+   "y": 1060.4,
+   "sol": 4827,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-03-05T20:08:32.22936",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_826009138EDR_F1202366FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_826009138EDR_F1202366FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04827/opgs/edr/fcam/FLB_826009138EDR_F1202366FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -462.7,
+   "y": 1390.3,
+   "sol": 4585,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2025-06-30T08:22:18.0761",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_804539768EDR_F1170702NCAM00353M_",
+   "file": "nasa/curiosity/NLB_804539768EDR_F1170702NCAM00353M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04585/opgs/edr/ncam/NLB_804539768EDR_F1170702NCAM00353M_-br.jpg"
+  },
+  {
+   "x": -462.7,
+   "y": 1390.3,
+   "sol": 4585,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2025-06-30T06:29:40.26615",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_804533010EDR_F1170702FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_804533010EDR_F1170702FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04585/opgs/edr/fcam/FLB_804533010EDR_F1170702FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -75.1,
+   "y": 80.5,
+   "sol": 5045,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-10-15T21:19:42.28676",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_845366823EDR_F1251326CCAM09043M_",
+   "file": "nasa/curiosity/NLB_845366823EDR_F1251326CCAM09043M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/05045/opgs/edr/ncam/NLB_845366823EDR_F1251326CCAM09043M_-br.jpg"
+  },
+  {
+   "x": -75.1,
+   "y": 80.5,
+   "sol": 5045,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-10-15T20:41:22.48084",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_845364523EDR_F1251326FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_845364523EDR_F1251326FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/05045/opgs/edr/fcam/FLB_845364523EDR_F1251326FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -181.4,
+   "y": 272.3,
+   "sol": 4977,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-08-07T00:55:10.61501",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_839331809EDR_F1240480CCAM07975M_",
+   "file": "nasa/curiosity/NLB_839331809EDR_F1240480CCAM07975M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04977/opgs/edr/ncam/NLB_839331809EDR_F1240480CCAM07975M_-br.jpg"
+  },
+  {
+   "x": -181.4,
+   "y": 272.3,
+   "sol": 4977,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-08-07T00:13:20.37888",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_839329299EDR_F1240480FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_839329299EDR_F1240480FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04977/opgs/edr/fcam/FLB_839329299EDR_F1240480FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -539.1,
+   "y": 1195.2,
+   "sol": 4625,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2025-08-10T09:13:51.81618",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_808085228EDR_F1180762CCAM04624M_",
+   "file": "nasa/curiosity/NLB_808085228EDR_F1180762CCAM04624M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04625/opgs/edr/ncam/NLB_808085228EDR_F1180762CCAM04624M_-br.jpg"
+  },
+  {
+   "x": -539.1,
+   "y": 1195.2,
+   "sol": 4625,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2025-08-10T08:44:53.01226",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_808083489EDR_F1180762FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_808083489EDR_F1180762FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04625/opgs/edr/fcam/FLB_808083489EDR_F1180762FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -383.9,
+   "y": 587.7,
+   "sol": 4919,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-06-08T09:39:27.39189",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_834179315EDR_F1221512NCAM00354M_",
+   "file": "nasa/curiosity/NLB_834179315EDR_F1221512NCAM00354M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04919/opgs/edr/ncam/NLB_834179315EDR_F1221512NCAM00354M_-br.jpg"
+  },
+  {
+   "x": -383.9,
+   "y": 587.7,
+   "sol": 4919,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-06-08T09:12:54.28007",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_834177722EDR_F1221512FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_834177722EDR_F1221512FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04919/opgs/edr/fcam/FLB_834177722EDR_F1221512FHAZ00302M_-br.jpg"
+  },
+  {
+   "x": -331.1,
+   "y": 379.6,
+   "sol": 4946,
+   "camera": "NAV_LEFT_B",
+   "cameraName": "Navcam (left)",
+   "part": "navcam",
+   "takenUtc": "2026-07-06T07:44:06.10062",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "NLB_836591571EDR_F1230246NCAM00565M_",
+   "file": "nasa/curiosity/NLB_836591571EDR_F1230246NCAM00565M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04946/opgs/edr/ncam/NLB_836591571EDR_F1230246NCAM00565M_-br.jpg"
+  },
+  {
+   "x": -331.1,
+   "y": 379.6,
+   "sol": 4946,
+   "camera": "FHAZ_LEFT_B",
+   "cameraName": "Front Hazcam (left)",
+   "part": "hazcam",
+   "takenUtc": "2026-07-06T03:08:18.04374",
+   "credit": "NASA/JPL-Caltech",
+   "imageId": "FLB_836575023EDR_F1230246FHAZ00302M_",
+   "file": "nasa/curiosity/FLB_836575023EDR_F1230246FHAZ00302M_.jpg",
+   "source": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04946/opgs/edr/fcam/FLB_836575023EDR_F1230246FHAZ00302M_-br.jpg"
+  }
+ ],
+ "mola": {
+  "source": "https://pds-geosciences.wustl.edu/mgs/mgs-m-mola-5-megdr-l3-v1/mgsl_300x/meg128/megt00n090hb.img",
+  "provider": "NASA PDS Geosciences Node: Mars Global Surveyor MOLA gridded topography (MEGDR), 128 pixels per degree",
+  "note": "Median height in cells about 463 m across. Between laser tracks the values are interpolated, so this shows the broad shape of the ground, not rocks or small slopes.",
+  "cellM": 463.1,
+  "x": [
+   -2897,
+   -2435,
+   -1974,
+   -1512,
+   -1051,
+   -589,
+   -128,
+   333,
+   795,
+   1256,
+   1718,
+   2179,
+   2641
+  ],
+  "y": [
+   -2672,
+   -2208,
+   -1745,
+   -1282,
+   -819,
+   -356,
+   107,
+   570,
+   1033,
+   1496,
+   1959,
+   2422,
+   2885
+  ],
+  "heights": [
+   [
+    -3398,
+    -3309,
+    -3282,
+    -3300,
+    -3244,
+    -3183,
+    -3125,
+    -3067,
+    -3014,
+    -2949,
+    -2885,
+    -2862,
+    -2845
+   ],
+   [
+    -3511,
+    -3333,
+    -3300,
+    -3284,
+    -3264,
+    -3228,
+    -3191,
+    -3161,
+    -3108,
+    -3019,
+    -2937,
+    -2929,
+    -2904
+   ],
+   [
+    -3511,
+    -3426,
+    -3368,
+    -3342,
+    -3305,
+    -3268,
+    -3233,
+    -3201,
+    -3158,
+    -3100,
+    -3048,
+    -3025,
+    -2956
+   ],
+   [
+    -3529,
+    -3446,
+    -3411,
+    -3380,
+    -3342,
+    -3305,
+    -3265,
+    -3227,
+    -3205,
+    -3176,
+    -3142,
+    -3091,
+    -3013
+   ],
+   [
+    -3611,
+    -3546,
+    -3473,
+    -3410,
+    -3380,
+    -3348,
+    -3308,
+    -3269,
+    -3264,
+    -3259,
+    -3257,
+    -3246,
+    -3120
+   ],
+   [
+    -3684,
+    -3612,
+    -3541,
+    -3481,
+    -3441,
+    -3411,
+    -3380,
+    -3366,
+    -3338,
+    -3327,
+    -3328,
+    -3322,
+    -3193
+   ],
+   [
+    -3746,
+    -3682,
+    -3599,
+    -3528,
+    -3498,
+    -3484,
+    -3469,
+    -3408,
+    -3382,
+    -3366,
+    -3347,
+    -3299,
+    -3221
+   ],
+   [
+    -3808,
+    -3720,
+    -3652,
+    -3585,
+    -3553,
+    -3545,
+    -3530,
+    -3441,
+    -3422,
+    -3409,
+    -3387,
+    -3350,
+    -3277
+   ],
+   [
+    -3871,
+    -3805,
+    -3730,
+    -3662,
+    -3610,
+    -3597,
+    -3577,
+    -3501,
+    -3482,
+    -3463,
+    -3435,
+    -3397,
+    -3344
+   ],
+   [
+    -3896,
+    -3856,
+    -3802,
+    -3748,
+    -3700,
+    -3654,
+    -3614,
+    -3615,
+    -3567,
+    -3528,
+    -3494,
+    -3460,
+    -3424
+   ],
+   [
+    -4001,
+    -3936,
+    -3878,
+    -3828,
+    -3785,
+    -3714,
+    -3657,
+    -3651,
+    -3620,
+    -3584,
+    -3545,
+    -3503,
+    -3457
+   ],
+   [
+    -4038,
+    -3989,
+    -3938,
+    -3887,
+    -3829,
+    -3768,
+    -3717,
+    -3699,
+    -3672,
+    -3638,
+    -3597,
+    -3545,
+    -3475
+   ],
+   [
+    -4073,
+    -4033,
+    -3991,
+    -3950,
+    -3903,
+    -3831,
+    -3802,
+    -3763,
+    -3730,
+    -3698,
+    -3666,
+    -3635,
+    -3611
+   ]
+  ]
+ }
+}
