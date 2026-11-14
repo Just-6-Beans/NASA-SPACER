@@ -1,12 +1,13 @@
 // Mission state and rules. Plain TypeScript: runs in Node tests, the browser, and shares
 // validation with the co-op server.
+import { OPS_DATES, lightTimeSource, opsDate, weatherSource, type OpsDate } from '../data/opsDates'
 import {
-  CARGO_REWARD, DUST_DEADLINE, INSTRUMENTS, KIT_COST, SHIPS, SITES, WATER_COST, WATER_DISCOUNT, byId,
+  CARGO_REWARD, DUST_DEADLINE, INSTRUMENTS, KIT_COST, RESERVE_FLOOR, ROUTES, SCANS, SHIPS, SITES, STRONG_LOW_END, WATER_COST, WATER_DISCOUNT, byId,
   type InstrumentId, type RouteId, type ScanId, type ShipId, type SiteId, type SuitId,
 } from './data'
 import { DEFAULT_POWER, powerBlock, validPower, type Power } from './power'
 import {
-  queueError, simulatePass, timeline, type CommandKind, type PassResult, type PlanSnapshot, type TimelineEvent, fmt,
+  passCauses, simulatePass, timeline, type Cause, type PassResult, type PlanSnapshot, type TimelineEvent, fmt, fmtTemp,
 } from './rover'
 import type { TaskId } from './tasks'
 
@@ -56,9 +57,10 @@ export class Mission {
   completed = new Set<TaskId>()
   relayFault = false
   calibrated = false
+  /** Operations date for the rover pass (YYYY-MM-DD). Null until the player picks one. */
+  opsDate: string | null = null
   route: RouteId = 'ridge'
   scan: ScanId = 'quick'
-  queue: CommandKind[] = []
   plan: PlanSnapshot | null = null
   pass: PassResult | null = null
   events: TimelineEvent[] = []
@@ -148,12 +150,23 @@ export class Mission {
   }
 
   // ---- Rover plan --------------------------------------------------------
+  /** The NASA data for the chosen operations date, or null before the player picks. */
+  get ops(): OpsDate | null { return this.opsDate ? opsDate(this.opsDate) : null }
+  setOpsDate(id: string): string | null {
+    if (this.pass) return 'The plan is already transmitted.'
+    if (!OPS_DATES.some(d => d.id === id)) return 'That operations date is not on offer.'
+    this.opsDate = id
+    return null
+  }
+  /** The plan as it stands. Null until an instrument and an operations date are chosen. */
   snapshot(): PlanSnapshot | null {
-    if (!this.instrument) return null
+    const d = this.ops
+    if (!this.instrument || !d) return null
     return {
-      relayMin: this.ship.relayMin, startBattery: this.ship.battery, power: { ...this.power },
+      date: d.id, lightMin: d.lightMin, nightLowC: d.weather.minAirTemp, handoffMin: this.ship.handoffMin,
+      startBattery: this.ship.battery, power: { ...this.power },
       instrument: this.instrument, calibrated: this.calibrated, route: this.route, scan: this.scan,
-      balanced: this.completed.has('battery'), queue: [...this.queue],
+      balanced: this.completed.has('battery'),
     }
   }
   forecast(): PassResult | null {
@@ -169,19 +182,23 @@ export class Mission {
     if (this.pass) return 'One rover pass per run. Use replay to try another strategy.'
     const access = this.roverAccess()
     if (access) return access
-    return powerBlock(this.power) ?? queueError(this.queue)
+    if (!this.opsDate) return 'Choose an operations date first.'
+    return powerBlock(this.power)
   }
   transmit(): string | null {
     const block = this.transmitBlock()
     if (block) return block
+    const d = this.ops!
     this.plan = this.snapshot()!
     this.pass = simulatePass(this.plan)
     this.events = timeline(this.pass)
     this.clock = 0
     this.processed = 0
-    this.note(`Plan transmitted at T+0: ${this.queue.join(' → ')} via ${this.route === 'ridge' ? 'Ridge bypass' : 'Basin shortcut'}, ${this.scan === 'deep' ? 'deep scan' : 'quick sweep'}, power ${this.power.life}/${this.power.comms}/${this.power.research}. Signal leg ${this.pass.uplink} min.`, 'rover')
+    this.note(`Plan transmitted at T+0 for ${d.label}: Drive → Scan → Return via ${byId(ROUTES, this.route).name}, ${byId(SCANS, this.scan).name.toLowerCase()}, power ${this.power.life}/${this.power.comms}/${this.power.research}. Signal leg ${fmt(this.pass.uplink)} min (light time ${fmt(d.lightMin)} min: ${lightTimeSource(d)}). Night low ${fmtTemp(d.weather.minAirTemp)} (${weatherSource(d)}): heaters used ${this.pass.heaterDraw} pts.`, 'rover')
     return null
   }
+  /** Which choices caused the rover outcome, with their numbers. Empty before transmission. */
+  get causes(): Cause[] { return this.plan && this.pass ? passCauses(this.plan, this.pass) : [] }
 
   get finalTelemetryAt() { return this.pass?.finalTelemetryAt ?? Infinity }
   get passDone() { return !!this.pass && this.clock >= this.pass.finalTelemetryAt }
@@ -223,10 +240,11 @@ export class Mission {
       return { site, status: 'needs-package', canLand: can, cost, reason: `Stable terrain but no local water. Needs imported water (${this.waterCost} cr${this.completed.has('water') ? ', purifier discount applied' : ''}) and a dust-rated power kit (${KIT_COST} cr) = ${cost} cr. ${can ? `Affordable with ${funds} cr.` : `Only ${funds} cr available.`}`, action: `Land with package · ${cost} cr` }
     }
     if (this.clock >= DUST_DEADLINE) return { site, status: 'closed', canLand: false, cost: 0, reason: `The dust front closed the solar landing window at T+${DUST_DEADLINE}. Final telemetry arrived at T+${fmt(this.finalTelemetryAt)}. Good evidence or imported water cannot reopen it.`, action: 'Window closed' }
-    if (reading?.strong) return { site, status: 'clear', canLand: true, cost: 0, reason: `Received ice ${reading.estimate}% ±${reading.uncertainty}: low end ${reading.low}% meets the 22% threshold. Level bedrock, open solar window until T+${DUST_DEADLINE}.`, action: 'Land at Ares Shelf' }
+    if (this.pass && !this.pass.returned) return { site, status: 'held', canLand: false, cost: 0, reason: `The rover stopped in safe mode at the ${RESERVE_FLOOR}% reserve and never got back to the relay base, so it cannot mark the landing zone. A landing at Ares Shelf is held.`, action: 'Held: rover in safe mode' }
+    if (reading?.strong) return { site, status: 'clear', canLand: true, cost: 0, reason: `Received ice ${reading.estimate}% ±${reading.uncertainty}: low end ${reading.low}% meets the ${STRONG_LOW_END}% threshold. Rover back at base, level bedrock, open solar window until T+${DUST_DEADLINE}.`, action: 'Land at Ares Shelf' }
     const cost = this.waterCost
     const can = cost <= funds
-    const why = reading ? `Received ice low end ${reading.low}% is below 22%` : 'No ice reading was received'
+    const why = reading ? `Received ice low end ${reading.low}% is below ${STRONG_LOW_END}%` : 'No ice reading was received'
     return { site, status: 'needs-water', canLand: can, cost, reason: `${why}. The shelf can still be cleared by budgeting imported water (${cost} cr). ${can ? `Affordable with ${funds} cr.` : `Only ${funds} cr available.`}`, action: `Land with imported water · ${cost} cr` }
   }
 

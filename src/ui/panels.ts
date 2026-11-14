@@ -1,6 +1,6 @@
 // Terminal task panels. Every panel re-renders from mission state + its saved draft, so closing
 // and reopening keeps work in progress.
-import { INSTRUMENTS, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
+import { FILTER_CUT, INSTRUMENTS, POWER_TOTAL, byId, type InstrumentId } from '../core/data'
 import type { Mission } from '../core/mission'
 import { fastRelay, powerBlock, researchFilter, signalLeg, unassigned, type Power } from '../core/power'
 import * as T from '../core/tasks'
@@ -166,7 +166,8 @@ function powerTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
   const p = m.power
   const free = unassigned(p)
   const rows: [keyof Power, string, number][] = [['life', 'Life support', 3], ['comms', 'Communications', 4], ['research', 'Research', 3]]
-  const leg = signalLeg(m.ship.relayMin, p)
+  const d = m.ops
+  const hand = m.ship.handoffMin
   const block = powerBlock(p)
   body.innerHTML = `<p class="lead">Route ${POWER_TOTAL} units. Faster transmission (communications) competes with cleaner evidence (research). ${ctx.coopOn() ? `<b style="color:#5fd8f0">Shared with your crewmate · revision ${ctx.powerRevision()}</b>` : ''}</p>
     <div class="power-rows">${rows.map(([k, label, need]) => `<div class="prow">
@@ -178,8 +179,8 @@ function powerTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
     <div class="effects">
       <div class="${p.life >= 3 ? 'on' : 'bad'}">${p.life >= 3 ? '✓' : '✗'} Life support ≥ 3 (required to transmit)</div>
       <div class="${p.comms >= 4 ? 'on' : 'bad'}">${p.comms >= 4 ? '✓' : '✗'} Communications ≥ 4 (required to transmit)</div>
-      <div class="${fastRelay(p) ? 'on' : 'off'}">${fastRelay(p) ? '✓' : '○'} Communications ≥ 5: each signal leg −2 min → <b>${leg} min</b> one-way (baseline ${m.ship.relayMin})</div>
-      <div class="${researchFilter(p) ? 'on' : 'off'}">${researchFilter(p) ? '✓' : '○'} Research ≥ 3: scan uncertainty −4 points</div>
+      <div class="${fastRelay(p) ? 'on' : 'off'}">${fastRelay(p) ? '✓' : '○'} Communications ≥ 5: direct link, skips the ${hand} min relay hand-off on each signal leg${d ? ` → <b>${signalLeg(d.lightMin, hand, p)} min</b> one-way on ${d.label}` : ''}. The light time itself cannot be shortened.</div>
+      <div class="${researchFilter(p) ? 'on' : 'off'}">${researchFilter(p) ? '✓' : '○'} Research ≥ 3: scan uncertainty −${FILTER_CUT} points</div>
     </div>
     <div class="feedback ${block ? 'warn' : 'ok'}">${block ? esc(block) : 'Power ready for transmission.'}</div>`
   $$('button[data-k]', body).forEach(b => b.addEventListener('click', () => {
@@ -287,9 +288,10 @@ function roverTab(body: HTMLElement, ctx: PanelCtx) {
   const m = ctx.m
   const block = m.roverAccess()
   const pb = powerBlock(m.power)
-  body.innerHTML = `<p class="lead">Plan a Drive → Scan → Return pass on the simulated Mars survey sector. Commands travel at light speed through the relay, so every order and every reading is delayed.</p>
+  const d = m.ops
+  body.innerHTML = `<p class="lead">Plan one Drive → Scan → Return pass in three steps: pick an operations date, a route and a scan. Commands travel at light speed, so every order and every reading is delayed by the real Earth to Mars light time for that date.</p>
     <div class="ledger"><span>Instrument</span><b>${m.instrumentInfo ? esc(m.instrumentInfo.code) : '—'}</b><span>Calibration</span><b>${m.calibrated ? 'Locked (−5)' : 'Uncalibrated (+9)'}</b>
-    <span>Power</span><b>${m.power.life}/${m.power.comms}/${m.power.research}</b><span>Signal leg</span><b>${signalLeg(m.ship.relayMin, m.power)} min one-way</b></div>
+    <span>Power</span><b>${m.power.life}/${m.power.comms}/${m.power.research}</b><span>Signal leg</span><b>${d ? `${signalLeg(d.lightMin, m.ship.handoffMin, m.power)} min one-way` : 'Set by the operations date'}</b></div>
     <div class="feedback ${block ? 'bad' : pb ? 'warn' : 'ok'}">${esc(block ?? (m.pass ? 'Plan transmitted. Follow the pass in the planner.' : pb ? `${pb} You can open the planner, but transmission stays blocked.` : 'Relay nominal. Ready to plan.'))}</div>
     <div class="actions"><button class="btn primary" id="go" ${block ? 'disabled' : ''}>Open rover planner</button></div>`
   $('#go', body).addEventListener('click', () => ctx.openRover())

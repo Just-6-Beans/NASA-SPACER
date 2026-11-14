@@ -22,8 +22,13 @@ export function powerBlock(p: Power): string | null {
   return null
 }
 
+/** A direct link that skips the station relay hand-off. */
 export const fastRelay = (p: Power) => p.comms >= 5
 export const researchFilter = (p: Power) => p.research >= 3
 
-/** One-way signal leg in simulated minutes. */
-export const signalLeg = (relayMin: number, p: Power) => relayMin - (fastRelay(p) ? 2 : 0)
+/**
+ * One-way signal leg in minutes: the real light time for the operations date, plus the relay
+ * hand-off unless a direct link skips it. No amount of power shortens the light time itself.
+ */
+export const signalLeg = (lightMin: number, handoffMin: number, p: Power) =>
+  Math.round((lightMin + (fastRelay(p) ? 0 : handoffMin)) * 10) / 10

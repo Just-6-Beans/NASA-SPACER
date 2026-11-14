@@ -1,8 +1,9 @@
 // Landing site selection and the mission report (built from actual mission events).
 import { INSTRUMENTS, ROUTES, SCANS, SITES, SUITS, byId, type SiteId } from '../core/data'
 import { TASK_INFO, type Mission } from '../core/mission'
-import { fmt } from '../core/rover'
+import { fmt, fmtTemp } from '../core/rover'
 import type { TaskId } from '../core/tasks'
+import { lightTimeSource, opsDate, seasonNote, weatherSource } from '../data/opsDates'
 import { sound } from '../audio'
 import { asset } from '../game/game'
 import { $, $$, el, esc } from './dom'
@@ -58,6 +59,7 @@ export function reportScreen(m: Mission, ctx: PanelCtx, onReplay: () => void, on
     const suit = byId(SUITS, m.profile.suit)
     const inst = m.instrument ? byId(INSTRUMENTS, m.instrument) : null
     const p = m.pass, plan = m.plan
+    const d = plan ? opsDate(plan.date) : null
     const L = m.landing
     const site = L && L.site !== 'defer' ? byId(SITES, L.site) : null
     const good = !!L?.approved
@@ -69,10 +71,13 @@ export function reportScreen(m: Mission, ctx: PanelCtx, onReplay: () => void, on
       <div class="rgrid">
         <div class="rbox"><h3>Crew & spacecraft</h3><div class="kv"><span>Call sign</span><b>${esc(m.profile.callSign)}</b><span>Suit</span><b style="color:${suit.light}">${suit.name}</b><span>Ship</span><b>${ship.name} · ${ship.role}</b><span>Instrument</span><b>${inst ? `${inst.name} (${inst.code})` : 'none'}</b></div></div>
         <div class="rbox"><h3>Preparation</h3><ul>${(['relay', 'calibration', ...routine] as TaskId[]).map(t => `<li>${m.completed.has(t) ? '✓' : '○'} ${TASK_INFO[t].name}${m.completed.has(t) ? ` — <span style="color:#b9ae95">${TASK_INFO[t].reward}</span>` : t === 'calibration' ? ' — skipped (+9 uncertainty)' : ' — not done'}</li>`).join('')}</ul></div>
-        <div class="rbox"><h3>Transmission</h3>${plan && p ? `<div class="kv"><span>Power at send</span><b>${plan.power.life}/${plan.power.comms}/${plan.power.research}</b><span>Route · scan</span><b>${byId(ROUTES, plan.route).name} · ${byId(SCANS, plan.scan).name}</b><span>Signal leg</span><b>${fmt(p.uplink)} min each way</b><span>Drive began</span><b>T+${fmt(p.commands[0].start)}</b><span>Final telemetry</span><b>T+${fmt(p.finalTelemetryAt)}</b></div>` : 'No plan transmitted.'}</div>
+        <div class="rbox"><h3>Transmission</h3>${plan && p && d ? `<div class="kv"><span>Operations date</span><b>${d.label}</b><span>Power at send</span><b>${plan.power.life}/${plan.power.comms}/${plan.power.research}</b><span>Route · scan</span><b>${byId(ROUTES, plan.route).name} · ${byId(SCANS, plan.scan).name}</b><span>Signal leg</span><b>${fmt(p.uplink)} min each way</b><span>Drive began</span><b>T+${fmt(p.commands[0].start)}</b><span>Final telemetry</span><b>T+${fmt(p.finalTelemetryAt)}</b></div>` : 'No plan transmitted.'}</div>
         <div class="rbox"><h3>Evidence & rover</h3>${p ? `<div class="kv"><span>Ice reading</span><b>${p.reading ? `${p.reading.estimate}% ±${p.reading.uncertainty} (low ${p.reading.low}%) · ${p.reading.strong ? 'strong' : 'weak'}` : 'none (scan incomplete)'}</b><span>Received at</span><b>${p.readingAt !== null ? `T+${fmt(p.readingAt)}` : '—'}</b><span>Outcome</span><b>${p.returned ? 'Returned to base' : `Reserve stop · safe mode at T+${fmt(p.safeMode!.at)}`}</b><span>Final battery</span><b>${p.finalBattery}%</b></div>` : '—'}</div>
         <div class="rbox"><h3>Supplies</h3><div class="kv"><span>Budget</span><b>${ship.budget} cr</b><span>Instrument</span><b>${inst ? `−${inst.cost} cr` : '0'}</b><span>Cargo reward</span><b>${m.completed.has('cargo') ? '+5 cr' : '0'}</b><span>Landing spend</span><b>${L ? `−${L.spent} cr` : '0'}</b><span>Remaining</span><b>${m.funds} cr</b></div></div>
         <div class="rbox"><h3>Landing rationale</h3><p style="margin:0">${L ? esc(L.reason) : 'No decision recorded.'}</p></div>
+        ${plan && d ? `<div class="rbox" style="grid-column:1/-1"><h3>What decided the rover pass</h3>
+          <div class="causes">${m.causes.map(c => `<div class="cause ${c.ok ? 'ok' : 'bad'}"><b>${c.ok ? '✓' : '✗'} ${esc(c.headline)}</b><ul>${c.parts.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</div>
+          <p class="dataline" style="margin:10px 0 0"><span class="tag real">NASA data</span>Light time ${fmt(plan.lightMin)} min: ${esc(lightTimeSource(d))}. Night low ${fmtTemp(plan.nightLowC)}: ${esc(weatherSource(d))}. ${esc(seasonNote(d))}<br/><span class="tag model">Our model</span>The relay hand-off, heater draw, drive and scan times, battery points and ice reading.</p></div>` : ''}
         <div class="rbox" style="grid-column:1/-1"><h3>Habitat commissioning</h3><div id="hab"></div></div>
         <div class="rbox" style="grid-column:1/-1"><h3>Mission log</h3><div class="logl">${m.log.map(e => `<div><span style="color:#5fd8f0">${esc(e.at)}</span> ${esc(e.text)}</div>`).join('')}</div></div>
       </div>

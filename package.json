@@ -14,6 +14,8 @@
     "server": "tsx server/index.ts",
     "test": "tsx --test test/*.test.ts",
     "art": "node scripts/gen-art.mjs",
+    "data": "node scripts/fetch-nasa-data.mjs && node scripts/build-ops-dates.mjs",
+    "data:ops": "node scripts/build-ops-dates.mjs",
     "check": "tsc --noEmit && npm test"
   },
   "dependencies": {

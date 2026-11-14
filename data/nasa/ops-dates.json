@@ -1,0 +1,78 @@
+{
+  "about": "Operations dates offered in the rover planner. Built by scripts/build-ops-dates.mjs from the two snapshots in this folder. Do not edit by hand.",
+  "lightTime": {
+    "source": "https://ssd.jpl.nasa.gov/api/horizons.api",
+    "provider": "NASA/JPL Solar System Dynamics, Horizons",
+    "query": "Mars (499) observed from Earth geocentre (500@399), 2026-01-01 to 2030-12-31, 1-day step, quantities 20 and 21",
+    "retrieved": "2026-11-14",
+    "units": {
+      "distanceAu": "astronomical units",
+      "oneWayLightMinutes": "minutes"
+    },
+    "limits": "Geometry only. It does not say whether a launch or a transfer is feasible."
+  },
+  "weather": {
+    "source": "https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json",
+    "provider": "NASA/JPL-Caltech and Centro de Astrobiologia (CSIC-INTA), Curiosity REMS outreach feed",
+    "location": "Gale Crater, Mars (Curiosity rover)",
+    "retrieved": "2026-11-14",
+    "units": {
+      "airTemp": "degC",
+      "ls": "solar longitude, degrees",
+      "sunrise": "local Mars time",
+      "sunset": "local Mars time"
+    },
+    "limits": "An outreach product, not calibrated science data. One place only: Gale Crater.",
+    "seasonMatch": "Each operations date borrows the Curiosity sol that falls a whole number of Mars years (686.973 Earth days each) earlier, or the nearest sol with temperatures within 5 days. This stand-in is the game's model, not a NASA forecast."
+  },
+  "dates": [
+    {
+      "date": "2029-03-30",
+      "note": "Closest approach in the 2026 to 2030 record",
+      "distanceAu": 0.6472509657299,
+      "oneWayLightMinutes": 5.38302214,
+      "weather": {
+        "sol": 4580,
+        "earthDate": "2025-06-25",
+        "marsYearsEarlier": 2,
+        "ls": 101,
+        "minAirTemp": -79,
+        "maxAirTemp": -29,
+        "sunrise": "05:50",
+        "sunset": "17:32"
+      }
+    },
+    {
+      "date": "2029-07-15",
+      "note": "Mars pulling away",
+      "distanceAu": 1.25568465656665,
+      "oneWayLightMinutes": 10.44321084,
+      "weather": {
+        "sol": 4685,
+        "earthDate": "2025-10-10",
+        "marsYearsEarlier": 2,
+        "ls": 152,
+        "minAirTemp": -74,
+        "maxAirTemp": -14,
+        "sunrise": "05:29",
+        "sunset": "17:22"
+      }
+    },
+    {
+      "date": "2029-11-15",
+      "note": "Almost three times farther",
+      "distanceAu": 1.89969017778728,
+      "oneWayLightMinutes": 15.79924144,
+      "weather": {
+        "sol": 4804,
+        "earthDate": "2026-02-10",
+        "marsYearsEarlier": 2,
+        "ls": 222,
+        "minAirTemp": -66,
+        "maxAirTemp": 2,
+        "sunrise": "05:23",
+        "sunset": "17:35"
+      }
+    }
+  ]
+}

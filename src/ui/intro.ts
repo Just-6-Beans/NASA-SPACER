@@ -23,7 +23,7 @@ export function titleScreen(onStart: () => void): HTMLElement {
   return s
 }
 
-const MAX = { payload: 25, budget: 113, battery: 100, relay: 8 }
+const MAX = { payload: 25, budget: 113, battery: 100, handoff: 3 }
 
 export function fleetScreen(draft: Draft, onBack: () => void, onPick: (id: ShipId) => void): HTMLElement {
   const s = el(`<section class="screen earth-bg fleet" aria-label="Choose spacecraft">
@@ -40,7 +40,7 @@ export function fleetScreen(draft: Draft, onBack: () => void, onPick: (id: ShipI
             ${meter('Payload capacity', ship.payloadKg, MAX.payload, 'kg')}
             ${meter('Supply budget', ship.budget, MAX.budget, 'cr')}
             ${meter('Starting rover battery', ship.battery, MAX.battery, '%')}
-            ${meter('Baseline one-way relay', ship.relayMin, MAX.relay, 'min', true)}
+            ${meter('Relay hand-off per signal leg', ship.handoffMin, MAX.handoff, 'min', true)}
           </div>
           <div class="tradeoffs">${ship.pros.map(p => `<span class="pro">${p}</span>`).join('')}${ship.cons.map(c => `<span class="con">${c}</span>`).join('')}</div>
         </div>
@@ -108,7 +108,7 @@ export function crewScreen(draft: Draft, onBack: () => void, onLaunch: (d: Draft
           <div class="suits" role="radiogroup" aria-labelledby="suitlbl">
             ${SUITS.map(x => `<button class="suit-opt" role="radio" data-id="${x.id}" aria-checked="${x.id === draft.suit}"><span class="sw" style="background:${x.primary}"></span>${x.name}</button>`).join('')}
           </div></div>
-        <div class="summary">Spacecraft <b>${ship.name}</b> · ${ship.role}<br/>Payload ${ship.payloadKg} kg · Budget ${ship.budget} cr · Rover ${ship.battery}% · Relay ${ship.relayMin} min</div>
+        <div class="summary">Spacecraft <b>${ship.name}</b> · ${ship.role}<br/>Payload ${ship.payloadKg} kg · Budget ${ship.budget} cr · Rover ${ship.battery}% · Relay hand-off ${ship.handoffMin} min</div>
         <div class="actions"><button class="btn primary" id="go">Launch</button></div>
       </div>
     </div>

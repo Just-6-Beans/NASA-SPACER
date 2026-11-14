@@ -1,16 +1,31 @@
 // One shared calculation for the rover forecast AND the executed pass.
+//
+// Two inputs are real NASA data and arrive through the plan snapshot:
+//   lightMin   one-way Earth to Mars light time on the operations date (JPL Horizons)
+//   nightLowC  night-time low for that Mars season (Curiosity REMS, Gale Crater)
+// Everything this file does with them (the relay hand-off, the heater draw, the durations,
+// the battery points and the ice reading) is our model.
 import {
-  BALANCE_SAVING, ICE_ESTIMATE, RESERVE_FLOOR, ROUTES, SCANS, STRONG_LOW_END, DUST_DEADLINE, byId,
-  type InstrumentId, type RouteId, type ScanId, INSTRUMENTS,
+  BALANCE_SAVING, CALIBRATED_CUT, DUST_DEADLINE, FILTER_CUT, HEATER_FREE_C, ICE_ESTIMATE, INSTRUMENTS, MIN_UNCERTAINTY,
+  RESERVE_FLOOR, ROUTES, SCANS, STRONG_LOW_END, UNCALIBRATED_PENALTY, byId,
+  type InstrumentId, type RouteId, type ScanId,
 } from './data'
-import { powerBlock, researchFilter, signalLeg, type Power } from './power'
+import { fastRelay, powerBlock, researchFilter, signalLeg, type Power } from './power'
 
 export type CommandKind = 'drive' | 'scan' | 'return'
-export const COMMAND_ORDER: CommandKind[] = ['drive', 'scan', 'return']
+/** Every pass is these three commands, in this order. */
+export const SEQUENCE: CommandKind[] = ['drive', 'scan', 'return']
 export const COMMAND_LABEL: Record<CommandKind, string> = { drive: 'Drive', scan: 'Scan', return: 'Return' }
 
 export interface PlanSnapshot {
-  relayMin: number
+  /** Operations date (YYYY-MM-DD), kept for the log and the report. */
+  date: string
+  /** One-way light time on that date, in minutes. Real: JPL Horizons. */
+  lightMin: number
+  /** Night-time low for that Mars season, in degrees C. Real: Curiosity REMS, Gale Crater. */
+  nightLowC: number
+  /** Relay hand-off added to each signal leg, in minutes. A simulated ship property. */
+  handoffMin: number
   startBattery: number
   power: Power
   instrument: InstrumentId
@@ -18,7 +33,6 @@ export interface PlanSnapshot {
   route: RouteId
   scan: ScanId
   balanced: boolean
-  queue: CommandKind[]
 }
 
 export interface CommandResult {
@@ -39,6 +53,10 @@ export interface IceReading { estimate: number; uncertainty: number; low: number
 export interface PassResult {
   uplink: number
   downlink: number
+  /** Battery points the heaters used overnight, before the pass. */
+  heaterDraw: number
+  /** Charge the rover wakes with: cradle charge minus the heater draw. */
+  wakeBattery: number
   commands: CommandResult[]
   reading: IceReading | null
   readingAt: number | null
@@ -48,24 +66,24 @@ export interface PassResult {
   returned: boolean
   legDraw: number
   scanDraw: number
+  /** Battery points the plan needed beyond what was available above the reserve. 0 when the rover gets home. */
+  shortfall: number
 }
 
-export function queueError(queue: CommandKind[]): string | null {
-  if (queue.length === 0) return 'Queue Drive, Scan, then Return.'
-  for (let i = 0; i < queue.length; i++) {
-    if (queue[i] !== COMMAND_ORDER[i]) return `Command ${i + 1} should be ${COMMAND_LABEL[COMMAND_ORDER[i]]}, not ${COMMAND_LABEL[queue[i]]}.`
-  }
-  if (queue.length < 3) return `Queue is incomplete: add ${COMMAND_ORDER.slice(queue.length).map(k => COMMAND_LABEL[k]).join(' → ')}.`
-  if (queue.length > 3) return 'Only one Drive → Scan → Return pass is allowed.'
-  return null
-}
+const round = (n: number) => Math.round(n * 1000) / 1000
+export const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
+/** A temperature with a real minus sign, for example "−79 °C". */
+export const fmtTemp = (c: number) => `${c < 0 ? '−' : ''}${Math.abs(c)} °C`
+
+/** Our model: one battery point for each degree the night low sits below HEATER_FREE_C. */
+export const heaterDraw = (nightLowC: number) => Math.max(0, Math.round(HEATER_FREE_C - nightLowC))
 
 export function uncertaintyFor(instrument: InstrumentId, calibrated: boolean, power: Power, scan: ScanId) {
   let u = byId(INSTRUMENTS, instrument).baseUncertainty
-  u += calibrated ? -5 : 9
-  if (researchFilter(power)) u -= 4
+  u += calibrated ? -CALIBRATED_CUT : UNCALIBRATED_PENALTY
+  if (researchFilter(power)) u -= FILTER_CUT
   u -= byId(SCANS, scan).uncertaintyCut
-  return Math.max(3, u)
+  return Math.max(MIN_UNCERTAINTY, u)
 }
 
 export function reading(uncertainty: number): IceReading {
@@ -73,23 +91,23 @@ export function reading(uncertainty: number): IceReading {
   return { estimate: ICE_ESTIMATE, uncertainty, low, high: ICE_ESTIMATE + uncertainty, strong: low >= STRONG_LOW_END }
 }
 
-const round = (n: number) => Math.round(n * 1000) / 1000
-
 /** Plays the whole pass forward. Uses only the snapshot, so forecast and execution agree. */
 export function simulatePass(s: PlanSnapshot): PassResult {
-  const leg = signalLeg(s.relayMin, s.power)
+  const leg = signalLeg(s.lightMin, s.handoffMin, s.power)
   const route = byId(ROUTES, s.route)
   const scan = byId(SCANS, s.scan)
   const inst = byId(INSTRUMENTS, s.instrument)
   const legDraw = route.legDraw - (s.balanced ? BALANCE_SAVING : 0)
   const scanDraw = inst.quickDraw + scan.extraDraw
+  // Heaters never take the pack below the reserve.
+  const wakeBattery = Math.max(Math.min(RESERVE_FLOOR, s.startBattery), s.startBattery - heaterDraw(s.nightLowC))
   const plan: { kind: CommandKind; minutes: number; draw: number }[] = [
     { kind: 'drive', minutes: route.legMin, draw: legDraw },
     { kind: 'scan', minutes: scan.minutes, draw: scanDraw },
     { kind: 'return', minutes: route.legMin, draw: legDraw },
   ]
   let t = leg // Drive starts after one uplink leg.
-  let battery = s.startBattery
+  let battery = wakeBattery
   let stopped = false
   let safeMode: PassResult['safeMode'] = null
   let readingResult: IceReading | null = null
@@ -102,12 +120,12 @@ export function simulatePass(s: PlanSnapshot): PassResult {
     }
     const affordable = battery - RESERVE_FLOOR
     if (step.draw <= affordable) {
-      const end = t + step.minutes
+      const end = round(t + step.minutes)
       const next = battery - step.draw
-      commands.push({ kind: step.kind, start: t, end, batteryStart: battery, batteryEnd: next, fraction: 1, status: 'complete', telemetryAt: end + leg })
+      commands.push({ kind: step.kind, start: t, end, batteryStart: battery, batteryEnd: next, fraction: 1, status: 'complete', telemetryAt: round(end + leg) })
       if (step.kind === 'scan') {
         readingResult = reading(uncertaintyFor(s.instrument, s.calibrated, s.power, s.scan))
-        readingAt = end + leg
+        readingAt = round(end + leg)
       }
       t = end
       battery = next
@@ -122,9 +140,11 @@ export function simulatePass(s: PlanSnapshot): PassResult {
     }
   }
   const finalTelemetryAt = Math.max(...commands.map(c => c.telemetryAt ?? 0))
+  const shortfall = Math.max(0, legDraw * 2 + scanDraw - (wakeBattery - RESERVE_FLOOR))
   return {
-    uplink: leg, downlink: leg, commands, reading: readingResult, readingAt, safeMode,
-    finalBattery: battery, finalTelemetryAt, returned: !stopped, legDraw, scanDraw,
+    uplink: leg, downlink: leg, heaterDraw: s.startBattery - wakeBattery, wakeBattery,
+    commands, reading: readingResult, readingAt, safeMode,
+    finalBattery: battery, finalTelemetryAt, returned: !stopped, legDraw, scanDraw, shortfall,
   }
 }
 
@@ -134,15 +154,76 @@ export function forecastWarnings(s: PlanSnapshot, r: PassResult): ForecastWarnin
   const w: ForecastWarning[] = []
   const block = powerBlock(s.power)
   if (block) w.push({ level: 'danger', text: block })
-  if (r.safeMode) w.push({ level: 'danger', text: `Reserve risk: the rover hits the ${RESERVE_FLOOR}% floor during ${COMMAND_LABEL[r.commands.find(c => c.status === 'partial')!.kind]} and stops in safe mode.` })
-  else if (r.finalBattery < RESERVE_FLOOR + 10) w.push({ level: 'warn', text: `Thin margin: rover returns with ${r.finalBattery}% (floor ${RESERVE_FLOOR}%).` })
-  if (r.finalTelemetryAt >= DUST_DEADLINE) w.push({ level: 'warn', text: `Dust deadline: final telemetry at T+${fmt(r.finalTelemetryAt)} is after the T+${DUST_DEADLINE} Ares Shelf window.` })
-  if (r.reading && !r.reading.strong) w.push({ level: 'warn', text: `Weak evidence expected: low end ${r.reading.low}% is below ${STRONG_LOW_END}%.` })
-  if (!s.calibrated) w.push({ level: 'warn', text: 'Instrument uncalibrated: +9 points of uncertainty.' })
+  if (r.safeMode) {
+    const kind = r.commands.find(c => c.status === 'partial')!.kind
+    w.push({ level: 'danger', text: `Reserve risk: the rover runs ${r.shortfall} point${r.shortfall === 1 ? '' : 's'} short, hits the ${RESERVE_FLOOR}% floor during ${COMMAND_LABEL[kind]} and stops in safe mode. Ares Shelf needs the rover back at base.` })
+  }
+  if (r.finalTelemetryAt >= DUST_DEADLINE) w.push({ level: 'danger', text: `Dust front: final telemetry at T+${fmt(r.finalTelemetryAt)} is not ahead of the T+${DUST_DEADLINE} Ares Shelf window.` })
+  if (!r.reading) w.push({ level: 'warn', text: 'No ice reading: the scan does not finish.' })
+  else if (!r.reading.strong) w.push({ level: 'warn', text: `Weak evidence expected: low end ${r.reading.low}% is below ${STRONG_LOW_END}%.` })
+  if (!s.calibrated) w.push({ level: 'warn', text: `Instrument uncalibrated: +${UNCALIBRATED_PENALTY} points of uncertainty.` })
   return w
 }
 
-export const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
+// ---- Debrief: which choices caused the outcome ---------------------------
+export interface Cause {
+  topic: 'clock' | 'battery' | 'evidence'
+  /** True when this part of the pass went well enough for an Ares Shelf landing. */
+  ok: boolean
+  headline: string
+  /** The choices and inputs behind the headline, with their numbers. */
+  parts: string[]
+}
+
+export function passCauses(s: PlanSnapshot, r: PassResult): Cause[] {
+  const route = byId(ROUTES, s.route)
+  const scan = byId(SCANS, s.scan)
+  const inst = byId(INSTRUMENTS, s.instrument)
+  const handoff = fastRelay(s.power) ? 0 : s.handoffMin
+  const late = r.finalTelemetryAt >= DUST_DEADLINE
+  const gap = fmt(round(Math.abs(DUST_DEADLINE - r.finalTelemetryAt)))
+  const stoppedAt = r.commands.find(c => c.status === 'partial')
+  const margin = r.finalBattery - RESERVE_FLOOR
+  const rd = r.reading
+  const filter = researchFilter(s.power)
+  const raw = inst.baseUncertainty + (s.calibrated ? -CALIBRATED_CUT : UNCALIBRATED_PENALTY) - (filter ? FILTER_CUT : 0) - scan.uncertaintyCut
+  return [
+    {
+      topic: 'clock', ok: !late,
+      headline: `Final telemetry at T+${fmt(r.finalTelemetryAt)}, ${gap} min ${late ? 'after' : 'ahead of'} the dust front (T+${DUST_DEADLINE}).`,
+      parts: [
+        `Signal: ${fmt(r.uplink)} min each way = light time ${fmt(s.lightMin)} min + ${handoff ? `relay hand-off ${handoff} min` : 'no hand-off (direct link)'}`,
+        `${route.name}: ${route.legMin} min per driving leg`,
+        `${scan.name}: ${scan.minutes} min`,
+      ],
+    },
+    {
+      topic: 'battery', ok: r.returned,
+      headline: stoppedAt
+        ? `Rover stopped at the ${RESERVE_FLOOR}% reserve during ${COMMAND_LABEL[stoppedAt.kind]}: the plan needed ${r.shortfall} more battery point${r.shortfall === 1 ? '' : 's'}.`
+        : `Rover back at base with ${r.finalBattery}%, ${margin} point${margin === 1 ? '' : 's'} above the ${RESERVE_FLOOR}% reserve.`,
+      parts: [
+        `Cradle charge: ${s.startBattery}%`,
+        `Night heaters: ${r.heaterDraw} pts for a ${fmtTemp(s.nightLowC)} night`,
+        `${route.name}: ${r.legDraw} pts per driving leg${s.balanced ? ' (balanced pack)' : ''}`,
+        `${scan.name} with ${inst.code}: ${r.scanDraw} pts`,
+      ],
+    },
+    {
+      topic: 'evidence', ok: !!rd?.strong,
+      headline: rd
+        ? `Ice reading ${rd.estimate}% ±${rd.uncertainty}: low end ${rd.low}% ${rd.strong ? 'meets' : 'is below'} the ${STRONG_LOW_END}% threshold.`
+        : 'No ice reading: the scan did not finish.',
+      parts: [
+        `${inst.code} starts at ±${inst.baseUncertainty}`,
+        s.calibrated ? `Calibration: −${CALIBRATED_CUT}` : `No calibration: +${UNCALIBRATED_PENALTY}`,
+        scan.uncertaintyCut ? `${scan.name}: −${scan.uncertaintyCut}` : `${scan.name}: no cut`,
+        filter ? `Research filter: −${FILTER_CUT}` : 'Research filter: off',
+        ...(raw < MIN_UNCERTAINTY ? [`Never better than ±${MIN_UNCERTAINTY}`] : []),
+      ],
+    },
+  ]
+}
 
 // ---- Clock / event timeline -------------------------------------------
 export type TimelineEvent =
@@ -152,7 +233,7 @@ export type TimelineEvent =
   | { t: number; type: 'safe-mode'; text: string }
 
 export function timeline(r: PassResult): TimelineEvent[] {
-  const ev: TimelineEvent[] = [{ t: r.uplink, type: 'uplink', text: `Command uplink reaches Mars (${fmt(r.uplink)} min one-way).` }]
+  const ev: TimelineEvent[] = [{ t: r.uplink, type: 'uplink', text: `Commands reach Mars after ${fmt(r.uplink)} min. Rover wakes at ${r.wakeBattery}%${r.heaterDraw ? `: night heaters used ${r.heaterDraw} pts` : ''}.` }]
   r.commands.forEach((c, index) => {
     if (c.status === 'cancelled') return
     const name = COMMAND_LABEL[c.kind]
