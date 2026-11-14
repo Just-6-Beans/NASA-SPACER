@@ -1,0 +1,78 @@
+/* Station HUD additions and the Mission Ops panel. Loaded after style.css and holo.css.
+   The three power buses keep one colour everywhere: floor conduits, console pips, HUD meters. */
+:root { --bus-life: #6ef2c6; --bus-comms: #5fd8f0; --bus-research: #c9a2ff; }
+
+/* ---------- HUD meters, coloured by bus ---------- */
+.statbar .sm.bus-life svg { color: var(--bus-life); }
+.statbar .sm.bus-comms svg { color: var(--bus-comms); }
+.statbar .sm.bus-research svg { color: var(--bus-research); }
+.statbar .sm.bus-comms:not(.low) .bar i { background: linear-gradient(90deg, #2aa7e0, #8fe6ff); box-shadow: 0 0 8px rgba(95,216,240,.6); }
+.statbar .sm.bus-research:not(.low) .bar i { background: linear-gradient(90deg, #9a6de0, #d9bfff); box-shadow: 0 0 8px rgba(201,162,255,.6); }
+.statbar .sm.low svg { color: var(--warn); }
+
+/* ---------- Deck map ---------- */
+.deckmap { position: absolute; left: 18px; bottom: 18px; width: 214px; padding: 6px 7px 5px; background: rgba(4,16,30,.84); border: 1px solid rgba(63,208,255,.4); border-radius: 3px; box-shadow: var(--glow); pointer-events: none; }
+/* touch layouts keep the bottom-left corner for the d-pad */
+@media (pointer: coarse) { .deckmap { left: auto; bottom: auto; top: 66px; right: 18px; width: 168px; } }
+.deckmap svg { display: block; width: 100%; height: auto; }
+.deckmap .hull { fill: rgba(8,26,44,.92); stroke: rgba(226,245,255,.45); stroke-width: 4; }
+.deckmap .block { fill: #22364a; }
+.deckmap .station { fill: #35597c; stroke: #9fd8e8; stroke-width: 3; }
+.deckmap text { font-family: var(--display); font-weight: 700; font-size: 64px; opacity: .55; }
+.deckmap .goal { fill: var(--mint); }
+.deckmap .ring { fill: none; stroke: var(--mint); stroke-width: 7; transform-box: fill-box; transform-origin: center; animation: mmring 1.4s ease-out infinite; }
+.deckmap .goal.urgent { fill: var(--danger); }
+.deckmap .ring.urgent { stroke: var(--danger); }
+.deckmap .mate { fill: var(--cyan); stroke: #05121c; stroke-width: 5; }
+@keyframes mmring { from { transform: scale(.6); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
+.deckmap-cap { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--ivory-dim); white-space: nowrap; }
+.deckmap-cap #mm-next { color: var(--mint); overflow: hidden; text-overflow: ellipsis; }
+.deckmap-cap #mm-next.urgent { color: #ff8a7a; }
+
+/* ---------- Mission Ops: brief ---------- */
+.brief-goal { margin: 10px 0 12px; padding: 12px 14px; border-left: 4px solid var(--mint); background: rgba(95,242,197,.07); }
+.brief-goal p, .brief-box p { margin: 6px 0 0; font-size: 14.5px; line-height: 1.5; }
+.brief-goal h3, .brief-box h3, .why-head { font-size: 16px; color: var(--cyan); }
+.brief-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.brief-box { padding: 12px 14px; border: 1px solid rgba(63,208,255,.3); background: rgba(4,18,32,.75); }
+.brief-box ol { margin: 6px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.55; }
+.brief-box .kv { margin-top: 8px; }
+
+/* ---------- Mission Ops: status ---------- */
+.rbars { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 16px; margin-top: 12px; }
+.rbar-top { display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--ivory-dim); }
+.rbar-top b { color: var(--ivory); font-weight: 600; text-align: right; }
+.rbar-track { position: relative; height: 9px; margin-top: 4px; background: #12304a; border-radius: 5px; }
+.rbar-track i { display: block; height: 100%; border-radius: 5px; background: var(--cyan); transition: width .3s; }
+.rbar-track u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--orange-2); }
+.rbar.good .rbar-track i { background: linear-gradient(90deg, #3fd9ac, #7ff8d6); }
+.rbar.warn .rbar-track i { background: linear-gradient(90deg, #e08a2b, #ffb347); }
+.rbar.bad .rbar-track i { background: linear-gradient(90deg, #c03a2a, #ff5a4a); }
+.why-head { margin: 18px 0 8px; }
+.whys { display: grid; gap: 5px; }
+.why { display: grid; grid-template-columns: 132px 1fr; align-items: center; gap: 12px; padding: 7px 10px; background: rgba(4,18,32,.78); border-left: 4px solid var(--line); font-size: 13.5px; }
+.why .where { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ivory-dim); }
+.why b { display: block; font-family: var(--display); font-size: 17px; letter-spacing: .03em; }
+.why div span { color: #c4dcec; }
+.why.good { border-left-color: var(--mint); }
+.why.warn { border-left-color: var(--warn); }
+.why.bad { border-left-color: var(--danger); }
+.why.bad b { color: #ffb4a8; }
+
+/* ---------- Mission Ops: data sources ---------- */
+.srcs { display: grid; gap: 5px; }
+.src { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 14px; padding: 8px 10px; background: rgba(4,18,32,.78); border-left: 4px solid var(--warn); font-size: 13.5px; }
+.src b { display: block; font-family: var(--display); font-size: 17px; letter-spacing: .03em; }
+.src span { color: #c4dcec; }
+.src em { font-family: var(--mono); font-style: normal; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--warn); white-space: nowrap; }
+.src.real { border-left-color: var(--mint); }
+.src.real em { color: var(--mint); white-space: normal; text-align: right; }
+
+@media (max-width: 760px) {
+  .deckmap { left: auto; bottom: auto; top: 148px; right: 8px; width: 128px; padding: 4px; }
+  .deckmap-cap #mm-node { display: none; }
+  .deckmap-cap { font-size: 9px; }
+  .brief-cols { grid-template-columns: 1fr; }
+  .why { grid-template-columns: 1fr; gap: 2px; }
+  .src { grid-template-columns: 1fr; gap: 4px; }
+}

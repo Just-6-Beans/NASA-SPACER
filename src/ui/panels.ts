@@ -7,6 +7,7 @@ import * as T from '../core/tasks'
 import type { TaskId } from '../core/tasks'
 import { sound } from '../audio'
 import { $, $$, el, esc } from './dom'
+import { opsTabs } from './ops'
 
 export interface PanelCtx {
   m: Mission
@@ -19,7 +20,7 @@ export interface PanelCtx {
   close: () => void
 }
 
-type Tab = { id: string; label: string; task?: TaskId; render: (body: HTMLElement, rerender: () => void) => void }
+export type Tab = { id: string; label: string; task?: TaskId; render: (body: HTMLElement, rerender: () => void) => void }
 
 let current: { root: HTMLElement; id: string } | null = null
 export const panelOpen = () => !!current
@@ -49,11 +50,12 @@ export function openPanel(id: string, ctx: PanelCtx, tabId?: string) {
   const m = ctx.m
   const tabs = tabsFor(id, ctx)
   const meta: Record<string, [string, string]> = {
-    power: ['Power Grid', 'Rear left · Station power'],
-    calibration: ['Calibration', 'Rear center · Instrument bench'],
-    comms: ['Rover Comms', 'Rear right · Mars relay'],
-    hab: ['Hab Systems', 'Lower left · Life support & medical'],
-    payload: ['Payload', 'Center · Rover instrument bay'],
+    ops: ['Mission Ops', 'Node B · Under the cupola'],
+    power: ['Power Grid', 'Node A · Rear left · Station power'],
+    calibration: ['Calibration', 'Node C · Front right · Instrument bench'],
+    comms: ['Rover Comms', 'Node C · Rear right · Mars relay'],
+    hab: ['Hab Systems', 'Node A · Front left · Life support & medical'],
+    payload: ['Payload', 'Node B · Rover bay'],
   }
   const [title, loc] = meta[id]
   closePanel()
@@ -85,6 +87,7 @@ export function openPanel(id: string, ctx: PanelCtx, tabId?: string) {
 function tabsFor(id: string, ctx: PanelCtx): Tab[] {
   const m = ctx.m
   switch (id) {
+    case 'ops': return opsTabs(ctx)
     case 'power': return [{ id: 'alloc', label: 'Allocation', render: (b, r) => powerTab(b, r, ctx) }, { id: 'battery', label: 'Battery balancing', task: 'battery', render: (b, r) => batteryTab(b, r, ctx) }]
     case 'calibration': return [{ id: 'cal', label: 'Two-point calibration', task: 'calibration', render: (b, r) => calibrationTab(b, r, ctx) }]
     case 'comms': {

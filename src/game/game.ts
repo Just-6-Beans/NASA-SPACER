@@ -1,8 +1,10 @@
 import Phaser from 'phaser'
 import geo from '../art/geo.json'
-import { SUITS, type SuitId } from '../core/data'
+import { SHIPS, SUITS, type SuitId } from '../core/data'
 import type { CrewMember, Facing, Pose } from '../core/protocol'
+import { DECK, LIVE, PROPS, REACH, SOLIDS, SPAWN, TERMINALS, WINDOWS, type Terminal, type TerminalId } from './deck'
 import { held, input } from './input'
+import { StationLive, type StationView } from './stationFx'
 
 export const asset = (f: string) => `${import.meta.env.BASE_URL}assets/${f}`
 const SUIT_RES = 3
@@ -10,10 +12,8 @@ const DECK_RES = 2
 const MAP_RES = 1.5
 export const dpr = () => Math.min(window.devicePixelRatio || 1, 2.5)
 
-type TerminalId = 'power' | 'calibration' | 'comms' | 'hab' | 'payload'
-export interface Terminal { id: TerminalId; name: string; at: [number, number] }
-export const TERMINALS = geo.deck.terminals as Terminal[]
-const REACH = 78
+export { TERMINALS, type Terminal, type TerminalId } from './deck'
+export type { StationView } from './stationFx'
 
 // ------------------------------------------------------------------ Boot
 class BootScene extends Phaser.Scene {
@@ -22,7 +22,9 @@ class BootScene extends Phaser.Scene {
     for (const s of SUITS) this.load.svg(`suit-${s.id}`, asset(`suit-${s.id}.svg`), { scale: SUIT_RES })
     this.load.svg('deck', asset('deck.svg'), { scale: DECK_RES })
     this.load.svg('earthview', asset('earth.svg'), { scale: 0.75 })
-    for (const p of ['payload', 'hab', 'rack', 'rail']) this.load.svg(`prop-${p}`, asset(`prop-${p}.svg`), { scale: DECK_RES })
+    for (const p of [...PROPS.map(q => q.id), 'inst-ir', 'inst-gpr']) this.load.svg(`prop-${p}`, asset(`prop-${p}.svg`), { scale: DECK_RES })
+    for (const s of SHIPS) this.load.svg(`ship-${s.id}`, asset(`ship-${s.id}.svg`), { scale: 0.6 })
+    for (const e of ['boom', 'dish']) this.load.svg(`ext-${e}`, asset(`ext-${e}.svg`), { scale: DECK_RES })
     this.load.svg('mars', asset('mars-sector.svg'), { scale: MAP_RES })
     this.load.svg('rover', asset('rover.svg'), { scale: 2 })
   }
@@ -97,7 +99,8 @@ export class StationScene extends Phaser.Scene {
   private rings!: Phaser.GameObjects.Graphics
   private debugG!: Phaser.GameObjects.Graphics
   private stars: { x: number; y: number; r: number; s: number; a: number }[] = []
-  private glows: Phaser.GameObjects.Rectangle[] = []
+  private live: StationLive | null = null
+  private view: StationView | null = null
   private load0: Phaser.GameObjects.Image[] = []
   private vel = new Phaser.Math.Vector2()
   private stepTimer = 0
@@ -120,33 +123,30 @@ export class StationScene extends Phaser.Scene {
   constructor() { super('station') }
 
   create() {
-    const W = geo.deck.width, H = geo.deck.height
+    const W = DECK.width, H = DECK.height
     this.startedAt = performance.now()
     this.physics.world.setBounds(0, 0, W, H)
     // exterior layer (seen only through the window cut-outs)
-    for (let i = 0; i < 260; i++) this.stars.push({ x: Math.random() * W, y: Math.random() * 214, r: Math.random() ** 3 * 1.6 + 0.4, s: 4 + Math.random() * 10, a: 0.4 + Math.random() * 0.6 })
+    for (let i = 0; i < 260; i++) this.stars.push({ x: Math.random() * W, y: Math.random() * DECK.wallY, r: Math.random() ** 3 * 1.6 + 0.4, s: 4 + Math.random() * 10, a: 0.4 + Math.random() * 0.6 })
     this.exterior = this.add.graphics().setDepth(-30)
     this.earthImg = this.add.image(0, 0, 'earthview').setOrigin(0).setDepth(-29)
     this.exteriorFx = this.add.graphics().setDepth(-28)
     this.add.image(0, 0, 'deck').setOrigin(0).setScale(1 / DECK_RES).setDepth(-10)
     this.lightFx = this.add.graphics().setDepth(-9)
     this.rings = this.add.graphics().setDepth(-8)
-    const props: [string, number, number, number][] = [['payload', 480, 324, 462], ['hab', 50, 380, 536], ['rack', 974, 370, 518], ['rail', 0, 624, 2000]]
-    for (const [k, x, y, depth] of props) this.add.image(x, y, `prop-${k}`).setOrigin(0).setScale(1 / DECK_RES).setDepth(depth)
-    const glowAt: [number, number, number, number, number][] = [[233, 153, 82, 58, 0x6ef2c6], [551, 151, 74, 54, 0x6ef2c6], [901, 152, 78, 60, 0x6ef2c6], [972, 142, 52, 40, 0x6ef2c6], [580, 409, 28, 14, 0x6ef2c6], [211, 453, 58, 34, 0x6ef2c6]]
-    for (const [x, y, w, h, c] of glowAt) {
-      this.glows.push(this.add.rectangle(x, y, w, h, c, 0.12).setBlendMode(Phaser.BlendModes.ADD).setDepth(y < 300 ? -7 : 470))
-    }
-    this.add.text(118, 108, 'EXTERIOR · 30× PLAYBACK', { fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: '#9fd8e8', resolution: dpr() * 2 }).setDepth(-5).setAlpha(0.8)
+    // freestanding props sort against the crew by the depth recorded in geo.json
+    for (const p of PROPS) this.add.image(p.at[0], p.at[1], `prop-${p.id}`).setOrigin(0).setScale(1 / DECK_RES).setDepth(p.depth)
+    this.live = new StationLive(this, SHIPS.map(sh => sh.id), dpr() * 2.5)
+    if (this.view) this.live.setView(this.view)
+    this.add.text(LIVE.exteriorLabel[0], LIVE.exteriorLabel[1], 'EXTERIOR · 30× PLAYBACK', { fontFamily: 'IBM Plex Mono, monospace', fontSize: '9px', color: '#9fd8e8', resolution: dpr() * 2 }).setDepth(-5).setAlpha(0.8)
 
     // collision
     const solids = this.physics.add.staticGroup()
-    for (const s of geo.deck.solids) {
-      const [x, y, w, h] = s.rect
-      const z = this.add.zone(x + w / 2, y + h / 2, w, h)
-      solids.add(z)
+    for (const sol of SOLIDS) {
+      const [x, y, w, h] = sol.rect
+      solids.add(this.add.zone(x + w / 2, y + h / 2, w, h))
     }
-    const [sx, sy] = geo.deck.spawn
+    const [sx, sy] = SPAWN
     this.feet = this.add.zone(sx, sy, 26, 12)
     this.physics.add.existing(this.feet)
     this.body0 = this.feet.body as Phaser.Physics.Arcade.Body
@@ -156,8 +156,7 @@ export class StationScene extends Phaser.Scene {
 
     // pointer: click a terminal within reach
     for (const t of TERMINALS) {
-      const solid = geo.deck.solids.find(s => s.id === t.id)!
-      const [x, y, w, h] = solid.rect
+      const [x, y, w, h] = SOLIDS.find(sol => sol.id === t.id)!.rect
       const hit = this.add.zone(x + w / 2, y + h / 2 - 30, w, h + 70).setInteractive({ useHandCursor: true })
       hit.on('pointerdown', () => {
         if (input.blocked) return
@@ -189,6 +188,10 @@ export class StationScene extends Phaser.Scene {
     const base = Phaser.Math.Clamp(Math.max(Math.min(cssW / 1120, cssH / 700), cssH / 720), 0.85, 1.6)
     this.cameras.main.setZoom(base * dpr())
     this.cameras.main.setSize(this.scale.width, this.scale.height)
+    // Let the view slide past the deck edges by the height of the HUD bars, so the header never
+    // hides the windows while the astronaut is up at the wall, nor the meters the airlock.
+    const top = 64 / base, bottom = 76 / base
+    this.cameras.main.setBounds(0, -top, DECK.width, DECK.height + top + bottom)
   }
 
   setProfile(name: string, suit: SuitId) {
@@ -196,7 +199,13 @@ export class StationScene extends Phaser.Scene {
     this.me?.setIdentity(suit, name)
   }
 
-  respawn(x = geo.deck.spawn[0], y = geo.deck.spawn[1]) {
+  /** Mission state for the live deck layer. Safe to call before the scene has been created. */
+  setView(v: StationView) {
+    this.view = v
+    this.live?.setView(v)
+  }
+
+  respawn(x = SPAWN[0], y = SPAWN[1]) {
     this.body0.reset(x, y)
     this.vel.set(0, 0)
     this.me.place(x, y)
@@ -205,6 +214,8 @@ export class StationScene extends Phaser.Scene {
     this.lastPose = ''
   }
 
+  /** False until Phaser has run create(); position and pose are not available before that. */
+  get created() { return !!this.feet }
   get position() { return { x: this.feet.x, y: this.feet.y } }
   get pose(): Pose {
     return { x: Math.round(this.feet.x * 10) / 10, y: Math.round(this.feet.y * 10) / 10, facing: this.me.facing, left: this.me.left, moving: this.me.moving, jog: this.me.jog, name: this.profile.name, suit: this.profile.suit }
@@ -233,7 +244,7 @@ export class StationScene extends Phaser.Scene {
   addLoad(n: number) {
     const room = Math.max(0, 3000 - this.load0.length)
     for (let i = 0; i < Math.min(n, room); i++) {
-      const img = this.add.image(Math.random() * 1160, Math.random() * 670, 'spark').setScale(0.2 + Math.random() * 0.5).setAlpha(0.5).setTint(Phaser.Display.Color.HSVToRGB(Math.random(), 0.4, 1).color).setDepth(4000)
+      const img = this.add.image(Math.random() * DECK.width, Math.random() * DECK.height, 'spark').setScale(0.2 + Math.random() * 0.5).setAlpha(0.5).setTint(Phaser.Display.Color.HSVToRGB(Math.random(), 0.4, 1).color).setDepth(4000)
       img.setData('v', { x: (Math.random() - 0.5) * 40, y: (Math.random() - 0.5) * 40 })
       this.load0.push(img)
     }
@@ -296,7 +307,7 @@ export class StationScene extends Phaser.Scene {
       this.rings.lineStyle(on ? 3 : 1.5, on ? 0x6ef2c6 : 0x6ef2c6, on ? 0.6 + pulse * 0.4 : 0.18)
       this.rings.strokeEllipse(t.at[0], t.at[1], on ? 70 : 54, on ? 22 : 16)
     }
-    this.glows.forEach((g, i) => g.setAlpha(0.08 + 0.08 * Math.sin(performance.now() / 500 + i * 1.7)))
+    this.live?.update(performance.now(), this.feet, this.near)
 
     // pose broadcast at ~15 Hz, only when changed (plus a slow heartbeat)
     this.poseTimer += dt
@@ -308,15 +319,14 @@ export class StationScene extends Phaser.Scene {
 
     for (const img of this.load0) {
       const v = img.getData('v') as { x: number; y: number }
-      img.x = (img.x + v.x * dt + 1160) % 1160
-      img.y = (img.y + v.y * dt + 670) % 670
+      img.x = (img.x + v.x * dt + DECK.width) % DECK.width
+      img.y = (img.y + v.y * dt + DECK.height) % DECK.height
     }
     if (this.debug) this.drawDebug()
   }
 
   private drawCallout(t: Terminal | null) {
     if (!t) { this.callout.setVisible(false); return }
-    const tops: Record<string, number> = { power: 186, calibration: 186, comms: 186, payload: 318, hab: 386 }
     this.calloutText.setText('•  ' + t.name)
     const w = 44 + this.calloutText.width + 14, h = 30
     const g = this.calloutBg
@@ -327,7 +337,7 @@ export class StationScene extends Phaser.Scene {
     g.fillStyle(0x6ef2c6, 1).fillTriangle(-6, h / 2, 6, h / 2, 0, h / 2 + 8)
     ;(this.callout.getData('key') as Phaser.GameObjects.Text).setPosition(-w / 2 + 16, 0)
     this.calloutText.setPosition(-w / 2 + 34, 0)
-    this.callout.setPosition(t.at[0], tops[t.id] ?? t.at[1] - 120).setData('baseY', tops[t.id] ?? t.at[1] - 120).setVisible(true)
+    this.callout.setPosition(t.at[0], t.callout).setData('baseY', t.callout).setVisible(true)
   }
 
   /** Real seconds since docking, and exterior phase at 30x (92 min orbit => ~184 s loop). */
@@ -339,10 +349,10 @@ export class StationScene extends Phaser.Scene {
     const day = ph < 0.62
     const tDay = day ? Math.min(1, Math.sin((ph / 0.62) * Math.PI) * 3) : 0
     g.clear()
-    g.fillStyle(Phaser.Display.Color.GetColor(4 + tDay * 8, 7 + tDay * 14, 16 + tDay * 30), 1).fillRect(0, 0, 1160, 214)
+    g.fillStyle(Phaser.Display.Color.GetColor(4 + tDay * 8, 7 + tDay * 14, 16 + tDay * 30), 1).fillRect(0, 0, DECK.width, DECK.wallY)
     const now = performance.now() / 1000
     for (const s of this.stars) {
-      const x = (((s.x - now * s.s) % 1160) + 1160) % 1160
+      const x = (((s.x - now * s.s) % DECK.width) + DECK.width) % DECK.width
       g.fillStyle(0xffffff, s.a * (1 - tDay * 0.6)).fillCircle(x, s.y, s.r)
     }
     // Earth (bundled texture) drifting below the windows; the limb sits at about y=58.
@@ -353,7 +363,7 @@ export class StationScene extends Phaser.Scene {
     // night side: darken the planet, add city lights
     const night = 1 - tDay
     if (night > 0.02) {
-      fx.fillStyle(0x020611, 0.82 * night).fillRect(0, 50, 1160, 170)
+      fx.fillStyle(0x020611, 0.82 * night).fillRect(0, 50, DECK.width, DECK.wallY - 44)
       for (let i = 0; i < 46; i++) {
         const bx = ((i * 97 - now * 6) % 1300 + 1300) % 1300 - 70
         fx.fillStyle(0xffd27a, 0.6 * night).fillCircle(bx, 74 + (i * 13) % 50, 1.3)
@@ -373,9 +383,9 @@ export class StationScene extends Phaser.Scene {
     lf.clear()
     if (tDay > 0.05) {
       lf.fillStyle(0xfff0d0, 0.05 * tDay)
-      for (const [x, , w] of geo.deck.windows) lf.fillPoints([{ x, y: 214 }, { x: x + w, y: 214 }, { x: x + w + 80, y: 520 }, { x: x + 80, y: 520 }] as Phaser.Types.Math.Vector2Like[], true)
+      for (const [x, , w] of WINDOWS) lf.fillPoints([{ x, y: DECK.wallY }, { x: x + w, y: DECK.wallY }, { x: x + w + 80, y: 520 }, { x: x + 80, y: 520 }] as Phaser.Types.Math.Vector2Like[], true)
     } else {
-      lf.fillStyle(0x0a1838, 0.16).fillRect(0, 0, 1160, 670)
+      lf.fillStyle(0x0a1838, 0.16).fillRect(0, 0, DECK.width, DECK.height)
     }
   }
 
@@ -383,7 +393,7 @@ export class StationScene extends Phaser.Scene {
     const g = this.debugG
     g.clear()
     g.lineStyle(1, 0xff4a4a, 0.9)
-    for (const s of geo.deck.solids) g.strokeRect(s.rect[0], s.rect[1], s.rect[2], s.rect[3])
+    for (const sol of SOLIDS) g.strokeRect(sol.rect[0], sol.rect[1], sol.rect[2], sol.rect[3])
     g.lineStyle(1, 0x6ef2c6, 0.9)
     g.strokeRect(this.body0.x, this.body0.y, this.body0.width, this.body0.height)
     g.lineStyle(1, 0xffb347, 0.5)

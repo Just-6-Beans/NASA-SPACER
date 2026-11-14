@@ -1,5 +1,6 @@
 import './style.css'
 import './holo.css'
+import './station.css'
 import { ICONS } from './ui/icons'
 import type Phaser from 'phaser'
 import { SHIPS, SUITS, byId, type ShipId, type SuitId } from './core/data'
@@ -17,6 +18,7 @@ import { crewScreen, fleetScreen, launchScreen, titleScreen, type Draft } from '
 import { closePanel, openPanel, panelOpen, refreshPanel, type PanelCtx } from './ui/panels'
 import { reportScreen, sitesScreen } from './ui/report'
 import { roverScreen } from './ui/roverView'
+import { NEED, deckMap, objectiveFor, stationView, type DeckMap } from './ui/stationHud'
 
 type ScreenName = 'title' | 'fleet' | 'crew' | 'launch' | 'station' | 'rover' | 'report'
 
@@ -32,6 +34,9 @@ let screenEl: HTMLElement | null = null
 let hud: HTMLElement | null = null
 let rover: ReturnType<typeof roverScreen> | null = null
 let overlay: HTMLElement | null = null // sites overlay
+let map: DeckMap | null = null
+let briefed = false // the mission brief at Mission Ops has been opened in this session
+let guideOn = (() => { try { return localStorage.getItem('spacer.guide') !== '0' } catch { return true } })()
 let drawerOpen = false
 let debugOn = false
 let prevFault = false
@@ -101,6 +106,7 @@ function enterStation(fresh = false) {
     if (fresh) s.respawn()
     s.layout()
     s.forcePoseSend()
+    pushView()
     if (coop.connected) syncCrew()
   }
   if (st.sys.settings.status >= 5 && (st as unknown as { feet?: unknown }).feet) ready()
@@ -155,6 +161,7 @@ function openTerminal(id: string) {
   if (!mission) return
   sound.play('ui')
   setBlocked(true)
+  if (id === 'ops') briefed = true
   openPanel(id, panelCtx())
 }
 function closeTask() {
@@ -170,19 +177,11 @@ function completeTask(task: TaskId, detail: string) {
   refresh()
 }
 
-function objective(): string {
-  const m = mission!
-  if (!m.payloadActive) return m.instrumentDraft ? 'Activate the payload at the Payload terminal (center).' : 'Choose a rover instrument at the Payload terminal (center, just ahead).'
-  if (m.relayFault) return 'EMERGENCY: repair the relay at Rover Comms (rear right).'
-  if (!m.pass) {
-    const pb = powerBlock(m.power)
-    if (pb) return `Route power at the Power Grid (rear left): ${pb}`
-    if (!m.calibrated) return 'Optional: calibrate at Calibration (rear center). Then plan and transmit at Rover Comms.'
-    return 'Plan the Drive → Scan → Return pass and transmit at Rover Comms.'
-  }
-  if (!m.passDone) return `Rover pass under way (T+${fmt(m.clock)}). Follow telemetry at Rover Comms.`
-  if (!m.landing) return 'Final telemetry received. Choose a landing site at Rover Comms.'
-  return 'Mission decided. Review the report.'
+const objective = () => objectiveFor(mission!, briefed)
+
+/** Hands the mission state to the deck, which draws it: power buses, consoles, guide. */
+function pushView() {
+  if (mission && game) station().setView(stationView(mission, objective(), guideOn))
 }
 
 function buildHud(): HTMLElement {
@@ -190,7 +189,7 @@ function buildHud(): HTMLElement {
   const suit = byId(SUITS, m.profile.suit)
   hud = el(`<section class="screen hud" aria-label="Station">
     <div class="ops-head"><div class="brand">SPACER</div><div class="sect">ORBITAL OPERATIONS</div>
-      <div class="hud-buttons"><button class="btn small" id="b-tasks">Tasks</button><button class="btn small" id="b-sound"></button><button class="btn small" id="b-debug">Debug</button><button class="btn small" id="b-coop">Co-op</button></div>
+      <div class="hud-buttons"><button class="btn small" id="b-tasks">Tasks</button><button class="btn small" id="b-guide"></button><button class="btn small" id="b-sound"></button><button class="btn small" id="b-debug">Debug</button><button class="btn small" id="b-coop">Co-op</button></div>
       <div class="crewtag" title="${esc(m.profile.callSign)} · ${m.ship.name} · ${suit.name} suit"><span class="sw" style="background:${suit.primary}"></span><div><b>${esc(m.profile.callSign)}</b><br/><span>${m.ship.name} · ${suit.name}</span></div></div>
       <div class="crewn">${ICONS.crew}<span id="crewn">1 / 2 CREW</span></div></div>
     <div class="ops-sub">
@@ -211,6 +210,9 @@ function buildHud(): HTMLElement {
   $('#b-sound', hud).addEventListener('click', () => { sound.setMuted(!sound.muted); sound.play('ui'); refresh() })
   $('#b-debug', hud).addEventListener('click', () => { debugOn = !debugOn; station().setDebug(debugOn); refresh() })
   $('#b-coop', hud).addEventListener('click', openCoop)
+  $('#b-guide', hud).addEventListener('click', () => { guideOn = !guideOn; try { localStorage.setItem('spacer.guide', guideOn ? '1' : '0') } catch { /* ignore */ } sound.play('ui'); refresh() })
+  map = deckMap(m)
+  hud.append(map.el)
   $('#d-add', hud).addEventListener('click', () => { station().addLoad(250) })
   $('#d-rst', hud).addEventListener('click', () => { station().resetLoad() })
   const dpad = $('#dpad', hud)
@@ -227,21 +229,23 @@ function refresh() {
   if (!m.relayFault && prevFault) toast('Relay restored. Rover planner online.', 'ok')
   prevFault = m.relayFault
   if (hud && screen === 'station') {
-    $('#obj', hud).textContent = objective()
+    $('#obj', hud).textContent = objective().text
+    $('#b-guide', hud).textContent = guideOn ? 'Guide: on' : 'Guide: off'
+    $('#b-guide', hud).classList.toggle('mint', guideOn)
     $('#b-sound', hud).textContent = sound.muted ? 'Sound: off' : 'Sound: on'
     $('#b-debug', hud).classList.toggle('mint', debugOn)
     $('#b-coop', hud).textContent = coop.connected ? `Co-op · ${coop.players}` : 'Co-op'
     $('#b-coop', hud).classList.toggle('mint', coop.connected)
     const p = m.power
-    $('#meters', hud).innerHTML = ([['Life support', ICONS.leaf, p.life, 3], ['Comms', ICONS.signal, p.comms, 4], ['Research', ICONS.flask, p.research, 0]] as [string, string, number, number][]).map(([n, ic, v, need]) =>
-      `<div class="sm ${v < need ? 'low' : ''}" title="${n}: ${v} of 10 units${need ? `, needs ${need} to transmit` : ''}">${ic}<b>${n}<span>${v}/10</span></b><div class="bar"><i style="width:${v * 10}%"></i></div></div>`).join('')
+    $('#meters', hud).innerHTML = ([['Life support', ICONS.leaf, 'life'], ['Comms', ICONS.signal, 'comms'], ['Research', ICONS.flask, 'research']] as [string, string, keyof Power][]).map(([n, ic, k]) =>
+      `<div class="sm bus-${k} ${p[k] < NEED[k] ? 'low' : ''}" title="${n}: ${p[k]} of 10 units${NEED[k] ? `, needs ${NEED[k]} to transmit` : ''}">${ic}<b>${n}<span>${p[k]}/10</span></b><div class="bar"><i style="width:${p[k] * 10}%"></i></div></div>`).join('')
     $('#objline', hud).classList.toggle('alert', m.relayFault)
     $('#crewn', hud).textContent = `${coop.connected ? coop.players : 1} / 2 CREW`
     $('#banner', hud).classList.toggle('hidden', !m.relayFault)
     $('#debug', hud).classList.toggle('hidden', !debugOn)
     if (drawerOpen) renderDrawer()
   }
-  if (panelOpen() && screen === 'station') {/* panels re-render themselves */}
+  pushView()
 }
 
 // clocks + debug readout
@@ -256,6 +260,12 @@ setInterval(() => {
     $('#dstats', hud).innerHTML = `FPS <b>${Math.round(game!.loop.actualFps)}</b> · DPR ${window.devicePixelRatio.toFixed(2)}<br/>Docked clock ${s}s real · Exterior ${(ph * 100).toFixed(0)}% of 30× orbit<br/>Rover clock ${mission.pass ? `T+${fmt(mission.clock)}` : '—'} (simulated)<br/>Player ${Math.round(st.position.x)}, ${Math.round(st.position.y)} · remote crew ${st.remoteCount}<br/>Visual-only sprites <b>${st.loadCount}</b> / 3000`
   }
 }, 250)
+
+setInterval(() => {
+  if (!mission || !map || !game || screen !== 'station') return
+  const st = station()
+  if (st.created) map.update(st.position, objective(), st.remoteInfo())
+}, 100)
 
 // ------------------------------------------------------------------ Task drawer
 function toggleDrawer(force?: boolean) {
@@ -272,6 +282,7 @@ function renderDrawer() {
   const prog = (t: TaskId) => m.completed.has(t) ? 'complete' : d(t) ? 'in progress (draft saved)' : 'not started'
   const routine = (['battery', 'cargo', 'water', 'medical'] as TaskId[]).map(t => item(m.completed.has(t), TASK_INFO[t].name, TASK_INFO[t].where, `${prog(t)} · ${TASK_INFO[t].reward}`)).join('')
   const missionItems = [
+    item(briefed, 'Read the mission brief', 'Mission Ops', briefed ? 'read' : 'not read'),
     item(m.payloadActive, 'Select & activate payload', 'Payload', m.payloadActive ? `${m.instrumentInfo!.code} active` : m.instrumentDraft ? 'instrument selected' : 'not started'),
     item(!powerBlock(m.power), 'Route transmission power', 'Power Grid', `life ${m.power.life}/3 · comms ${m.power.comms}/4`),
     item(m.completed.has('calibration'), 'Two-point calibration (optional)', 'Calibration', prog('calibration')),
@@ -351,6 +362,7 @@ function leaveGameplay() {
   overlay?.remove(); overlay = null
   drawerOpen = false
   hud = null
+  map = null
   if (game) {
     if (game.scene.isActive('station')) game.scene.sleep('station')
     if (game.scene.isActive('mars')) game.scene.sleep('mars')
