@@ -23,7 +23,7 @@ import { closePanel, openPanel, panelOpen, refreshPanel, type PanelCtx } from '.
 import { reportScreen } from './ui/report'
 import { roverScreen } from './ui/roverView'
 import { NEED, deckMap, objectiveFor, stationView, type DeckMap } from './ui/stationHud'
-import { greenhouseChip, greenhouseProgress, greenhouseView, refreshGreenhousePanel } from './ui/greenhouse'
+import { greenhouseChip, greenhouseProgress, greenhouseView, refreshGreenhousePanel, showGreenhouseBrief } from './ui/greenhouse'
 
 type ScreenName = 'title' | 'field' | 'station' | 'rover' | 'report'
 
@@ -189,7 +189,6 @@ async function dock() {
   if (coop.connected && sharedPower) mission.setPower(sharedPower)
   prevFault = false
   briefed = false
-  ghSeen.clear()
   enterStation(true)
   toast(`Docked at 408 km. Welcome aboard, ${mission.profile.callSign}.`, 'ok')
   sound.play('dock')
@@ -389,10 +388,9 @@ setInterval(() => {
 }, 100)
 
 // ------------------------------------------------------------------ Greenhouse
-// The module runs on real time from docking. Growth is a cooldown, so it carries on while the
-// pilot works elsewhere on the deck or drives the rover; away from the deck no new failure starts.
+// The greenhouse is two short missions with their own clock: a test or a run lasts a few real
+// seconds once the player starts it, and it never moves the mission time or the Mars days.
 let ghLast = performance.now()
-const ghSeen = new Set<number>() // alerts already announced
 setInterval(() => {
   const now = performance.now(), dt = Math.min(1, (now - ghLast) / 1000)
   ghLast = now
@@ -400,14 +398,19 @@ setInterval(() => {
   if (!m || (screen !== 'station' && screen !== 'rover')) return
   const gh = m.greenhouse, onDeck = screen === 'station'
   const st = onDeck && game && station().created ? station() : null
-  gh.tick(dt, { orbitPhase: st?.exteriorPhase, crewInside: !!st?.inGreenhouse, quiet: !onDeck })
-  for (const a of gh.alerts) {
-    if (ghSeen.has(a.id)) continue
-    ghSeen.add(a.id)
-    sound.play('alert')
-    toast(`Greenhouse: ${a.problem} ${a.action}`, a.level === 'warning' ? 'warn' : 'bad', 7000)
+  // the NEW MISSION pop-up, the first time the astronaut walks into the module
+  if (st?.inGreenhouse && !gh.briefed && !panelOpen() && !coopPanel) {
+    gh.markBriefed()
+    sound.play('ui')
+    setBlocked(true)
+    showGreenhouseBrief(() => setBlocked(panelOpen() || !!coopPanel))
   }
-  if (gh.complete && !m.completed.has('greenhouse')) completeTask('greenhouse', `first harvest stored, score ${gh.score().total}/100`)
+  gh.tick(dt, { orbitPhase: st?.exteriorPhase, crewInside: !!st?.inGreenhouse, quiet: !onDeck })
+  for (const n of gh.takeNotices()) {
+    if (n.kind === 'bad') sound.play('alert')
+    toast(n.text, n.kind, 7000)
+  }
+  if (gh.complete && !m.completed.has('greenhouse')) completeTask('greenhouse', `both missions played, score ${gh.score().total}/100`)
   st?.setGreenhouse(greenhouseView(gh))
   if (hud && onDeck) {
     const chip = greenhouseChip(gh), e = $('#ghchip', hud)
@@ -415,7 +418,7 @@ setInterval(() => {
     e.className = `ghchip ${chip.cls}`
   }
   refreshGreenhousePanel()
-}, 200)
+}, 100)
 
 // ------------------------------------------------------------------ Task drawer
 function toggleDrawer(force?: boolean) {

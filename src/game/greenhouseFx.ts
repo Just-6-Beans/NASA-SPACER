@@ -2,7 +2,7 @@
 // the control screens and the array wings outside. The art is a static picture of empty racks;
 // this draws the module's state on top of it, read from the simulation and never kept here.
 import Phaser from 'phaser'
-import { STAGES, type CropId, type Stage } from '../core/crops'
+import { STAGES, crop, type CropId, type Stage } from '../core/crops'
 import type { AlertLevel, BayId, Symptom } from '../core/greenhouse'
 import { BAYS, EXTERIOR, LIVE, moduleById, prop, type BayGeo, type Terminal } from './deck'
 
@@ -37,7 +37,9 @@ export interface GreenhouseView {
   airflow: boolean
   /** Humid enough for condensation on the windows. */
   condensation: boolean
+  /** Share of the power budget still free, 0..100 (the first bar of the service screen). */
   batteryPct: number
+  /** Water left in the tank, 0..100. */
   tankPct: number
   /** Two short lines for the control kiosk screen. */
   screen: [string, string]
@@ -108,16 +110,18 @@ export class GreenhouseLive {
         const col = STAGES.indexOf(b.stage), row = b.stage === 'seed' || b.stage === 'dead' ? 0 : SYMPTOM_ROW[b.symptom]
         // within a stage the plant fills out a little, so growth reads between the drawn states
         const grow = b.stage === 'vegetative' || b.stage === 'reproductive' || b.stage === 'postharvest' ? 0.86 + 0.14 * b.progress : 1
+        // any crop may stand in any bay: a trellis crop on a low leaf rack is drawn smaller so it fits under the shelf above
+        const fit = b.crop && crop(b.crop).bay === 'tall' && BAYS.find(q => q.id === b.id)?.kind === 'tier' ? 0.6 : 1
         for (const p of list) {
           p.img.setVisible(show)
-          if (show) p.img.setTexture(`crop-${b.crop}`, `${col}-${row}`).setScale(p.scale * grow)
+          if (show) p.img.setTexture(`crop-${b.crop}`, `${col}-${row}`).setScale(p.scale * grow * fit)
         }
         this.locks.get(b.id)!.setText(b.status === 'locked' ? `LOCKED\nLEVEL ${b.tier}` : '')
       }
     }
     this.line1.setText(v.screen[0]).setColor(v.alarm === 'damage' ? '#ff8a7a' : v.alarm ? '#ffcf8a' : '#6ef2c6')
     this.line2.setText(v.screen[1])
-    this.service.setText(`BATT ${Math.round(v.batteryPct)}%\nTANK ${Math.round(v.tankPct)}%`)
+    this.service.setText(`PWR ${Math.round(v.batteryPct)}%\nH2O ${Math.round(v.tankPct)}%`)
   }
 
   update(now: number, near: Terminal | null) {

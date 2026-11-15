@@ -119,10 +119,10 @@ Eight pressurised modules laid out like the ISS seen in plan: a backbone of Node
 | **Node 2** | Crew quarters, and the way down to the Comms module. |
 | **US Lab** | The Mission Ops holo-table, the rover bay (Payload) and the Calibration bench. |
 | **Node 1** | Power Grid, beside the power core, and the way down to the Greenhouse. |
-| **Node 3** | Hab Systems: water, medical, and a remote view of the greenhouse. The way up to the Cupola. |
+| **Node 3** | Hab Systems: water and medical. The way up to the Cupola. |
 | **Cupola** | The seven-pane window over the Earth. |
 | **Comms** | Rover Comms. The relay dish is outside the window. |
-| **Greenhouse** | Eight crop bays in two rack bands, the control kiosk, the seed bank and galley, and the service bay. |
+| **Greenhouse** | Eight crop bays in two rack bands, the control kiosk where the two greenhouse missions are played, and status screens at the seed bank and galley and at the service bay. |
 
 The deck shows mission state, so you can read your choices off the room:
 
@@ -134,14 +134,14 @@ The deck shows mission state, so you can read your choices off the room:
 
 ## The station greenhouse (optional)
 
-A plant module berthed below Node 1. It never blocks the mission, and it is scored on its own, 0 to 100, beside the base score.
+A plant module berthed below Node 1. It never blocks the mission, and it is scored on its own, 0 to 100, beside the base score. It is played as two short missions and one event, all at Greenhouse Control. Each is played once: there is no retry. The greenhouse keeps its own clock, so its days never move the mission time or the rover's Mars days.
 
-- **Plant** at a bay: lettuce, radish and dwarf tomato at first; then mizuna, kale and pepper; then potato, dwarf wheat and soybean, as you unlock levels at Greenhouse Control.
-- **Growth is a cooldown.** One crop day passes each second in good conditions, so a 30-day lettuce is ready in about 30 seconds. It keeps growing while you work elsewhere or drive the rover.
-- **Growth = temperature × light × water × nutrients × air.** Each bay shows the five and which one is holding the plant back. Leaves that wilt, yellow or spot are a clue, not a diagnosis.
-- **Things fail:** irrigation, the thermal unit, the dehumidifier, the nutrient solution, a hull seal, root contamination, the array, a solar particle event. Each alert says what is known, which way it is going and what to do next, and moves through warning, degraded, damage and recovery. Fixing a pump does not bring back a dead plant.
-- **Service Bay:** the nutrient loop, power (kW, kWh, the shedding order) and air and hull. **Seed Bank & Galley:** seed packets, stored food, and the processor that turns staples into food.
-- **Real and ours:** the crop list follows NASA's space-crop and controlled-environment research. Every number (settings, timers, yields, failure rates, the score) is our game model, and the panel "Real & model" at Greenhouse Control says so.
+- **The pop-up:** NEW MISSION, GROW LIGHT opens the first time you walk into the module.
+- **G1, Grow Light (40 points):** six controls under three steps: light; temperature, humidity and CO2; water and nutrients. Move each into its green zone, then start the 10-day test, which lasts 10 seconds. During the test the plants push two sensors out of their zones, and you move that control back. Plant health must stay above 80%, and the power must stay inside the 3.5 kW budget: more light costs more power.
+- **G2, What to Grow (50 points):** compare six crops (lettuce, radish, mizuna, kale, chile pepper, dwarf tomato) by growth time, calories, water and light. Pick 3, plant the 8 bays, and read the forecast. Then the 30 days run in 10 seconds, and you press **Harvest all** whenever bays are ready. The run is won when 30,000 kcal are in before the 1,400 L tank runs dry. The fast crops give little food, and the big crops drink the most, so no single crop is enough.
+- **Pump failure (10 points):** by chance during G2 both pumps stop and there is one spare part. You save side A or side B, and the other side grows at half speed.
+- **Status screens:** each bay shows what grows there, the Service Bay shows the pumps and the water tank, and the Seed Bank & Galley shows the food harvested.
+- **Real and ours:** the missions follow NASA's plant research on the ISS (the Veggie units and the Advanced Plant Habitat). Every number (good zones, timers, calories, water, the score) is our game model, and the tab "Real & model" at Greenhouse Control says so.
 
 ## Two-tab co-op
 
@@ -241,4 +241,4 @@ If the service is offline, the crew link says so and offers **Retry** or **Fly s
 
 The station now has eight connected modules: Cupola, Docking Port, Node 3, Node 1, US Lab, Node 2, Greenhouse and Comms. It keeps the launch field already on main (Space Shuttle, Falcon 9 + Crew Dragon, Atlas V + Starliner), with cargo effects carried into the station and rover. The rover saves nearby photos automatically and recharges on a countdown that continues while the pilot works on the station.
 
-The greenhouse is connected to gameplay: the bays, Greenhouse Control, the Service Bay and the Seed Bank & Galley open working panels, the module runs from docking, and the report shows its score beside the base score. `npm test` and `npm run check` include its suite (29 tests). What is still open is listed in [notes/greenhouse-station.md](notes/greenhouse-station.md).
+The greenhouse is two short missions from the team's mission spec (Grow Light and What to Grow) and a pump-failure choice, all played at Greenhouse Control. The bay screens, the Service Bay and the Seed Bank & Galley show status, and the report shows the greenhouse score beside the base score. `npm test` and `npm run check` include its suite (25 tests). What is still open is listed in [notes/greenhouse-station.md](notes/greenhouse-station.md).

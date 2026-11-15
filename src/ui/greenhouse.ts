@@ -1,48 +1,52 @@
-// Greenhouse panels: the readable view of what the player can actually control in the station
-// greenhouse. Overview first, technical detail on the selected bay or the service panels. Every
-// number shown is read from the simulation (src/core/greenhouse.ts); nothing is kept here.
+// Greenhouse panels. The greenhouse is two short missions and one event, all played at
+// Greenhouse Control; the bay screens, the Service Bay and the Seed Bank & Galley only show
+// status. Every number shown is read from the rules in src/core/greenhouse.ts.
 //
 // The panels stay live while open: values are patched in place a few times a second, and a tab
-// is redrawn only when its structure changes, so buttons do not move under the pointer.
+// is redrawn only when its structure changes, so buttons and sliders do not move under the pointer.
 import '../greenhouse.css'
-import { CROPS, EVIDENCE_TEXT, PROCESS_TEXT, STAGES, STAGE_TEXT, crop, dli, flowers, type Crop, type CropId } from '../core/crops'
+import { CROPS, STAGES, STAGE_TEXT, crop, type CropId } from '../core/crops'
 import {
-  BAY_PLAN, BEYOND, FACTOR_IDS, FAULT_KINDS, GH, RECIPE_LIMITS, TIERS,
-  type Alert, type AlertLevel, type Bay, type BayId, type FactorId, type FaultKind, type Greenhouse, type LoadId, type Reading, type ReadingId, type Recipe, type RepairId, type Symptom,
+  BAY_IDS, BAY_PLAN, GH, NEED_KCAL, SLIDERS, STEPS, fedDays, slider,
+  type BayId, type Greenhouse, type LoopId, type SliderId, type SliderSpec, type Symptom,
 } from '../core/greenhouse'
 import { TERMINALS, bayOf, isBayTerminal } from '../game/deck'
 import type { BayStatus, GreenhouseView } from '../game/greenhouseFx'
 import { sound } from '../audio'
-import { esc, toast } from './dom'
+import { el, esc, toast } from './dom'
 import type { PanelCtx, Tab } from './panels'
 
 const sheet = (id: CropId) => `${import.meta.env.BASE_URL}assets/crop-${id}.svg`
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 const pct = (f: number) => Math.round(clamp(f, 0, 1) * 100)
-const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
-const kg = (n: number) => (n >= 10 ? n.toFixed(0) : n.toFixed(1))
+const num = (n: number) => Math.round(n).toLocaleString('en-US')
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
 // ------------------------------------------------------------------ live tabs
-type Vals = Record<string, string | number>
+type Vals = Record<string, string | number | boolean>
 type Acts = Record<string, (d: DOMStringMap) => string | null | void>
-interface LiveTab { key: () => string; html: () => string; vals: () => Vals; acts: Acts }
+interface LiveTab { key: () => string; html: () => string; vals: () => Vals; acts: Acts; input?: (d: DOMStringMap, value: number) => void }
 let live: { body: HTMLElement; tab: LiveTab; lastKey: string } | null = null
 let pointerDown = false
 window.addEventListener('pointerdown', () => { pointerDown = true }, true)
 for (const ev of ['pointerup', 'pointercancel', 'blur']) window.addEventListener(ev, () => { pointerDown = false }, true)
 
+/** data-v text, data-w width %, data-l left %, data-c status class, data-dis disabled. */
 function patch() {
   if (!live) return
   const v = live.tab.vals()
   live.body.querySelectorAll<HTMLElement>('[data-v]').forEach(e => { const t = String(v[e.dataset.v!] ?? ''); if (e.textContent !== t) e.textContent = t })
   live.body.querySelectorAll<HTMLElement>('[data-w]').forEach(e => { e.style.width = `${v[e.dataset.w!] ?? 0}%` })
+  live.body.querySelectorAll<HTMLElement>('[data-l]').forEach(e => { e.style.left = `${v[e.dataset.l!] ?? 0}%` })
   live.body.querySelectorAll<HTMLElement>('[data-c]').forEach(e => {
     const c = String(v[e.dataset.c!] ?? '')
     if (e.dataset.cls === c) return
-    if (e.dataset.cls) e.classList.remove(e.dataset.cls)
-    if (c) e.classList.add(c)
+    if (e.dataset.cls) e.classList.remove(...e.dataset.cls.split(' '))
+    if (c) e.classList.add(...c.split(' '))
     e.dataset.cls = c
   })
+  live.body.querySelectorAll<HTMLButtonElement>('[data-dis]').forEach(e => { e.disabled = !!v[e.dataset.dis!] })
 }
 function draw() {
   if (!live) return
@@ -59,6 +63,12 @@ function mount(body: HTMLElement, tab: LiveTab) {
     if (err) { sound.play('fail'); toast(err, 'warn', 4200) } else sound.play('ui')
     draw()
   }
+  body.oninput = e => {
+    const t = e.target as HTMLInputElement
+    if (!live || !t.dataset.s) return
+    live.tab.input?.(t.dataset, Number(t.value))
+    patch()
+  }
   draw()
 }
 /** Brings an open greenhouse panel up to date. The app calls this a few times a second. */
@@ -69,180 +79,264 @@ export function refreshGreenhousePanel() {
   else patch()
 }
 
+// ------------------------------------------------------------------ mission cards
+// The pop-up text follows the team's mission spec, with the wording fitted to the station
+// (greenhouse days, not sols).
+interface MissionText { tag: string; title: string; line: string; checks: string[]; target: string; card: [string, string, string]; debrief: string }
+const MISSION: Record<'g1' | 'g2', MissionText> = {
+  g1: {
+    tag: 'NEW MISSION', title: 'GROW LIGHT',
+    line: "Set up the greenhouse. A simulation inspired by NASA's Advanced Plant Habitat.",
+    checks: STEPS.map(s => s.label),
+    target: `Keep plant health above ${GH.healthLine}% for ${GH.testDays} days within the power budget.`,
+    card: ['Advanced Plant Habitat', "A closed-loop system with over 180 sensors, whose lights deliver roughly half the sun's output at Earth.", 'NASA Space Station research pages'],
+    debrief: 'Controlled-environment agriculture: growing plants in a closed room means balancing several variables at once.',
+  },
+  g2: {
+    tag: 'NEW MISSION', title: 'WHAT TO GROW',
+    line: "Plan the first harvest. A simulation inspired by NASA's ISS plant experiments.",
+    checks: ['Compare crops', `Pick ${GH.picks} crops`, `Feed the crew for ${GH.runDays} days`],
+    target: "Meet the crew's calorie needs without running out of water.",
+    card: ['Space-grown Crops', 'Chile peppers grew for 137 days in orbit, producing 26 fruit. A Dutch study found radishes and tomatoes grew in Mars simulants while spinach did not do well.', 'NASA OSDR and published study'],
+    debrief: 'Food planning: balancing nutrition, time and resources.',
+  },
+}
+const PUMP_DEBRIEF = 'Triage and trade-offs: with one spare part, something has to wait.'
+
+const nasaCard = (m: MissionText) => `<div class="gh-card"><span>NASA card</span><b>${esc(m.card[0])}</b><p>${esc(m.card[1])}</p><small>Source: ${esc(m.card[2])}. The numbers in the game are our model.</small></div>`
+/** `done[i]` ticks a checklist line; `live` names a data-c key prefix so the ticks follow the game. */
+const checklist = (m: MissionText, done: boolean[] = [], liveKey = '') => `<ul class="gh-checks">${m.checks.map((c, i) => `<li class="${done[i] ? 'done' : ''}" ${liveKey ? `data-c="${liveKey}${i + 1}"` : ''}><i></i>${esc(c)}</li>`).join('')}</ul>`
+const missionCard = (m: MissionText) => `<div class="gh-mission"><div class="gh-m-tag">${m.tag}</div><h3>${m.title}</h3><p>${esc(m.line)}</p>
+  ${checklist(m)}<div class="gh-target"><span>Game target</span>${esc(m.target)}</div>${nasaCard(m)}</div>`
+
+let brief: HTMLElement | null = null
+/** The NEW MISSION pop-up, shown the first time the astronaut walks into the greenhouse. */
+export function showGreenhouseBrief(onClose: () => void) {
+  if (brief) return
+  const root = el(`<div class="overlay gh-pop" role="dialog" aria-modal="true" aria-label="New mission: Grow Light"><div class="panel">
+    <div class="panel-body">${missionCard(MISSION.g1)}
+      <p class="gh-note">The greenhouse is optional and is scored on its own, 0 to 100. Each mission is played once: there is no retry. Start at the <b>Greenhouse Control</b> screen in this module.</p>
+      <div class="actions"><button class="btn primary" id="gh-pop-ok">Got it</button></div></div></div></div>`)
+  const close = () => { window.removeEventListener('keydown', onKey, true); root.remove(); brief = null; onClose() }
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); close() } }
+  brief = root
+  document.body.append(root)
+  window.addEventListener('keydown', onKey, true)
+  root.querySelector<HTMLButtonElement>('#gh-pop-ok')!.addEventListener('click', () => { sound.play('ui'); close() })
+  setTimeout(() => root.querySelector<HTMLButtonElement>('#gh-pop-ok')?.focus(), 30)
+}
+
 // ------------------------------------------------------------------ shared pieces
-const DEC: Record<ReadingId, number> = { temp: 1, rh: 0, pressure: 1, o2: 1, co2: 0, ph: 2, ec: 2, rootTemp: 1, tank: 0, battery: 0, reserve: 1 }
-const readingRow = (r: Reading) => `<div class="ghr" data-c="rs-${r.id}"><span>${esc(r.label)}</span><b><span data-v="rv-${r.id}"></span> ${esc(r.unit)}</b><i data-v="rt-${r.id}"></i>
-  <small>${r.target !== null ? `target ${r.target}` : ''}${r.target !== null && r.band ? ' · ' : ''}${r.band ? `band ${r.band[0]} to ${r.band[1]}` : ''}</small></div>`
-function readingVals(gh: Greenhouse, v: Vals) {
-  const all = gh.readings()
-  for (const r of Object.values(all)) {
-    const d = DEC[r.id], flat = Math.abs(r.trend) < 0.6 * 10 ** -d
-    v[`rv-${r.id}`] = r.value.toFixed(d)
-    v[`rt-${r.id}`] = flat ? 'steady' : `${r.trend > 0 ? 'rising +' : 'falling −'}${Math.abs(r.trend).toFixed(Math.max(1, d))} / min`
-    v[`rs-${r.id}`] = r.status
-  }
-  return all
-}
-const rows = (gh: Greenhouse, ids: ReadingId[]) => { const all = gh.readings(); return `<div class="ghrs">${ids.map(id => readingRow(all[id])).join('')}</div>` }
-
-// The top status bar: where the station is in its orbit, and the three stocks that matter.
-const statusBar = () => `<div class="ghbar" role="status"><span>Orbit <b data-v="orbit"></b></span><span data-c="sunc"><b data-v="sun"></b> <small data-v="sunnext"></small></span>
-  <span data-c="battc">Battery <b data-v="batt"></b></span><span>Water <b data-v="tank"></b></span><span>Food <b data-v="food"></b></span><span data-c="alc"><b data-v="alerts"></b></span></div>`
-function statusVals(gh: Greenhouse, v: Vals) {
-  const x = gh.exterior, s = gh.summary()
-  v.orbit = x.orbit
-  v.sun = x.sunlit ? 'SUNLIT' : 'ECLIPSE'
-  v.sunnext = `${x.sunlit ? 'sunset' : 'sunrise'} in ${mmss(x.nextChange)}`
-  v.sunc = x.sunlit ? 'ok' : 'dim'
-  v.batt = `${Math.round(gh.batteryPct)}%`
-  v.battc = gh.batteryPct < 20 ? 'bad' : gh.batteryPct < 40 ? 'warn' : ''
-  v.tank = `${Math.round(gh.tankL)} L`
-  v.food = `${kg(gh.foodKg)} kg`
-  v.alerts = s.alerts ? `${s.alerts} alert${s.alerts > 1 ? 's' : ''}` : '✓ no alerts'
-  v.alc = s.worst === 'damage' ? 'bad' : s.alerts ? 'warn' : 'ok'
+const SYM_ROW: Record<Symptom, number> = { none: 0, wilt: 1, yellow: 2, spots: 3 }
+const thumb = (id: CropId) => `<span class="gh-thumb" style="background-image:url(${sheet(id)})" role="img" aria-label="${esc(crop(id).name)}"></span>`
+const sideCrops = (gh: Greenhouse, side: LoopId) => {
+  const names = BAY_IDS.filter(b => BAY_PLAN[b].loop === side).map(b => gh.plan[b]).filter(Boolean).map(id => crop(id!).name.toLowerCase())
+  const count = new Map<string, number>()
+  for (const n of names) count.set(n, (count.get(n) ?? 0) + 1)
+  return [...count].map(([n, k]) => `${k} ${n}`).join(', ') || 'nothing planted'
 }
 
-const jobsKey = (gh: Greenhouse) => gh.jobs.map(j => j.id).join(',')
-const jobsHtml = (gh: Greenhouse) => gh.jobs.length ? `<div class="gh-jobs">${gh.jobs.map(j => `<div class="gh-job"><span>${esc(j.label)}</span><div class="gbar"><i data-w="jw-${j.id}"></i></div><small data-v="jt-${j.id}"></small></div>`).join('')}</div>` : ''
-function jobVals(gh: Greenhouse, v: Vals) { for (const j of gh.jobs) { v[`jw-${j.id}`] = pct(1 - j.left / j.total); v[`jt-${j.id}`] = `${Math.ceil(j.left)} s` } }
-
-const LEVEL: Record<AlertLevel, [string, string]> = {
-  warning: ['WARNING', 'A reading is off. The plants are not affected yet.'],
-  degraded: ['DEGRADED', 'Growth is being held back.'],
-  damage: ['DAMAGE', 'Plants are losing health.'],
-  recovery: ['RECOVERY', 'The cause is fixed. The plants are still recovering.'],
-}
-const alertsKey = (gh: Greenhouse, only?: (a: Alert) => boolean) => gh.alerts.filter(a => !only || only(a)).map(a => `${a.id}${a.level[0]}${+a.diagnosed}${+a.acknowledged}`).join(',')
-function alertCard(gh: Greenhouse, a: Alert) {
-  const [name, what] = LEVEL[a.level]
-  const busy = gh.jobs.some(j => j.kind === 'diagnose' && j.target === String(a.id))
-  return `<div class="gh-alert lv-${a.level} ${a.acknowledged ? 'acked' : ''}"><div class="gh-al-h"><span class="lv">${name}</span><b>${esc(a.title)}</b><small>${esc(what)}</small></div>
-    <p>${esc(a.problem)}</p><p class="tr"><i>Trend</i> ${esc(a.trend)}</p><p class="ac"><i>Next</i> ${esc(a.action)}</p>${a.cause ? `<p class="ca"><i>Cause</i> ${esc(a.cause)}</p>` : ''}
-    <div class="actions">${a.diagnosed || a.kind === 'crop' || a.kind === 'battery' || a.kind === 'water' ? '' : `<button class="btn small" data-act="diag" data-id="${a.id}" ${busy ? 'disabled' : ''}>${busy ? 'Diagnosing…' : 'Diagnose'}</button>`}
-    ${a.acknowledged ? '<span class="donebadge">ACKNOWLEDGED</span>' : `<button class="btn small" data-act="ack" data-id="${a.id}">Acknowledge</button>`}</div></div>`
-}
-const alertActs = (gh: Greenhouse): Acts => ({ diag: d => gh.diagnose(Number(d.id)), ack: d => gh.acknowledge(Number(d.id)) })
-
-const SYMPTOM_TEXT: Record<Symptom, string> = {
-  none: 'Leaves look healthy.',
-  wilt: 'Leaves are wilting. That can follow a dry root zone or too much heat: check the flow and the air temperature.',
-  yellow: 'Leaves are yellowing. Several nutrient and root problems look the same: check pH, conductivity, the nutrient balance and the root temperature.',
-  spots: 'Spots on the leaves. Long, humid air or a contaminated root zone can do this.',
-}
-const FACTOR_TEXT: Record<FactorId, string> = { temperature: 'Temperature', light: 'Light', water: 'Water', nutrient: 'Nutrients', gas: 'Air (CO2, O2, pressure)' }
-
-/** How a bay is doing, in one word, for the rack lamp and the bay cards. */
-export function bayStatus(b: Bay): BayStatus {
-  if (!b.unlocked) return 'locked'
-  const p = b.planting
-  if (!p) return 'empty'
-  if (p.stage === 'dead') return 'dead'
-  if (p.stress > 60) return 'bad'
-  if (p.stage === 'ready') return 'ready'
-  if (p.needsPollination || p.spent) return 'care'
-  if (p.stress > 35 || p.symptom !== 'none') return 'warn'
+/** How a bay is doing, in one word, for the rack lamp. */
+function bayStatus(b: { crop: CropId | null; ready: boolean; slow: boolean; symptom: Symptom }): BayStatus {
+  if (!b.crop) return 'empty'
+  if (b.ready) return 'ready'
+  if (b.slow || b.symptom !== 'none') return 'warn'
   return 'growing'
 }
-const STATUS_TEXT: Record<BayStatus, string> = { locked: 'Locked', empty: 'Empty', growing: 'Growing', ready: 'Ready to harvest', care: 'Needs a hand', warn: 'Under stress', bad: 'Losing health', dead: 'Dead' }
+
+/** The pump-failure choice. Shown at Greenhouse Control and at the Service Bay. */
+function pumpCard(gh: Greenhouse) {
+  const p = gh.run?.pump
+  if (!p || p.state === 'none') return ''
+  if (p.state === 'fixed') return `<div class="feedback warn">Pump failure handled: the spare part went to side ${p.saved}. Side ${p.saved === 'A' ? 'B' : 'A'} grows at half speed until day ${GH.runDays}.</div>`
+  return `<div class="gh-alert"><div class="gh-m-tag">ALERT</div><h3>PUMP FAILURE</h3><p>Choose what to fix first. Both pumps have stopped and there is <b>one spare part</b>. The side you save grows on at full speed. The other side grows at half speed until day ${GH.runDays}.</p>
+    <div class="actions"><button class="btn primary" data-act="pump" data-side="A">Save side A<small>${esc(sideCrops(gh, 'A'))}</small></button><button class="btn primary" data-act="pump" data-side="B">Save side B<small>${esc(sideCrops(gh, 'B'))}</small></button></div>
+    <p class="gh-note">The 30 days are paused while you choose.</p></div>`
+}
+const pumpAct = (gh: Greenhouse): Acts => ({ pump: d => gh.choosePump(d.side as LoopId) })
+
+// ------------------------------------------------------------------ G1: Grow Light
+const pos = (s: SliderSpec, v: number) => clamp((v - s.min) / (s.max - s.min), 0, 1) * 100
+const MAX_KW = GH.baseKw + GH.lightKw + GH.pumpKw
+
+function controlRow(gh: Greenhouse, id: SliderId, locked: boolean) {
+  const s = slider(id), lo = pos(s, s.good[0]), hi = pos(s, s.good[1])
+  return `<div class="gh-ctl" data-c="cs-${id}"><label for="gs-${id}">${esc(s.label)}</label>
+    <input type="range" id="gs-${id}" data-s="${id}" min="${s.min}" max="${s.max}" step="${s.step}" value="${gh.settings[id]}" style="--lo:${lo}%;--hi:${hi}%" ${locked ? 'disabled' : ''} aria-describedby="gh-${id}"/>
+    <b><span data-v="sv-${id}"></span> ${esc(s.unit)}</b>
+    <div class="gh-sensor" title="Sensor reading against the good zone"><i class="good" style="left:${lo}%;width:${hi - lo}%"></i><i class="mark" data-l="rm-${id}"></i></div>
+    <small id="gh-${id}"><span>Sensor <b data-v="rv-${id}"></b> · good ${s.good[0]} to ${s.good[1]}</span> <em data-v="rh-${id}"></em></small></div>`
+}
+function g1Html(gh: Greenhouse) {
+  const setup = gh.phase === 'g1-setup'
+  return `<div class="gh-head"><div><div class="gh-m-tag">MISSION G1</div><h3>GROW LIGHT</h3></div>${checklist(MISSION.g1, [], 'st-')}</div>
+    <div class="gh-meters">
+      <div class="gh-big" data-c="hc"><span>Plant health</span><b data-v="health"></b><div class="gbar lined" style="--line:${GH.healthLine}%"><i data-w="healthw"></i></div><small>must stay above ${GH.healthLine}%</small></div>
+      <div class="gh-big" data-c="pc"><span>Power</span><b data-v="power"></b><div class="gbar lined" style="--line:${(GH.powerBudgetKw / MAX_KW) * 100}%"><i data-w="powerw"></i></div><small data-v="powernote"></small></div>
+      <div class="gh-big"><span>Test</span><b data-v="day"></b><div class="gbar"><i data-w="dayw"></i></div><small data-v="daynote"></small></div>
+    </div>
+    ${STEPS.map(st => `<div class="gh-sec gh-step" data-c="sc-${st.n}"><h3>Step ${st.n}: ${esc(st.label)}</h3>${st.sliders.map(id => controlRow(gh, id, false)).join('')}</div>`).join('')}
+    <div class="actions">${setup ? `<button class="btn primary" data-act="start" data-dis="nostart">Start the ${GH.testDays}-day test</button><span class="gh-miss" data-v="startnote" data-c="startc"></span>` : '<span class="gh-run">Test running. Keep every sensor in its green zone and the power under the line.</span>'}</div>
+    <p class="gh-note">${setup ? `Move each control into its green zone to tick the three steps. More light costs more power. The test lasts ${GH.testSeconds} seconds and is run once: there is no retry.` : 'The plants change the room as they grow. When a sensor leaves its green zone, move that control until it comes back.'}</p>`
+}
+function g1Vals(gh: Greenhouse, v: Vals) {
+  for (const s of SLIDERS) {
+    const r = gh.reading(s.id), st = gh.status(s.id)
+    v[`sv-${s.id}`] = gh.settings[s.id]
+    v[`rv-${s.id}`] = `${Math.round(r)} ${s.unit}`
+    v[`rm-${s.id}`] = pos(s, r)
+    v[`cs-${s.id}`] = st === 'ok' ? 'ok' : 'bad'
+    v[`rh-${s.id}`] = st === 'ok' ? 'In the green zone' : gh.hint(s.id) || `${cap(st === 'low' ? s.low : s.high)}: ${st === 'low' ? 'raise' : 'lower'} it.`
+  }
+  for (const st of STEPS) { const ok = gh.stepOk(st.n); v[`st-${st.n}`] = ok ? 'done' : ''; v[`sc-${st.n}`] = ok ? 'ok' : '' }
+  const h = gh.health, kw = gh.powerKw, x = gh.test
+  v.health = `${Math.round(h)}%`; v.healthw = h; v.hc = h < GH.healthLine ? 'bad' : h < 90 ? 'warn' : ''
+  v.power = `${kw.toFixed(1)} kW`; v.powerw = (kw / MAX_KW) * 100; v.pc = gh.overBudget ? 'bad' : ''
+  v.powernote = gh.overBudget ? (x ? `OVER BUDGET: lower the light. Breaker trips in ${Math.max(0, GH.overdrawSeconds - x.overdraw).toFixed(1)} s` : `Over the ${GH.powerBudgetKw} kW budget: lower the light`) : `budget ${GH.powerBudgetKw} kW`
+  v.day = x ? `Day ${gh.testDay} of ${GH.testDays}` : 'Not started'
+  v.dayw = x ? (x.t / GH.testSeconds) * 100 : 0
+  v.daynote = x ? 'running' : `${GH.testDays} days in ${GH.testSeconds} seconds`
+  const open = STEPS.find(st => !gh.stepOk(st.n))
+  v.nostart = !!open
+  v.startc = !open && !gh.overBudget ? 'ok' : ''
+  v.startnote = open ? `Step ${open.n} is not in its green zone yet.` : gh.overBudget ? 'Warning: the power is over the budget.' : 'All three steps are set.'
+}
+function g1ResultHtml(gh: Greenhouse) {
+  const r = gh.testResult!, part = gh.score().parts[0]
+  return `<div class="gh-result ${r.won ? 'won' : 'lost'}"><div class="gh-m-tag">MISSION G1 · GROW LIGHT</div><h3>${r.won ? 'TEST PASSED' : 'TEST FAILED'}</h3><p>${esc(r.reason)}</p>
+      <div class="gh-metrics"><div><span>Lowest plant health</span><b>${Math.round(r.minHealth)}%</b></div><div><span>Test ended</span><b>day ${r.day} of ${GH.testDays}</b></div><div><span>Points</span><b>${part.points} of ${part.max}</b></div></div></div>
+    <div class="gh-debrief"><span>Debrief</span>${esc(MISSION.g1.debrief)}</div>${nasaCard(MISSION.g1)}
+    <div class="actions"><button class="btn primary" data-act="next">Next mission: What to Grow</button></div>
+    <p class="gh-note">${r.won ? '' : 'There is no retry for this test. '}The next mission does not depend on these settings.</p>`
+}
+
+// ------------------------------------------------------------------ G2: What to Grow
+function cropTable(gh: Greenhouse, pickable: boolean) {
+  return `<table class="gh-table"><thead><tr><th>Crop</th><th>Growth time</th><th>Calories per harvest</th><th>Water</th><th>Light</th>${pickable ? '<th></th>' : ''}</tr></thead><tbody>
+    ${CROPS.map(c => {
+      const on = gh.picks.includes(c.id), full = gh.picks.length >= GH.picks
+      return `<tr class="${on ? 'on' : ''}"><td>${thumb(c.id)}<b>${esc(c.name)}</b><small>${esc(c.note)}</small></td><td>${c.growDays} days</td><td>${num(c.kcal)} kcal</td><td>${c.waterLPerDay} L a day</td><td>${c.light}</td>
+        ${pickable ? `<td><button class="btn small ${on ? 'mint' : ''}" data-act="pick" data-c="${c.id}" ${!on && full ? 'disabled' : ''} aria-pressed="${on}">${on ? 'Picked' : 'Pick'}</button></td>` : ''}</tr>`
+    }).join('')}</tbody></table>
+    <p class="gh-note">Per bay. A crop grows again after each harvest, so a ${CROPS[0].growDays}-day crop can be harvested three times in ${GH.runDays} days and a ${CROPS[CROPS.length - 1].growDays}-day crop once.</p>`
+}
+function forecastHtml(gh: Greenhouse) {
+  if (!gh.planted) return `<div class="feedback">Plant a bay to see the forecast.</div>`
+  const f = gh.forecast(), top = Math.max(NEED_KCAL * 1.5, f.kcalHarvested)
+  const foodOk = f.kcalHarvested >= NEED_KCAL, waterOk = f.cause !== 'water'
+  return `<div class="gh-chart" role="img" aria-label="Forecast of calories harvested by day">
+      ${f.curve.map((k, i) => `<i class="${k >= NEED_KCAL ? 'ok' : ''} ${!waterOk && i + 1 > f.day ? 'dry' : ''}" style="height:${(k / top) * 100}%" title="Day ${i + 1}: ${num(k)} kcal"></i>`).join('')}
+      <span class="need" style="bottom:${(NEED_KCAL / top) * 100}%">crew needs ${num(NEED_KCAL)} kcal</span></div>
+    <div class="gh-axis"><span>day 1</span><span>day 10</span><span>day 20</span><span>day ${GH.runDays}</span></div>
+    <div class="gh-metrics">
+      <div class="${foodOk ? 'ok' : 'bad'}"><span>Food</span><b>${num(f.kcalHarvested)} kcal</b><small>${foodOk ? `Enough: ${num(f.kcalHarvested - NEED_KCAL)} kcal to spare` : `Too little: feeds the crew for ${f.fedDays} of ${GH.runDays} days`}</small></div>
+      <div class="${waterOk ? 'ok' : 'bad'}"><span>Water</span><b>${waterOk ? `${num(f.waterL)} L left` : `dry on day ${f.day}`}</b><small>of ${num(gh.tankStartL)} L in the tank</small></div>
+      <div class="${f.won ? 'ok' : 'bad'}"><span>Forecast</span><b>${f.won ? 'CREW FED' : 'PLAN FAILS'}</b><small>${f.won ? 'if nothing goes wrong' : 'change the crops or the bays'}</small></div></div>
+    <p class="gh-note">The forecast assumes you press Harvest all soon after a bay is ready, and that nothing breaks. Keep some food to spare.</p>`
+}
+function bayPicker(gh: Greenhouse) {
+  const row = (side: LoopId) => `<div class="gh-side"><span>Side ${side}</span>${BAY_IDS.filter(b => BAY_PLAN[b].loop === side).map(b => {
+    const c = gh.plan[b]
+    return `<button class="ghb ${c ? 'planted' : ''}" data-act="bay" data-b="${b}" aria-label="Bay ${b}: ${c ? crop(c).name : 'empty'}. Click to change."><b>${b}</b>${c ? `${thumb(c)}<span>${esc(crop(c).name)}</span>` : '<span class="none">Empty</span>'}</button>`
+  }).join('')}</div>`
+  return `<div class="gh-bays">${row('A')}${row('B')}</div>
+    <p class="gh-note">Click a bay to change its crop: empty, then each crop you picked. Each side has its own water pump.</p>`
+}
+function g2PlanHtml(gh: Greenhouse) {
+  const picked = gh.picks.length >= GH.picks
+  return `<div class="gh-head"><div><div class="gh-m-tag">MISSION G2</div><h3>WHAT TO GROW</h3></div>${checklist(MISSION.g2, [true, picked, false])}</div>
+    <div class="gh-sec"><h3>1. Compare crops and pick ${GH.picks} <small>${gh.picks.length} of ${GH.picks} picked</small></h3>${cropTable(gh, true)}</div>
+    <div class="gh-sec"><h3>2. Plant the 8 bays <small>${gh.planted} of 8 planted</small></h3>${picked || gh.picks.length ? bayPicker(gh) : `<div class="feedback">Pick ${GH.picks} crops in the table first.</div>`}</div>
+    <div class="gh-sec"><h3>3. Check the forecast <small>calories harvested by day, against what the crew needs</small></h3>${forecastHtml(gh)}</div>
+    <div class="actions"><button class="btn primary" data-act="run" ${picked && gh.planted ? '' : 'disabled'}>Start the ${GH.runDays} days</button>
+      <span class="gh-miss">${!picked ? `Pick ${GH.picks} crops first.` : !gh.planted ? 'Plant at least one bay.' : gh.forecast().won ? '' : 'Warning: the forecast says this plan fails, and there is no retry.'}</span></div>
+    <p class="gh-note">The run lasts ${GH.runSeconds} seconds. Press <b>Harvest all</b> whenever bays are ready. The crew needs ${num(GH.crewKcalPerDay)} kcal a day, ${num(NEED_KCAL)} kcal in all${gh.tankStartL > GH.tankL ? `. The repaired water purifier adds ${GH.purifierBonusL} L to the tank` : ''}.</p>`
+}
+function g2RunHtml(gh: Greenhouse) {
+  const r = gh.run!
+  const row = (side: LoopId) => `<div class="gh-side"><span data-v="side-${side}"></span>${r.bays.filter(b => b.loop === side).map(b => `<div class="ghb run" data-c="bc-${b.id}"><b>${b.id}</b>${b.crop ? `${thumb(b.crop)}<span>${esc(crop(b.crop).name)}</span><div class="gbar"><i data-w="bw-${b.id}"></i></div><small data-v="bt-${b.id}"></small>` : '<span class="none">Empty</span>'}</div>`).join('')}</div>`
+  return `<div class="gh-head"><div><div class="gh-m-tag">MISSION G2 · WHAT TO GROW</div><h3 data-v="day"></h3></div><div class="gbar gh-daybar"><i data-w="dayw"></i></div></div>
+    ${pumpCard(gh)}
+    <div class="gh-meters two">
+      <div class="gh-big" data-c="fc"><span>Food harvested</span><b data-v="food"></b><div class="gbar lined" style="--line:${(1 / 1.5) * 100}%"><i data-w="foodw"></i></div><small data-v="foodnote"></small></div>
+      <div class="gh-big" data-c="wc"><span>Water tank</span><b data-v="water"></b><div class="gbar water"><i data-w="waterw"></i></div><small>the run fails if it runs dry</small></div>
+    </div>
+    <div class="gh-bays">${row('A')}${row('B')}</div>
+    <div class="actions"><button class="btn primary gh-harvest" data-act="harvest" data-dis="noharvest" data-c="hvc"><span data-v="harvest"></span></button></div>`
+}
+function g2RunVals(gh: Greenhouse, v: Vals) {
+  const r = gh.run!, ready = gh.readyBays
+  v.day = `Day ${gh.runDay} of ${GH.runDays}`; v.dayw = (r.t / GH.runSeconds) * 100
+  v.food = `${num(r.kcalHarvested)} kcal`; v.foodw = (r.kcalHarvested / (NEED_KCAL * 1.5)) * 100
+  v.fc = r.kcalHarvested >= NEED_KCAL ? 'ok' : ''
+  v.foodnote = r.kcalHarvested >= NEED_KCAL ? `the crew's ${num(NEED_KCAL)} kcal are in` : `${num(NEED_KCAL - r.kcalHarvested)} kcal still needed`
+  v.water = `${num(r.waterL)} L`; v.waterw = (r.waterL / r.tankL) * 100; v.wc = r.waterL < r.tankL * 0.15 ? 'bad' : ''
+  for (const side of ['A', 'B'] as const) v[`side-${side}`] = `Side ${side}${r.pump.state === 'pending' ? ' · pump stopped' : r.pump.state === 'fixed' ? (r.pump.saved === side ? ' · pump repaired' : ' · half speed') : ''}`
+  for (const b of r.bays) {
+    v[`bw-${b.id}`] = b.progress * 100
+    v[`bt-${b.id}`] = b.ready ? 'READY' : b.speed < 1 ? 'Growing slowly' : 'Growing'
+    v[`bc-${b.id}`] = b.ready ? 'ready' : b.crop && b.speed < 1 ? 'slow' : ''
+  }
+  v.noharvest = !ready || gh.pumpPending
+  v.harvest = gh.pumpPending ? 'Paused: choose a pump' : ready ? `Harvest all · ${plural(ready, 'bay')} ready` : 'Harvest all · nothing ready yet'
+  v.hvc = ready && !gh.pumpPending ? 'go' : ''
+}
+function g2ResultHtml(gh: Greenhouse) {
+  const r = gh.runResult!, s = gh.score()
+  const by = CROPS.map(c => ({ c, hs: r.harvests.filter(h => h.crop === c.id) })).filter(x => x.hs.length)
+  return `<div class="gh-result ${r.won ? 'won' : 'lost'}"><div class="gh-m-tag">MISSION G2 · WHAT TO GROW</div><h3>${r.won ? 'CREW FED' : 'MISSION FAILED'}</h3><p>${esc(r.reason)}</p>
+      <div class="gh-metrics"><div><span>Food harvested</span><b>${num(r.kcalHarvested)} kcal</b><small>the crew needed ${num(NEED_KCAL)}: fed for ${r.fedDays} of ${GH.runDays} days</small></div>
+        <div><span>Water left</span><b>${num(r.waterL)} L</b><small>of ${num(r.tankL)} L</small></div>
+        <div><span>Points</span><b>${s.parts[1].points} of ${s.parts[1].max}</b><small>pump failure: ${s.parts[2].points} of ${s.parts[2].max}</small></div></div>
+      ${by.length ? `<ul class="gh-list">${by.map(x => `<li><b>${esc(x.c.name)}</b>: ${num(x.hs.reduce((a, h) => a + h.kcal, 0))} kcal from ${plural(x.hs.reduce((a, h) => a + h.bays, 0), 'bay harvest')} (day ${x.hs.map(h => h.day).join(', ')})</li>`).join('')}</ul>` : '<p>Nothing was harvested.</p>'}
+      ${r.pump ? `<p>Pump failure: the spare part went to side ${r.pump}, and side ${r.pump === 'A' ? 'B' : 'A'} grew at half speed. ${esc(PUMP_DEBRIEF)}</p>` : ''}</div>
+    <div class="gh-debrief"><span>Debrief</span>${esc(MISSION.g2.debrief)}</div>${nasaCard(MISSION.g2)}
+    <div class="actions"><button class="btn primary" data-act="next">See the greenhouse score</button></div>`
+}
+function scoreHtml(gh: Greenhouse) {
+  const s = gh.score()
+  return `<div class="gh-sec"><h3>Greenhouse score <small>its own line, beside the base score</small></h3>
+      <div class="gh-score"><b>${s.total}</b><span>/ 100</span></div>
+      <div class="gh-parts">${s.parts.map(p => `<div class="gh-part"><span>${esc(p.label)}</span><div class="gbar"><i style="width:${pct(p.points / p.max)}%"></i></div><b>${p.points} / ${p.max}</b><small>${esc(p.why)}</small></div>`).join('')}</div></div>`
+}
+const doneHtml = (gh: Greenhouse) => `${scoreHtml(gh)}
+  <div class="feedback ${gh.complete ? 'ok' : 'warn'}">The greenhouse is finished. Both missions are played once, so this score is final. The bays keep the last crops.</div>
+  <div class="gh-debrief"><span>Debrief</span>${esc(MISSION.g1.debrief)} ${esc(MISSION.g2.debrief)}</div>`
 
 // ------------------------------------------------------------------ Greenhouse Control
-function overviewTab(gh: Greenhouse, remote: boolean): LiveTab {
-  const stepper = (k: keyof typeof RECIPE_LIMITS, label: string, unit: string, step: number) => {
-    const [lo, hi] = RECIPE_LIMITS[k], val = gh.recipe[k]
-    return `<div class="gh-step"><span>${label}</span><button class="btn small" data-act="rec" data-k="${k}" data-d="${-step}" ${val <= lo ? 'disabled' : ''} aria-label="Lower ${label}">−</button><b>${val} ${unit}</b><button class="btn small" data-act="rec" data-k="${k}" data-d="${step}" ${val >= hi ? 'disabled' : ''} aria-label="Raise ${label}">+</button></div>`
-  }
+function controlTab(gh: Greenhouse): LiveTab {
   return {
-    key: () => `ov|${gh.commissioned}|${gh.exterior.arrayState}|${gh.exterior.radiation}|${JSON.stringify(gh.recipe)}|${gh.tier}|${gh.bays.map(b => `${bayStatus(b)}${b.planting?.crop ?? ''}`).join(',')}|${jobsKey(gh)}`,
-    html: () => `${statusBar()}
-      ${remote ? '<p class="gh-note">Remote view from Hab Systems, a shielded part of the station. Planting, harvesting and repairs are done in the greenhouse itself.</p>' : ''}
-      ${gh.commissioned ? '' : '<div class="feedback">The module is docked and idle. Nothing drifts and nothing fails until the first crop is planted: walk to bay A1, A2 or A3 and plant one. The greenhouse is optional and is scored on its own.</div>'}
-      <div class="gh-sec"><h3>Outside the module <small>the station orbit, at 30× like the windows</small></h3>
-        <div class="gh-ext">
-          <div class="gx"><span>Sunlight on the array</span><b data-v="sunpct"></b><small>REAL: ${GH.solarFluxWm2.toLocaleString('en-US')} W/m² in full sun at Earth's distance</small></div>
-          <div class="gx" data-c="arrc"><span>Greenhouse array</span><b data-v="array"></b><small data-v="arraynote"></small></div>
-          <div class="gx" data-c="radc"><span>Space weather</span><b data-v="rad"></b><small data-v="radnote"></small></div>
-          <div class="gx"><span>Outside pressure</span><b>0 kPa</b><small>Vacuum. A leak only ever goes one way.</small></div>
-        </div>
-        <div class="actions">${gh.exterior.arrayState === 'string offline' ? `<button class="btn small mint" data-act="array" ${remote ? 'disabled' : ''}>Inspect the array and reset the string</button>` : ''}
-          <button class="btn small ${gh.recipe.eclipseDim ? 'mint' : ''}" data-act="dim">Dim lights in eclipse: ${gh.recipe.eclipseDim ? 'on' : 'off'}</button></div>
-      </div>
-      <div class="gh-sec"><h3>Inside <small>reading · target · trend over the last ten seconds</small></h3>${rows(gh, ['temp', 'rh', 'pressure', 'o2', 'co2'])}</div>
-      <div class="gh-sec"><h3>Environmental recipe <small>game presets, yours to change</small></h3>
-        <div class="gh-steps">${stepper('tempLitC', 'Air, lights on', '°C', 1)}${stepper('tempDarkC', 'Air, lights off', '°C', 1)}${stepper('rhPct', 'Humidity', '%', 5)}${stepper('co2Ppm', 'CO2', 'ppm', 100)}${stepper('photoperiodH', 'Lights each day', 'h', 1)}</div>
-        <p class="gh-note">Daily light = canopy light × lit seconds ÷ 1,000,000. At 250 µmol/m²/s for ${gh.recipe.photoperiodH} h that is <b>${dli(250, gh.recipe.photoperiodH).toFixed(1)} mol/m²/day</b>. Longer days grow more and draw more power.</p>
-      </div>
-      <div class="gh-sec"><h3>Bays <small>${gh.plantedM2.toFixed(1)} m² planted of ${gh.openM2.toFixed(1)} m² open</small></h3>
-        <div class="gh-bays">${gh.bays.map(b => { const st = bayStatus(b), p = b.planting; return `<div class="ghb st-${st}" title="${STATUS_TEXT[st]}"><b>${b.id}</b><span>${p ? esc(crop(p.crop).name) : st === 'locked' ? `Level ${BAY_PLAN[b.id].tier}` : b.kind === 'tier' ? 'Leaf rack' : 'Trellis bay'}</span><small data-v="b-${b.id}"></small><div class="gbar"><i data-w="bw-${b.id}"></i></div></div>` }).join('')}</div>
-      </div>${jobsHtml(gh)}`,
-    vals: () => {
-      const v: Vals = {}, x = gh.exterior
-      statusVals(gh, v); readingVals(gh, v); jobVals(gh, v)
-      v.sunpct = `${pct(x.sunlight)}%`
-      v.array = x.arrayState === 'tracking' ? `Tracking · ${gh.generationKw.toFixed(1)} kW` : x.arrayState === 'feathered' ? 'FEATHERED' : 'STRING OFFLINE'
-      v.arraynote = x.arrayState === 'tracking' ? 'Making what the light allows.' : x.arrayState === 'feathered' ? 'Turned edge-on for a visiting vehicle. Shed loads or tie in the station bus until it turns back.' : 'One string did not reconnect. Output stays low until it is inspected.'
-      v.arrc = x.arrayState === 'tracking' ? '' : 'warn'
-      v.rad = x.radiation === 'quiet' ? 'Quiet' : x.radiation === 'watch' ? 'WATCH' : 'PARTICLE STORM'
-      v.radnote = x.radiation === 'quiet' ? 'No solar particle event.' : x.radiation === 'watch' ? 'A solar particle event is forecast. Plan to leave the module.' : `Leave the module and work from a shielded node. Dose so far ${gh.doseMsv.toFixed(2)} mSv (game value).`
-      v.radc = x.radiation === 'quiet' ? '' : x.radiation === 'watch' ? 'warn' : 'bad'
-      for (const b of gh.bays) {
-        const p = b.planting, s = gh.secondsToHarvest(b.id)
-        v[`b-${b.id}`] = !b.unlocked ? 'Locked' : !p ? 'Empty' : p.stage === 'dead' ? 'Dead: clear it' : p.stage === 'ready' ? 'Ready' : `${STAGE_TEXT[p.stage]}${s !== null && Number.isFinite(s) ? ` · ${Math.ceil(s)} s` : ''}`
-        v[`bw-${b.id}`] = p ? pct(p.progress) : 0
+    key: () => {
+      const p = gh.phase
+      return p === 'g2-plan' ? `plan|${gh.picks.join(',')}|${BAY_IDS.map(b => gh.plan[b] ?? '-').join(',')}|${gh.tankStartL}` : p === 'g2-run' ? `run|${gh.run!.pump.state}` : p
+    },
+    html: () => {
+      switch (gh.phase) {
+        case 'g1-setup': case 'g1-test': return g1Html(gh)
+        case 'g1-result': return g1ResultHtml(gh)
+        case 'g2-brief': return `${missionCard(MISSION.g2)}<div class="actions"><button class="btn primary" data-act="next">Compare crops</button></div><p class="gh-note">This mission is played once: there is no retry. You can check a forecast before the run starts.</p>`
+        case 'g2-plan': return g2PlanHtml(gh)
+        case 'g2-run': return g2RunHtml(gh)
+        case 'g2-result': return g2ResultHtml(gh)
+        default: return doneHtml(gh)
       }
+    },
+    vals: () => {
+      const v: Vals = {}
+      if (gh.phase === 'g1-setup' || gh.phase === 'g1-test') g1Vals(gh, v)
+      else if (gh.phase === 'g2-run') g2RunVals(gh, v)
       return v
     },
     acts: {
-      rec: d => gh.setRecipe({ [d.k as keyof Recipe]: (gh.recipe[d.k as keyof typeof RECIPE_LIMITS]) + Number(d.d) } as Partial<Recipe>),
-      dim: () => gh.setRecipe({ eclipseDim: !gh.recipe.eclipseDim }),
-      array: () => gh.repair('array'),
+      ...pumpAct(gh),
+      start: () => gh.startTest(),
+      next: () => gh.next(),
+      pick: d => gh.togglePick(d.c as CropId),
+      bay: d => gh.cycle(d.b as BayId),
+      run: () => gh.startRun(),
+      harvest: () => { const err = gh.harvestAll(); if (!err) sound.play('success'); return err },
     },
-  }
-}
-
-const DRILL: Record<FaultKind, string> = {
-  arrayFeather: 'Array feathered', arrayString: 'Array string offline', irrigation: 'Irrigation failure', climate: 'Climate-control failure', humidity: 'High humidity',
-  nutrient: 'Nutrient problem', leak: 'Pressure leak', contamination: 'Root contamination', radiation: 'Solar particle event',
-}
-function alertsTab(gh: Greenhouse): LiveTab {
-  return {
-    key: () => `al|${alertsKey(gh)}|${jobsKey(gh)}|${gh.log.length}|${gh.commissioned}`,
-    html: () => `${statusBar()}
-      <div class="gh-sec"><h3>Alerts <small>problem · trend · affected bay · next action</small></h3>
-        ${gh.alerts.length ? gh.alerts.map(a => alertCard(gh, a)).join('') : '<div class="feedback ok">No alerts. Every reading is in its band.</div>'}
-        <p class="gh-note">Every problem moves through four stages: warning, degraded, damage, recovery. Fixing a pump does not bring back a dead plant, and it does not fix anything else.</p>
-      </div>${jobsHtml(gh)}
-      <div class="gh-sec"><h3>Module log</h3><div class="logl">${gh.log.slice(-14).reverse().map(e => `<div><span style="color:#5fd8f0">${mmss(e.at)}</span> ${esc(e.text)}</div>`).join('') || '<div>Nothing yet.</div>'}</div></div>
-      <details class="gh-drill"><summary>Run a drill</summary><p class="gh-note">Starts a real failure now, for practice or to show the module to someone. It counts like any other.</p>
-        <div class="actions">${FAULT_KINDS.map(k => `<button class="btn small" data-act="drill" data-k="${k}" ${gh.commissioned ? '' : 'disabled'}>${DRILL[k]}</button>`).join('')}</div></details>`,
-    vals: () => { const v: Vals = {}; statusVals(gh, v); jobVals(gh, v); return v },
-    acts: { ...alertActs(gh), drill: d => gh.inject(d.k as FaultKind) },
-  }
-}
-
-function progressTab(gh: Greenhouse): LiveTab {
-  return {
-    key: () => { const u = gh.unlockStatus(); return `pr|${gh.tier}|${u.ready}|${u.missing}|${gh.harvestCount}|${gh.inventory.variety.length}|${gh.score().parts.map(p => p.points).join(',')}` },
-    html: () => {
-      const u = gh.unlockStatus(), sc = gh.score()
-      return `${statusBar()}
-      <div class="gh-sec"><h3>Greenhouse score <small>its own line, beside the base score</small></h3>
-        <div class="gh-score"><b>${sc.total}</b><span>/ 100</span></div>
-        <div class="gh-parts">${sc.parts.map(p => `<div class="gh-part"><span>${esc(p.label)}</span><div class="gbar"><i style="width:${pct(p.points / p.max)}%"></i></div><b>${p.points} / ${p.max}</b><small>${esc(p.why)}</small></div>`).join('')}</div>
-      </div>
-      <div class="gh-sec"><h3>How far the module has come</h3>
-        <div class="gh-metrics"><div><span>Food coverage</span><b data-v="cover"></b><small>of one crew member's calories, since the first planting</small></div>
-          <div><span>Water recovery</span><b data-v="recov"></b><small>of transpired water condensed and returned</small></div>
-          <div><span>Growing area</span><b data-v="area"></b><small>planted, of ${gh.openM2.toFixed(1)} m² open. All eight bays hold 28.8 m².</small></div></div>
-        <p class="gh-note">NASA's controlled-environment studies estimated roughly 20 to 25 m² of crops for one person's oxygen and around 50 m² for their calories. Those are research estimates under their study assumptions, not a sizing rule; they are why one module does not feed a crew.</p>
-      </div>
-      <div class="gh-sec"><h3>Levels</h3>${TIERS.map(t => `<div class="gh-tier ${t.level < gh.tier ? 'done' : t.level === gh.tier ? 'now' : ''}"><b>${t.level}. ${esc(t.name)}</b><span>${esc(t.text)}</span>
-          <small>${t.level <= gh.tier ? `Open: ${esc(t.unlocks)}` : `Needs: ${esc(t.needs)} Opens: ${esc(t.unlocks)}`}</small>
-          ${u.next?.level === t.level ? `<div class="actions"><button class="btn ${u.ready ? 'primary' : ''}" data-act="unlock" ${u.ready ? '' : 'disabled'}>Unlock level ${t.level}</button>${u.ready ? '' : `<span class="gh-miss">${esc(u.missing)}</span>`}</div>` : ''}</div>`).join('')}
-        <p class="gh-note">Beyond one module (where the idea leads; nothing here builds them): ${BEYOND.map(esc).join(' → ')}.</p>
-      </div>`
-    },
-    vals: () => { const v: Vals = {}; statusVals(gh, v); v.cover = `${gh.foodCoveragePct.toFixed(0)}%`; v.recov = gh.transpiredL > 1 ? `${gh.recoveryPct.toFixed(0)}%` : '—'; v.area = `${gh.plantedM2.toFixed(1)} m²`; return v },
-    acts: { unlock: () => gh.unlock() },
+    input: (d, value) => { gh.setSlider(d.s as SliderId, value) },
   }
 }
 
@@ -250,226 +344,92 @@ function sourcesTab(): LiveTab {
   const row = (kind: 'real' | 'model', title: string, text: string) => `<div class="src ${kind}"><div><b>${title}</b><span>${text}</span></div><em>${kind === 'real' ? 'NASA research' : 'Our game model'}</em></div>`
   return {
     key: () => 'src',
-    html: () => `<p class="lead">The greenhouse is an original game module. NASA's plant research decides what is in it; every number is ours and stays editable.</p><div class="srcs">
-      ${row('real', 'Crops grown in space', 'NASA reports lettuces, Chinese cabbage, mustard greens, kale, tomatoes, radishes and chile peppers grown in orbit. The six fresh crops here come from that list.')}
-      ${row('real', 'Staple crops studied on the ground', 'NASA has studied wheat, soybeans, potatoes, rice and sweet potatoes in controlled chambers. Potato, dwarf wheat and soybean here come from that work.')}
-      ${row('real', 'What a plant chamber can control', "NASA's Advanced Plant Habitat on the ISS controls temperature from 18 to 30 °C, CO2 from 400 to 5,000 ppm and light up to 1,000 µmol/m²/s, with more than 180 sensors. Those are equipment capabilities, not ideal settings.")}
-      ${row('real', 'How much growing area a person needs', 'About 20 to 25 m² of crops for one person’s oxygen and around 50 m² for their calories, in NASA’s controlled-environment studies. Approximate, and tied to those studies’ assumptions.')}
-      ${row('real', 'Sunlight in orbit', `${GH.solarFluxWm2.toLocaleString('en-US')} W/m² at Earth's distance from the Sun.`)}
-      ${row('model', 'Every setting and timer', 'The starter recipe (101 kPa, 21 % oxygen, 22 °C, 60 % humidity, 1,000 ppm CO2, pH 6.0, 1.6 mS/cm, 250 µmol/m²/s for 16 hours), each crop’s temperature and light band, and its days to harvest.')}
-      ${row('model', 'Growth as a cooldown', 'One crop day passes each second in good conditions, so a 30-day lettuce is ready in about 30 seconds. Growth is potential × temperature × light × water × nutrient × air. It is not a calibrated crop model.')}
-      ${row('model', 'Yields and food values', 'Kilograms per square metre, calories and protein are approximate game values. They are not NASA yields.')}
-      ${row('model', 'Power, water and air', 'The 7.2 kW array, the 6 kWh battery, 3 µmol of light per joule, water uptake and recovery, the leak and its reserve. Energy is kW × hours on the station’s 30× clock.')}
-      ${row('model', 'Failures and the score', 'How often things fail, how fast plants suffer, repair times, the radiation dose and all seven parts of the score are balancing numbers, not scientific constants.')}
-      ${row('model', 'A station, not Mars', 'The source material describes a Mars greenhouse. Here it is berthed to the station: dust storms became the array feathering for a visiting vehicle, and dust on the panels became a string that stays offline.')}
+    html: () => `<p class="lead">The greenhouse is a game module. NASA's plant research decides what is in it; every number is ours.</p><div class="srcs">
+      ${row('real', 'Plant chambers on the station', "NASA grows plants on the ISS in the Veggie units and in the Advanced Plant Habitat, a closed chamber with more than 180 sensors that controls light, temperature, humidity, CO2, water and nutrients.")}
+      ${row('real', 'Crops grown in space', 'Lettuce, radish, mizuna mustard, kale, chile peppers and dwarf tomatoes have all been grown on the ISS. The chile peppers grew for 137 days.')}
+      ${row('model', 'The six controls', `The good zones, how fast plant health falls and recovers, the ${GH.powerBudgetKw} kW power budget and what each control draws.`)}
+      ${row('model', 'Days and seconds', `A greenhouse day is a game unit: the ${GH.testDays}-day test and the ${GH.runDays}-day run each last ${GH.runSeconds} seconds. They do not move the mission clock.`)}
+      ${row('model', 'Crops, calories and water', `Days to harvest, calories per harvest, water per day, the crew's ${num(GH.crewKcalPerDay)} kcal a day and the ${num(GH.tankL)} L tank are balancing numbers, not NASA yields.`)}
+      ${row('model', 'The pump failure and the score', 'How often the pumps fail, what the spare part does and the 40 + 50 + 10 points are game rules.')}
     </div>`,
     vals: () => ({}),
     acts: {},
   }
 }
 
-// ------------------------------------------------------------------ Service Bay
-const repairBtn = (what: RepairId, label: string, gh: Greenhouse) => { const busy = gh.jobs.some(j => j.kind === 'repair' && j.target === what); return `<button class="btn small" data-act="repair" data-w="${what}" ${busy ? 'disabled' : ''}>${busy ? 'Repairing…' : label}</button>` }
-const loopFlow = (gh: Greenhouse, loop: 'A' | 'B') => { const bs = gh.bays.filter(b => b.loop === loop && b.unlocked); return bs.length ? bs.reduce((a, b) => a + b.flow, 0) / bs.length : 0 }
-
-function irrigationTab(gh: Greenhouse): LiveTab {
-  const mine = (a: Alert) => a.kind === 'irrigation' || a.kind === 'nutrient' || a.kind === 'water' || a.kind === 'contamination'
-  return {
-    key: () => `ir|${alertsKey(gh, mine)}|${jobsKey(gh)}|${gh.labTest?.at ?? ''}|${gh.inventory.nutrientStock}|${gh.inventory.sanitizer}|${gh.makeupUsesLeft}|${gh.tier}`,
-    html: () => `${statusBar()}${gh.alerts.filter(mine).map(a => alertCard(gh, a)).join('')}
-      <div class="gh-sec"><h3>Nutrient loop <small>recirculating hydroponics: tank → racks → back to the tank</small></h3>${rows(gh, ['tank', 'ph', 'ec', 'rootTemp'])}
-        <div class="gh-ext"><div class="gx" data-c="fa"><span>Loop A flow (bays A1 to A4)</span><b data-v="flowA"></b></div><div class="gx" data-c="fb"><span>Loop B flow (bays B1 to B4)</span><b data-v="flowB"></b></div>
-          <div class="gx"><span>Nutrient stock</span><b>${gh.inventory.nutrientStock.toFixed(2)} units</b></div><div class="gx"><span>Sanitiser</span><b>${gh.inventory.sanitizer} dose${gh.inventory.sanitizer === 1 ? '' : 's'}</b></div></div>
-        <div class="actions"><button class="btn small" data-act="mix">Mix a fresh batch · 1 stock</button><button class="btn small" data-act="dose" data-w="nutrient">Dose nutrients · ¼ stock</button>
-          <button class="btn small" data-act="dose" data-w="phUp">pH up</button><button class="btn small" data-act="dose" data-w="phDown">pH down</button>
-          <button class="btn small" data-act="flush">Flush · costs water</button><button class="btn small" data-act="test">Lab test</button>
-          <button class="btn small" data-act="makeup" ${gh.makeupUsesLeft ? '' : 'disabled'}>Top up from the station · ${gh.makeupUsesLeft} left</button></div>
-        ${gh.tier >= 4 ? '<p class="gh-note">Level 4: the module doses pH and nutrients by itself while stock lasts. The balance still needs a fresh mix.</p>' : ''}
-        <div class="feedback ${gh.labTest ? (gh.labTest.balance > 0.7 ? 'ok' : 'warn') : ''}">${gh.labTest ? `Lab test at ${mmss(gh.labTest.at)}: nutrient balance ${pct(gh.labTest.balance)}%. ${esc(gh.labTest.note)}` : 'No lab test yet. Conductivity only says how much is dissolved, not whether the nutrients are in balance: different salts read the same. A lab test shows the balance.'}</div>
-      </div>
-      <div class="gh-sec"><h3>Pumps and lines</h3><div class="actions">${repairBtn('pumpA', 'Repair pump A', gh)}${repairBtn('pumpB', 'Repair pump B', gh)}</div>
-        <p class="gh-note">A blocked line to one bay is cleared at that bay. Diagnose a flow alert first: repairing a healthy pump only loses time.</p></div>
-      <div class="gh-sec"><h3>Where the water is</h3><div class="gh-metrics"><div><span>Transpired by the plants</span><b data-v="transp"></b></div><div><span>Condensed and returned</span><b data-v="recov"></b></div><div><span>Lost</span><b data-v="lost"></b></div></div>
-        <p class="gh-note">Water going round the loop is not water used up. What leaves is what the plants keep and what the dehumidifier fails to return.</p></div>${jobsHtml(gh)}`,
-    vals: () => {
-      const v: Vals = {}
-      statusVals(gh, v); readingVals(gh, v); jobVals(gh, v)
-      for (const l of ['A', 'B'] as const) { const f = loopFlow(gh, l); v[`flow${l}`] = `${pct(f)}%`; v[l === 'A' ? 'fa' : 'fb'] = f < 0.5 && gh.commissioned ? 'bad' : '' }
-      v.transp = `${gh.transpiredL.toFixed(0)} L`; v.recov = `${gh.recoveredL.toFixed(0)} L${gh.transpiredL > 1 ? ` (${gh.recoveryPct.toFixed(0)}%)` : ''}`; v.lost = `${gh.lostL.toFixed(0)} L`
-      return v
-    },
-    acts: { ...alertActs(gh), mix: () => gh.mix(), dose: d => gh.dose(d.w as 'nutrient' | 'phUp' | 'phDown'), flush: () => gh.flush(), test: () => gh.testSolution(), makeup: () => gh.requestMakeup(), repair: d => gh.repair(d.w as RepairId) },
-  }
-}
-
-function powerTab(gh: Greenhouse): LiveTab {
-  const mine = (a: Alert) => a.kind === 'battery' || a.kind === 'arrayFeather' || a.kind === 'arrayString'
-  return {
-    key: () => `pw|${alertsKey(gh, mine)}|${gh.priority.join(',')}|${gh.loads.map(l => `${+l.on}${+l.shed}`).join('')}|${gh.backupUsesLeft}|${gh.backupLeft > 0}|${gh.recipe.photoperiodH}|${gh.recipe.eclipseDim}|${gh.exterior.arrayState}|${jobsKey(gh)}`,
-    html: () => {
-      const order = gh.priority.map(id => gh.loads.find(l => l.id === id)!).filter(Boolean)
-      return `${statusBar()}${gh.alerts.filter(mine).map(a => alertCard(gh, a)).join('')}
-      <div class="gh-sec"><h3>Power <small>generation → bus → battery → loads</small></h3>
-        <div class="gh-metrics"><div><span>Generation</span><b data-v="gen"></b><small data-v="gennote"></small></div><div><span>Load</span><b data-v="load"></b><small data-v="net"></small></div>
-          <div data-c="battc"><span>Battery</span><b data-v="kwh"></b><small data-v="endur"></small></div></div>
-        <p class="gh-note">Energy in kWh = power in kW × hours. The module's clock runs 30× like the windows, so one eclipse is about 35 minutes of battery. A percentage alone cannot say how long it lasts: capacity and the net draw are shown with it.</p>
-      </div>
-      <div class="gh-sec"><h3>Loads <small>most protected first; an empty battery sheds from the bottom</small></h3>
-        <div class="gh-loads">${order.map((l, i) => `<div class="gh-load ${l.shed ? 'shed' : l.on ? '' : 'off'}"><b>${i + 1}. ${esc(l.name)}</b><span data-v="lk-${l.id}"></span><em>${l.essential ? 'ALWAYS ON' : l.shed ? 'SHED' : l.on ? 'ON' : 'OFF'}</em>
-          <span class="gh-load-b">${l.essential ? '' : `<button class="btn small" data-act="sw" data-id="${l.id}">${l.on ? 'Switch off' : 'Switch on'}</button>`}<button class="btn small" data-act="mv" data-id="${l.id}" data-d="-1" ${i === 0 || l.essential || order[i - 1].essential ? 'disabled' : ''} aria-label="Protect ${esc(l.name)} more">▲</button><button class="btn small" data-act="mv" data-id="${l.id}" data-d="1" ${i === order.length - 1 || l.essential ? 'disabled' : ''} aria-label="Protect ${esc(l.name)} less">▼</button></span></div>`).join('')}</div>
-        <div class="actions"><button class="btn small" data-act="backup" ${gh.backupUsesLeft && gh.backupLeft <= 0 ? '' : 'disabled'}>${gh.backupLeft > 0 ? 'Station bus tied in' : `Tie in the station bus · +${GH.backupKw} kW for ${GH.backupSeconds} s · ${gh.backupUsesLeft} left`}</button>
-          ${gh.exterior.arrayState === 'string offline' ? repairBtn('array', 'Inspect the array and reset the string', gh) : ''}</div>
-      </div>
-      <div class="gh-sec"><h3>Light schedule</h3><div class="gh-steps"><div class="gh-step"><span>Lights each day</span><button class="btn small" data-act="ph" data-d="-1" ${gh.recipe.photoperiodH <= RECIPE_LIMITS.photoperiodH[0] ? 'disabled' : ''}>−</button><b>${gh.recipe.photoperiodH} h on / ${24 - gh.recipe.photoperiodH} h off</b><button class="btn small" data-act="ph" data-d="1" ${gh.recipe.photoperiodH >= RECIPE_LIMITS.photoperiodH[1] ? 'disabled' : ''}>+</button></div></div>
-        <div class="actions"><button class="btn small ${gh.recipe.eclipseDim ? 'mint' : ''}" data-act="dim">Dim lights in eclipse: ${gh.recipe.eclipseDim ? 'on' : 'off'}</button></div>
-        <p class="gh-note">Crop days pass far faster than an orbit, so the lights draw their daily average: a ${gh.recipe.photoperiodH}-hour day draws ${pct(gh.recipe.photoperiodH / 24)}% of full. Each bay's own light level is set at the bay.</p></div>${jobsHtml(gh)}`
-    },
-    vals: () => {
-      const v: Vals = {}, net = gh.generationKw - gh.loadKw, e = gh.enduranceH
-      statusVals(gh, v); jobVals(gh, v)
-      v.gen = `${gh.generationKw.toFixed(2)} kW`; v.gennote = `${pct(gh.exterior.sunlight)}% sun · array at ${pct(gh.exterior.arrayHealth)}%${gh.backupLeft > 0 ? ` · station bus ${Math.ceil(gh.backupLeft)} s` : ''}`
-      v.load = `${gh.loadKw.toFixed(2)} kW`; v.net = `net ${net >= 0 ? '+' : '−'}${Math.abs(net).toFixed(2)} kW`
-      v.kwh = `${gh.batteryKwh.toFixed(2)} of ${GH.batteryKwh} kWh · ${Math.round(gh.batteryPct)}%`
-      v.endur = e === null ? 'charging' : `${e < 1 ? `${Math.round(e * 60)} min` : `${e.toFixed(1)} h`} of station time at this draw`
-      for (const l of gh.loads) v[`lk-${l.id}`] = `${l.kw.toFixed(2)} kW${l.kw === 0 && l.wantKw > 0 ? ` (wants ${l.wantKw.toFixed(2)})` : ''}`
-      return v
-    },
-    acts: { ...alertActs(gh), sw: d => { const l = gh.loads.find(q => q.id === d.id)!; return gh.setLoadOn(l.id, !l.on) }, mv: d => gh.movePriority(d.id as LoadId, Number(d.d) as -1 | 1), backup: () => gh.useBackup(), repair: d => gh.repair(d.w as RepairId), ph: d => gh.setRecipe({ photoperiodH: gh.recipe.photoperiodH + Number(d.d) }), dim: () => gh.setRecipe({ eclipseDim: !gh.recipe.eclipseDim }) },
-  }
-}
-
-function airTab(gh: Greenhouse): LiveTab {
-  const mine = (a: Alert) => a.kind === 'climate' || a.kind === 'humidity' || a.kind === 'leak' || a.kind === 'radiation'
-  return {
-    key: () => `air|${alertsKey(gh, mine)}|${jobsKey(gh)}|${gh.compartmentClosed}`,
-    html: () => { const leak = gh.alerts.find(a => a.kind === 'leak'); return `${statusBar()}${gh.alerts.filter(mine).map(a => alertCard(gh, a)).join('')}
-      <div class="gh-sec"><h3>Air <small>circulation → humidity removal → gas control → growing bays</small></h3>${rows(gh, ['temp', 'rh', 'co2', 'o2'])}
-        <div class="actions">${repairBtn('thermal', 'Repair the thermal unit', gh)}${repairBtn('dehumidifier', 'Repair the dehumidifier', gh)}</div>
-        <p class="gh-note">Lights and equipment heat the air even though it is cold outside, and vacuum carries no heat away. With the thermal unit down, dimming or switching off lights buys time. Plants make oxygen in the light and use some day and night: net oxygen to the cabin so far <b data-v="o2made"></b> (game value).</p></div>
-      <div class="gh-sec"><h3>Hull and pressure <small>a leak drains the reserve first, then the room, slowly</small></h3>${rows(gh, ['pressure', 'reserve'])}
-        <div class="actions">${leak && !leak.diagnosed ? `<button class="btn small" data-act="diag" data-id="${leak.id}" ${gh.jobs.some(j => j.kind === 'diagnose' && j.target === String(leak.id)) ? 'disabled' : ''}>Locate the leak</button>` : ''}
-          <button class="btn small ${gh.compartmentClosed ? 'mint' : ''}" data-act="close">${gh.compartmentClosed ? 'Open the compartment' : 'Close the leaking compartment'}</button>${repairBtn('seal', 'Repair the seal', gh)}</div>
-        <p class="gh-note">Locate it, close that compartment to stop the loss, repair the seal, then open it again. Opening costs a little reserve to bring the compartment back to pressure.</p></div>${jobsHtml(gh)}` },
-    vals: () => { const v: Vals = {}; statusVals(gh, v); readingVals(gh, v); jobVals(gh, v); v.o2made = `${gh.o2MadeKg.toFixed(2)} kg`; return v },
-    acts: { ...alertActs(gh), repair: d => gh.repair(d.w as RepairId), close: () => gh.closeCompartment(!gh.compartmentClosed) },
-  }
-}
-
-// ------------------------------------------------------------------ Seed Bank & Galley
-const harvestText = (c: Crop) => c.harvest.kind === 'cut' ? `cut leaves up to ${c.harvest.max} times` : c.harvest.kind === 'pick' ? `pick ripe fruit up to ${c.harvest.max} times` : 'whole plant, once'
-function cropCard(gh: Greenhouse, c: Crop, action: string) {
-  const open = c.tier <= gh.tier
-  return `<div class="gh-crop ${open ? '' : 'locked'}"><div class="gh-thumb" style="background-image:url(${sheet(c.id)})"></div><div><h4>${esc(c.name)} <small>${c.bay === 'tier' ? 'leaf rack' : 'trellis bay'}</small></h4>
-    <p>${esc(c.look)} ${esc(c.role)}</p>
-    <div class="stats">${c.tempC[0]} to ${c.tempC[1]} °C · ${c.ppfd[0]} to ${c.ppfd[1]} µmol/m²/s · ${c.timerDays} crop days (about ${Math.round(c.timerDays * GH.secondsPerCropDay)} s) · ${harvestText(c)}${c.processing.length ? ` · then ${c.processing.map(p => PROCESS_TEXT[p].toLowerCase()).join(', ')}` : ''}</div>
-    <div class="gh-ev ${c.evidence}">${c.evidence === 'space' ? 'REAL' : 'REAL'} · ${esc(EVIDENCE_TEXT[c.evidence])} · the numbers are our model</div>${open ? action : `<div class="why">Opens at level ${c.tier}.</div>`}</div></div>`
-}
-function seedsTab(gh: Greenhouse): LiveTab {
-  return {
-    key: () => `sd|${JSON.stringify(gh.inventory.seeds)}|${gh.tier}|${jobsKey(gh)}`,
-    html: () => `${statusBar()}<p class="lead">One seed packet plants one bay. Harvesting food does not make seed: keep a planting for seed at its bay, or ask the next cargo run.</p>
-      <div class="gh-crops">${CROPS.map(c => cropCard(gh, c, `<div class="actions"><span class="donebadge">${gh.inventory.seeds[c.id]} packet${gh.inventory.seeds[c.id] === 1 ? '' : 's'}</span><button class="btn small" data-act="resupply" data-c="${c.id}" ${gh.jobs.some(j => j.kind === 'resupply') ? 'disabled' : ''}>Ask the cargo run for seed</button></div>`)).join('')}</div>${jobsHtml(gh)}`,
-    vals: () => { const v: Vals = {}; statusVals(gh, v); jobVals(gh, v); return v },
-    acts: { resupply: d => gh.resupply(d.c as CropId) },
-  }
-}
-function foodTab(gh: Greenhouse): LiveTab {
-  const inv = () => gh.inventory
-  return {
-    key: () => `fd|${CROPS.map(c => `${inv().food[c.id].toFixed(1)}/${inv().raw[c.id].toFixed(1)}`).join(',')}|${inv().residueKg.toFixed(1)}|${gh.tier}|${jobsKey(gh)}|${inv().variety.length}`,
-    html: () => {
-      const stored = CROPS.filter(c => inv().food[c.id] > 0), raw = CROPS.filter(c => inv().raw[c.id] > 0)
-      return `${statusBar()}
-      <div class="gh-sec"><h3>Stored food <small>kilograms, calories and crew-days are different things</small></h3>
-        <div class="gh-metrics"><div><span>Ready to eat</span><b>${kg(gh.foodKg)} kg</b><small>${stored.map(c => `${esc(c.name)} ${kg(inv().food[c.id])} kg`).join(' · ') || 'nothing yet'}</small></div>
-          <div><span>Calories</span><b>${Math.round(inv().kcal).toLocaleString('en-US')} kcal</b><small>${gh.crewDays.toFixed(1)} crew-days at ${GH.crewDayKcal.toLocaleString('en-US')} kcal a day (game value)</small></div>
-          <div><span>Protein</span><b>${Math.round(inv().proteinG)} g</b><small>mostly from soybean and wheat</small></div>
-          <div><span>Fresh variety</span><b>${inv().variety.length} of 6</b><small>${inv().variety.map(id => esc(crop(id).name)).join(', ') || 'none yet'}</small></div></div>
-        <p class="gh-note">Fresh crops add variety. They do not replace a staple diet: a full rack of lettuce is less than one person's calories for a day.</p></div>
-      <div class="gh-sec"><h3>Food processor <small>staples are not food until they are processed</small></h3>
-        ${gh.tier < 3 ? '<div class="feedback">The processor arrives with level 3, together with potato, wheat and soybean.</div>' : raw.length ? raw.map(c => `<div class="gh-raw"><b>${esc(c.name)}</b><span>${kg(inv().raw[c.id])} kg harvested · ${c.processing.map(p => PROCESS_TEXT[p]).join(' → ')}</span><button class="btn small" data-act="process" data-c="${c.id}" ${gh.jobs.some(j => j.kind === 'process') ? 'disabled' : ''}>Process</button></div>`).join('') : '<div class="feedback">Nothing is waiting. Harvest potato, wheat or soybean and it comes here first.</div>'}</div>
-      <div class="gh-sec"><h3>Crop residue <small>residue → controlled processing → nutrients, with losses</small></h3>
-        <div class="gh-raw"><b>${kg(inv().residueKg)} kg</b><span>${gh.tier >= 4 ? 'The recycler turns 2 kg into half a unit of nutrient stock. Raw waste never goes straight onto food crops.' : 'The residue recycler arrives with level 4.'}</span><button class="btn small" data-act="recycle" ${gh.tier >= 4 && inv().residueKg >= 2 && !gh.jobs.some(j => j.kind === 'recycle') ? '' : 'disabled'}>Recycle</button></div></div>${jobsHtml(gh)}`
-    },
-    vals: () => { const v: Vals = {}; statusVals(gh, v); jobVals(gh, v); return v },
-    acts: { process: d => gh.process(d.c as CropId), recycle: () => gh.recycle() },
-  }
-}
-
-// ------------------------------------------------------------------ a bay
+// ------------------------------------------------------------------ status screens
 const S = 2 // inspection view scale
 const spriteStyle = (id: CropId, col: number, row: number) => `background-image:url(${sheet(id)});background-size:${576 * S}px ${480 * S}px;background-position:${-col * 72 * S}px ${-row * 120 * S}px;width:${72 * S}px;height:${120 * S}px`
-const SYM_ROW: Record<Symptom, number> = { none: 0, wilt: 1, yellow: 2, spots: 3 }
+const WHERE = 'Planting and harvesting are done at the Greenhouse Control screen.'
 
-function bayTab(gh: Greenhouse, id: BayId, done: () => void): LiveTab {
-  const bay = () => gh.bay(id)
-  const mine = (a: Alert) => a.bay === id
+function bayTab(gh: Greenhouse, id: BayId): LiveTab {
+  const view = () => gh.bayViews().find(b => b.id === id)!
   return {
-    key: () => { const b = bay(), p = b.planting; return `bay|${id}|${b.unlocked}|${p ? `${p.crop}${p.stage}${p.symptom}${+p.spent}${+p.forSeed}${+p.needsPollination}${+p.pollinated}${p.harvests}${p.limiting}` : 'none'}|${b.isolated}|${b.lightsOn}|${b.ppfd}|${JSON.stringify(gh.inventory.seeds)}|${gh.tier}|${alertsKey(gh, mine)}|${jobsKey(gh)}|${b.contamination > 0.05}` },
+    key: () => { const b = view(); return `bay|${id}|${gh.phase}|${b.crop}|${b.stage}|${b.symptom}|${b.slow}` },
     html: () => {
-      const b = bay(), p = b.planting, plan = BAY_PLAN[id]
-      const head = `${statusBar()}${gh.alerts.filter(mine).map(a => alertCard(gh, a)).join('')}`
-      if (!b.unlocked) return `${head}<div class="feedback">This ${b.kind === 'tier' ? 'leaf rack' : 'trellis bay'} opens at level ${plan.tier}: ${esc(TIERS[plan.tier - 1].name)}. ${esc(TIERS[plan.tier - 1].needs)} Unlock levels at Greenhouse Control.</div>`
-      if (!p) {
-        const fits = CROPS.filter(c => c.bay === b.kind)
-        return `${head}<p class="lead">An empty ${b.kind === 'tier' ? 'leaf rack: two shelves under their own LED bars' : 'trellis bay: one tall shelf over an opaque root chamber with a harvest drawer'}, ${b.areaM2} m², on loop ${b.loop}. Choose what to plant. One seed packet plants the bay.</p>
-          <div class="gh-crops">${fits.map(c => cropCard(gh, c, `<div class="actions"><button class="btn primary small" data-act="plant" data-c="${c.id}" ${gh.inventory.seeds[c.id] > 0 ? '' : 'disabled'}>Plant ${esc(c.name)}</button><span class="donebadge">${gh.inventory.seeds[c.id]} packet${gh.inventory.seeds[c.id] === 1 ? '' : 's'}</span></div>`)).join('')}</div>`
-      }
-      const c = crop(p.crop), col = STAGES.indexOf(p.stage), row = p.stage === 'seed' || p.stage === 'dead' ? 0 : SYM_ROW[p.symptom]
-      const dead = p.stage === 'dead', ready = p.stage === 'ready'
-      const acts: string[] = []
-      if (dead || p.spent) acts.push(`<button class="btn primary" data-act="clear">Clear the bay</button>`)
-      else {
-        if (ready && p.forSeed) acts.push(`<button class="btn primary" data-act="harvest">Collect the seed</button>`)
-        else if (ready && c.harvest.kind === 'cut') acts.push(`<button class="btn primary" data-act="harvest" data-m="cut">Cut the outer leaves</button><button class="btn" data-act="harvest" data-m="whole">Take the whole plant</button>`)
-        else if (ready && c.harvest.kind === 'pick') acts.push(`<button class="btn primary" data-act="harvest" data-m="pick">Pick the ripe fruit</button>`)
-        else if (ready) acts.push(`<button class="btn primary" data-act="harvest" data-m="whole">${p.crop === 'potato' ? 'Pull the harvest drawer' : 'Harvest'}</button>`)
-        if (p.needsPollination) acts.push(`<button class="btn mint" data-act="pollinate">${c.pollination === 'vibrate' ? 'Vibrate the flowers' : 'Help the flowers'}</button>`)
-        acts.push(`<button class="btn small ${p.forSeed ? 'mint' : ''}" data-act="seed">Keep for seed: ${p.forSeed ? 'yes' : 'no'}</button>`)
-      }
-      acts.push(`<button class="btn small ${b.isolated ? 'mint' : ''}" data-act="isolate">Isolation valve: ${b.isolated ? 'closed' : 'open'}</button>`)
-      if (b.flow < 0.5 && !b.isolated) acts.push(`<button class="btn small" data-act="line" ${gh.jobs.some(j => j.kind === 'clearLine' && j.target === id) ? 'disabled' : ''}>Clear the supply line</button>`)
-      if (b.contamination > 0.05) acts.push(`<button class="btn small" data-act="treat" ${gh.jobs.some(j => j.kind === 'treat' && j.target === id) ? 'disabled' : ''}>Treat the root zone · 1 sanitiser</button>`)
-      return `${head}<div class="gh-bay">
-        <div class="gh-insp"><div class="gh-sprite" style="${spriteStyle(p.crop, col, row)}" role="img" aria-label="${esc(c.name)}, ${STAGE_TEXT[p.stage].toLowerCase()}"></div><small>Inspection view. Roots show below the line.</small></div>
-        <div class="gh-info"><h3>${esc(c.name)} <small>${esc(EVIDENCE_TEXT[c.evidence])}</small></h3>
-          <div class="kv"><span>Stage</span><b>${STAGE_TEXT[p.stage]}${p.forSeed && p.stage === 'reproductive' && !flowers(c) ? ' (bolting to seed)' : ''}${p.spent ? ' · spent' : ''}</b><span>Age</span><b data-v="age"></b><span>Next harvest</span><b data-v="next"></b>
-            <span>Planted</span><b>${b.areaM2} m² · ${GH.plants[b.kind]} plants · loop ${b.loop}</b><span>Harvests taken</span><b>${p.harvests}${c.harvest.max > 1 ? ` of ${c.harvest.max}` : ''}</b></div>
-          <div class="gh-meter"><span>To harvest</span><div class="gbar"><i data-w="prog"></i></div></div>
-          <div class="gh-meter" data-c="hc"><span>Health</span><div class="gbar"><i data-w="health"></i></div><b data-v="healthn"></b></div>
-          <div class="gh-meter" data-c="sc"><span>Stress</span><div class="gbar stress"><i data-w="stress"></i></div><b data-v="stressn"></b></div>
-          <p class="gh-clue">${esc(SYMPTOM_TEXT[p.symptom])}${p.needsPollination ? ' Flowers are open and waiting: without help only part of the fruit will set.' : ''}</p>
-        </div></div>
-        <div class="gh-sec"><h3>What growth depends on <small>growth = the five multiplied together</small></h3>
-          <div class="gh-factors">${FACTOR_IDS.map(f => `<div class="gh-meter" data-c="fc-${f}"><span>${FACTOR_TEXT[f]}</span><div class="gbar"><i data-w="f-${f}"></i></div><b data-v="fn-${f}"></b></div>`).join('')}</div>
-          <div class="kv"><span>Root-zone water</span><b data-v="moist"></b><span>Irrigation flow</span><b data-v="flow"></b><span>Root contamination</span><b data-v="cont"></b><span>Leaf disease</span><b data-v="dis"></b>
-            <span>Light at the canopy</span><b><button class="btn small" data-act="light" data-d="-50" ${b.ppfd <= 50 ? 'disabled' : ''} aria-label="Less light">−</button> ${b.ppfd} µmol/m²/s <button class="btn small" data-act="light" data-d="50" ${b.ppfd >= 1000 ? 'disabled' : ''} aria-label="More light">+</button> <button class="btn small ${b.lightsOn ? 'mint' : ''}" data-act="lights">${b.lightsOn ? 'on' : 'off'}</button></b>
-            <span>Daily light</span><b>${gh.dliOf(id).toFixed(1)} mol/m²/day · this crop wants ${dli(c.ppfd[0], 16).toFixed(0)} to ${dli(c.ppfd[1], 16).toFixed(0)}</b>
-            <span>This crop's bands</span><b>${c.tempC[0]} to ${c.tempC[1]} °C · conductivity ${c.ec[0]} to ${c.ec[1]} mS/cm</b></div></div>
-        <div class="actions">${acts.join('')}</div>${jobsHtml(gh)}`
+      const b = view(), side = BAY_PLAN[id].loop
+      if (!b.crop) return `<div class="feedback">Bay ${id} is empty. ${gh.phase.startsWith('g1') ? 'The test trays stand in bays A1 and A2.' : ''} ${WHERE}</div>`
+      const c = crop(b.crop), test = gh.phase.startsWith('g1')
+      return `<div class="gh-bay"><div class="gh-insp"><div class="gh-sprite" style="${spriteStyle(b.crop, STAGES.indexOf(b.stage), b.stage === 'seed' ? 0 : SYM_ROW[b.symptom])}" role="img" aria-label="${esc(c.name)}, ${STAGE_TEXT[b.stage].toLowerCase()}"></div></div>
+        <div class="gh-info"><h3>${esc(c.name)} <small>${test ? 'test tray for mission G1' : `side ${side}`}</small></h3>
+          <div class="kv"><span>Stage</span><b data-v="stage"></b><span>Status</span><b data-v="status"></b>${test ? '' : `<span>Growth time</span><b>${c.growDays} days</b><span>Each harvest</span><b>${num(c.kcal)} kcal</b><span>Water</span><b>${c.waterLPerDay} L a day</b>`}</div>
+          <div class="gh-meter"><span>${test ? 'Test' : 'To harvest'}</span><div class="gbar"><i data-w="prog"></i></div></div>
+          <p class="gh-note">${WHERE}</p></div></div>`
     },
     vals: () => {
-      const v: Vals = {}, b = bay(), p = b.planting
-      statusVals(gh, v); jobVals(gh, v)
-      if (!p) return v
-      const c = crop(p.crop), s = gh.secondsToHarvest(id)
-      v.age = `${p.ageDays.toFixed(0)} crop days`
-      v.next = p.stage === 'dead' ? 'none' : p.spent ? 'none: the plant is spent' : p.stage === 'ready' ? 'ready now' : s === null || !Number.isFinite(s) ? 'growth has stopped' : `in about ${Math.ceil(s)} s (${p.daysLeft.toFixed(0)} crop days)`
-      v.prog = pct(p.progress); v.health = Math.round(p.health); v.healthn = `${Math.round(p.health)}`; v.stress = Math.round(p.stress); v.stressn = `${Math.round(p.stress)}`
-      v.hc = p.health < 40 ? 'bad' : p.health < 75 ? 'warn' : ''; v.sc = p.stress > 60 ? 'bad' : p.stress > 35 ? 'warn' : ''
-      for (const f of FACTOR_IDS) { v[`f-${f}`] = pct(p.factors[f]); v[`fn-${f}`] = `${pct(p.factors[f])}%`; v[`fc-${f}`] = p.limiting === f ? (p.factors[f] < 0.5 ? 'bad' : 'warn') : '' }
-      v.moist = `${pct(b.moisture)}%`; v.flow = b.isolated ? 'valve closed' : `${pct(b.flow)}%`; v.cont = `${pct(b.contamination)}%`; v.dis = `${pct(b.disease)}%`
-      void c
+      const b = view(), v: Vals = {}
+      v.stage = STAGE_TEXT[b.stage]
+      v.status = gh.phase.startsWith('g1') ? `Plant health ${Math.round(gh.health)}%` : b.ready ? 'Ready: press Harvest all at Greenhouse Control' : b.slow ? 'Growing at half speed: this side lost its pump' : gh.run ? 'Growing' : 'Planned: grows when the run starts'
+      v.prog = b.progress * 100
       return v
     },
-    acts: {
-      ...alertActs(gh),
-      plant: d => gh.plant(id, d.c as CropId),
-      harvest: d => { const err = gh.harvest(id, d.m as 'cut' | 'pick' | 'whole' | undefined); if (!err) { sound.play('success'); done() } return err },
-      clear: () => gh.clear(id), pollinate: () => gh.pollinate(id), seed: () => gh.setForSeed(id, !bay().planting?.forSeed),
-      isolate: () => gh.isolate(id, !bay().isolated), line: () => gh.clearLine(id), treat: () => gh.treat(id),
-      light: d => gh.setLight(id, bay().ppfd + Number(d.d)), lights: () => gh.setLightsOn(id, !bay().lightsOn),
+    acts: {},
+  }
+}
+
+function serviceTab(gh: Greenhouse): LiveTab {
+  const pumpState = (side: LoopId) => {
+    const p = gh.run?.pump
+    if (!p || p.state === 'none') return ['RUNNING', '']
+    if (p.state === 'pending') return ['STOPPED', 'bad']
+    return p.saved === side ? ['REPAIRED', 'ok'] : ['HALF SPEED', 'warn']
+  }
+  return {
+    key: () => `svc|${gh.phase}|${gh.run?.pump.state ?? ''}`,
+    html: () => `${pumpCard(gh)}
+      <div class="gh-sec"><h3>Pumps <small>one pump feeds the four bays of a side</small></h3>
+        <div class="gh-metrics"><div data-c="pa"><span>Pump A · bays A1 to A4</span><b data-v="pumpA"></b></div><div data-c="pb"><span>Pump B · bays B1 to B4</span><b data-v="pumpB"></b></div>
+          <div><span>Spare parts</span><b>${gh.run?.pump.state === 'fixed' ? '0' : '1'}</b><small>${gh.run?.pump.state === 'fixed' ? 'the spare pump part has been fitted' : 'one spare pump part aboard'}</small></div></div></div>
+      <div class="gh-sec"><h3>Water tank</h3><div class="gh-big" data-c="wc"><b data-v="water"></b><div class="gbar water"><i data-w="waterw"></i></div><small>The crops drink from it during the ${GH.runDays}-day run.</small></div></div>
+      <p class="gh-note">A pump can fail during the ${GH.runDays}-day run. If it does, the choice of which side to save appears here and at Greenhouse Control.</p>`,
+    vals: () => {
+      const v: Vals = {}, r = gh.run ?? gh.runResult
+      const [a, ac] = pumpState('A'), [b, bc] = pumpState('B')
+      v.pumpA = a; v.pa = ac; v.pumpB = b; v.pb = bc
+      const tank = r?.tankL ?? gh.tankStartL, left = r?.waterL ?? tank
+      v.water = `${num(left)} of ${num(tank)} L`; v.waterw = (left / tank) * 100; v.wc = left < tank * 0.15 ? 'bad' : ''
+      return v
     },
+    acts: pumpAct(gh),
+  }
+}
+
+function galleyTab(gh: Greenhouse): LiveTab {
+  return {
+    key: () => `gal|${gh.phase}|${gh.picks.join(',')}`,
+    html: () => `<div class="gh-sec"><h3>Food harvested <small>the crew needs ${num(NEED_KCAL)} kcal for ${GH.runDays} days</small></h3>
+        <div class="gh-big" data-c="fc"><b data-v="food"></b><div class="gbar lined" style="--line:${(1 / 1.5) * 100}%"><i data-w="foodw"></i></div><small data-v="foodnote"></small></div>
+        <ul class="gh-list" data-v="list"></ul></div>
+      <div class="gh-sec"><h3>The six crops <small>all six have been grown on the ISS; the numbers are our model</small></h3>${cropTable(gh, false)}</div>
+      <p class="gh-note">${WHERE}</p>`,
+    vals: () => {
+      const v: Vals = {}, kcal = gh.run?.kcalHarvested ?? 0, hs = gh.run?.harvests ?? []
+      v.food = `${num(kcal)} kcal`; v.foodw = (kcal / (NEED_KCAL * 1.5)) * 100; v.fc = kcal >= NEED_KCAL ? 'ok' : ''
+      v.foodnote = !gh.run ? 'Nothing yet: the feeding run has not started.' : `feeds the crew for ${fedDays(kcal)} of ${GH.runDays} days`
+      v.list = CROPS.map(c => ({ c, k: hs.filter(h => h.crop === c.id).reduce((a, h) => a + h.kcal, 0) })).filter(x => x.k).map(x => `${x.c.name}: ${num(x.k)} kcal`).join(' · ')
+      return v
+    },
+    acts: {},
   }
 }
 
@@ -479,50 +439,64 @@ export const isGreenhouseTerminal = (id: string) => id.startsWith('gh-') || isBa
 
 /** Title and place line for a greenhouse terminal's panel. */
 export function greenhouseMeta(id: string): [string, string] {
-  if (isBayTerminal(id)) { const b = bayOf(id), plan = BAY_PLAN[b]; return [`Bay ${b}`, `Greenhouse · Rack band ${plan.loop} · ${plan.kind === 'tier' ? 'Leaf rack' : 'Trellis bay'}`] }
+  if (isBayTerminal(id)) { const b = bayOf(id), plan = BAY_PLAN[b]; return [`Bay ${b}`, `Greenhouse · Side ${plan.loop} · ${plan.kind === 'tier' ? 'Leaf rack' : 'Trellis bay'}`] }
   const name = TERMINALS.find(t => t.id === id)?.name ?? 'Greenhouse'
-  return [name, id === 'gh-control' ? 'Greenhouse · Clean prep area' : id === 'gh-service' ? 'Greenhouse · Pumps, power and air' : 'Greenhouse · Seeds and food']
+  return [name, id === 'gh-control' ? 'Greenhouse · Missions' : id === 'gh-service' ? 'Greenhouse · Pumps and water' : 'Greenhouse · Food harvested']
 }
 
-/** The tabs behind each greenhouse terminal. `ctx.refresh` is called when a harvest may have finished the task. */
+/** The tabs behind each greenhouse terminal. */
 export function greenhouseTabs(id: string, ctx: PanelCtx): Tab[] {
   const gh = ctx.m.greenhouse
-  if (isBayTerminal(id)) { const b = bayOf(id); return [tab('bay', `Bay ${b}`, () => bayTab(gh, b, ctx.refresh))] }
-  if (id === 'gh-service') return [tab('irrigation', 'Irrigation', () => irrigationTab(gh)), tab('power', 'Power', () => powerTab(gh)), tab('air', 'Air & hull', () => airTab(gh))]
-  if (id === 'gh-prep') return [tab('seeds', 'Seed bank', () => seedsTab(gh)), tab('food', 'Food & galley', () => foodTab(gh))]
-  return [tab('overview', 'Overview', () => overviewTab(gh, false)), tab('alerts', 'Alerts', () => alertsTab(gh)), tab('progress', 'Score & levels', () => progressTab(gh)), tab('sources', 'Real & model', () => sourcesTab())]
+  if (isBayTerminal(id)) { const b = bayOf(id); return [tab('bay', `Bay ${b}`, () => bayTab(gh, b))] }
+  if (id === 'gh-service') return [tab('pumps', 'Pumps & water', () => serviceTab(gh))]
+  if (id === 'gh-prep') return [tab('food', 'Food harvested', () => galleyTab(gh))]
+  return [tab('missions', 'Missions', () => controlTab(gh)), tab('sources', 'Real & model', () => sourcesTab())]
 }
-/** The greenhouse seen from Hab Systems: the place to work from during a particle event. */
-export const greenhouseRemoteTabs = (ctx: PanelCtx): Tab[] => [tab('gh-remote', 'Greenhouse (remote)', () => overviewTab(ctx.m.greenhouse, true)), tab('gh-alerts', 'Greenhouse alerts', () => alertsTab(ctx.m.greenhouse))]
 
 /** Greenhouse state in the shape the deck draws: plants, lights, lamps, array wings. */
 export function greenhouseView(gh: Greenhouse): GreenhouseView {
-  const s = gh.summary(), flow = (l: 'A' | 'B') => { const bs = gh.bays.filter(b => b.loop === l && b.planting); return bs.length ? bs.reduce((a, b) => a + b.flow, 0) / bs.length : gh.commissioned ? 1 : 0 }
-  const air = gh.loads.find(l => l.id === 'air')
+  const r = gh.run, pump = r?.pump, testing = gh.phase === 'g1-setup' || gh.phase === 'g1-test'
+  const flow = (side: LoopId) => !pump || pump.state === 'none' ? 1 : pump.state === 'pending' ? 0 : pump.saved === side ? 1 : GH.slowSpeed
+  const s = gh.score()
+  const screen: [string, string] =
+    gh.phase === 'g1-setup' ? ['GROW LIGHT', `SET UP · ${STEPS.filter(st => gh.stepOk(st.n)).length} OF 3 STEPS`]
+    : gh.phase === 'g1-test' ? [`TEST DAY ${gh.testDay}/${GH.testDays}`, `PLANT HEALTH ${Math.round(gh.health)}%`]
+    : gh.phase === 'g1-result' ? [gh.testResult!.won ? 'TEST PASSED' : 'TEST FAILED', 'NEXT: WHAT TO GROW']
+    : gh.phase === 'g2-brief' || gh.phase === 'g2-plan' ? ['WHAT TO GROW', `${gh.planted} OF 8 BAYS PLANTED`]
+    : gh.phase === 'g2-run' ? [`DAY ${gh.runDay}/${GH.runDays}`, gh.pumpPending ? 'PUMP FAILURE' : `${gh.readyBays} READY · ${num(r!.kcalHarvested)} KCAL`]
+    : [`SCORE ${s.total}/100`, gh.finished ? 'GREENHOUSE FINISHED' : gh.runResult!.won ? 'CREW FED' : 'MISSION FAILED']
   return {
-    bays: gh.bays.map(b => ({ id: b.id, status: bayStatus(b), crop: b.planting?.crop ?? null, stage: b.planting?.stage ?? 'seed', symptom: b.planting?.symptom ?? 'none', progress: b.planting?.progress ?? 0, lit: b.planting ? b.lit : 0, tier: BAY_PLAN[b.id].tier })),
-    alarm: s.worst,
-    arrayState: gh.exterior.arrayState,
-    sunlit: gh.exterior.sunlit,
+    bays: gh.bayViews().map(b => ({ id: b.id, status: bayStatus(b), crop: b.crop, stage: b.stage, symptom: b.symptom, progress: b.progress, lit: !b.crop ? 0 : testing ? clamp(gh.settings.light / 100, 0.15, 1) : 1, tier: 1 })),
+    alarm: gh.pumpPending ? 'damage' : gh.phase === 'g1-test' && (gh.health < 90 || gh.overBudget) ? 'warning' : null,
+    arrayState: 'tracking',
+    sunlit: gh.sunlit,
     flow: { A: flow('A'), B: flow('B') },
-    airflow: !!air && air.kw > 0,
-    condensation: gh.rhPct > 85,
-    batteryPct: gh.batteryPct,
-    tankPct: (gh.tankL / GH.tankCapacityL) * 100,
-    screen: [`${gh.tempC.toFixed(1)}°C  ${Math.round(gh.rhPct)}% RH`, s.alerts ? `${s.alerts} ALERT${s.alerts > 1 ? 'S' : ''} · CO2 ${Math.round(gh.co2Ppm)}` : `CO2 ${Math.round(gh.co2Ppm)} PPM · ${gh.pressureKpa.toFixed(0)} KPA`],
-    radiation: gh.exterior.radiation === 'storm',
+    airflow: true,
+    condensation: testing && gh.status('humidity') === 'high',
+    batteryPct: clamp(100 * (1 - gh.powerKw / GH.powerBudgetKw), 0, 100),
+    tankPct: r ? (r.waterL / r.tankL) * 100 : 100,
+    screen,
+    radiation: false,
   }
 }
 
 /** One line for the HUD chip, and how loud it should be. */
 export function greenhouseChip(gh: Greenhouse): { text: string; cls: '' | 'ok' | 'warn' | 'bad' } {
-  if (!gh.commissioned) return { text: 'Greenhouse · optional · not started', cls: '' }
-  const s = gh.summary(), parts = [`${s.planted} growing`]
-  if (s.ready) parts.push(`${s.ready} ready`)
-  if (s.pollinate) parts.push(`${s.pollinate} to pollinate`)
-  if (s.alerts) parts.push(`${s.alerts} alert${s.alerts > 1 ? 's' : ''}`)
-  return { text: `Greenhouse · ${parts.join(' · ')} · score ${gh.score().total}`, cls: s.worst === 'damage' ? 'bad' : s.alerts ? 'warn' : 'ok' }
+  switch (gh.phase) {
+    case 'g1-setup': return { text: 'Greenhouse · optional · not started', cls: '' }
+    case 'g1-test': return { text: `Greenhouse · test day ${gh.testDay} of ${GH.testDays} · plant health ${Math.round(gh.health)}%`, cls: gh.health < 90 || gh.overBudget ? 'warn' : 'ok' }
+    case 'g1-result': case 'g2-brief': case 'g2-plan': return { text: `Greenhouse · Grow Light ${gh.testResult!.won ? 'passed' : 'failed'} · next: What to Grow`, cls: gh.testResult!.won ? 'ok' : 'warn' }
+    case 'g2-run': return gh.pumpPending ? { text: 'Greenhouse · PUMP FAILURE · choose a side', cls: 'bad' } : { text: `Greenhouse · day ${gh.runDay} of ${GH.runDays} · ${gh.readyBays} ready`, cls: gh.readyBays ? 'warn' : 'ok' }
+    default: return { text: `Greenhouse · finished · score ${gh.score().total}/100`, cls: gh.score().total >= 50 ? 'ok' : 'warn' }
+  }
 }
 
 /** For the task drawer: how far the optional greenhouse task has got. */
-export const greenhouseProgress = (gh: Greenhouse) => !gh.attempted ? 'not started' : gh.complete ? `${gh.harvestCount} harvest${gh.harvestCount === 1 ? '' : 's'} stored · score ${gh.score().total}/100 · level ${gh.tier}` : 'planted, no harvest yet'
+export function greenhouseProgress(gh: Greenhouse): string {
+  const t = gh.testResult, r = gh.runResult
+  if (!gh.attempted) return 'not started'
+  if (!t) return 'Grow Light test running'
+  const g1 = `Grow Light ${t.won ? 'passed' : 'failed'}`
+  if (!r) return `${g1} · What to Grow ${gh.phase === 'g2-run' ? 'running' : 'not played yet'}`
+  return `${g1} · What to Grow ${r.won ? 'won' : 'failed'} · score ${gh.score().total}/100`
+}

@@ -9,7 +9,7 @@ import * as T from '../core/tasks'
 import type { TaskId } from '../core/tasks'
 import { sound } from '../audio'
 import { $, $$, el, esc } from './dom'
-import { greenhouseMeta, greenhouseRemoteTabs, greenhouseTabs, isGreenhouseTerminal } from './greenhouse'
+import { greenhouseMeta, greenhouseTabs, isGreenhouseTerminal } from './greenhouse'
 import { opsTabs } from './ops'
 
 export interface PanelCtx {
@@ -99,7 +99,7 @@ function tabsFor(id: string, ctx: PanelCtx): Tab[] {
       if (m.relayFault) return [relay, rover]
       return m.completed.has('relay') ? [rover, relay] : [rover]
     }
-    case 'hab': return [{ id: 'water', label: 'Water purification', task: 'water', render: (b, r) => sequenceTab(b, r, ctx, 'water') }, { id: 'medical', label: 'Crew medical', task: 'medical', render: (b, r) => sequenceTab(b, r, ctx, 'medical') }, ...greenhouseRemoteTabs(ctx)]
+    case 'hab': return [{ id: 'water', label: 'Water purification', task: 'water', render: (b, r) => sequenceTab(b, r, ctx, 'water') }, { id: 'medical', label: 'Crew medical', task: 'medical', render: (b, r) => sequenceTab(b, r, ctx, 'medical') }]
     case 'payload': return [{ id: 'inst', label: 'Rover instrument', render: (b, r) => payloadTab(b, r, ctx) }, { id: 'cargo', label: 'Cargo reconciliation', task: 'cargo', render: (b, r) => cargoTab(b, r, ctx) }]
   }
   return greenhouseTabs(id, ctx)
