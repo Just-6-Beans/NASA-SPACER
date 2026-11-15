@@ -24,6 +24,7 @@ const WALK = 218, JOG = 353
 class BootScene extends Phaser.Scene {
   constructor() { super('boot') }
   preload() {
+    this.load.on('progress', (share: number) => this.game.events.emit('assets-progress', share))
     for (const s of SUITS) this.load.svg(`suit-${s.id}`, asset(`suit-${s.id}.svg`), { scale: SUIT_RES })
     for (const m of MODULES) this.load.svg(`mod-${m.id}`, asset(`mod-${m.id}.svg`), { scale: DECK_RES })
     for (const l of LINKS) this.load.svg(`link-${l.id}`, asset(`link-${l.id}.svg`), { scale: DECK_RES })
@@ -541,7 +542,11 @@ export class MarsScene extends Phaser.Scene {
 }
 
 // ------------------------------------------------------------------ Boot the game
-export function createGame(parent: HTMLElement): Promise<Phaser.Game> {
+/**
+ * Resolves once the art is loaded and the station deck has been built and drawn, so docking has
+ * nothing left to prepare. `onProgress` gets the share done, 0 to 1.
+ */
+export function createGame(parent: HTMLElement, onProgress?: (share: number) => void): Promise<Phaser.Game> {
   const d = dpr()
   const game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -564,5 +569,20 @@ export function createGame(parent: HTMLElement): Promise<Phaser.Game> {
     game.scale.setZoom(1 / r)
   }
   window.addEventListener('resize', resize)
-  return new Promise(res => game.events.once('assets-ready', () => res(game)))
+  game.events.on('assets-progress', (share: number) => onProgress?.(share * 0.8))
+  return new Promise(res => game.events.once('assets-ready', () => {
+    // Build the deck now and let it draw a few frames, so its textures are already on the
+    // graphics card. It then sleeps until the crew docks.
+    const station = game.scene.getScene('station')
+    let frames = 0
+    const drawn = () => {
+      onProgress?.(0.8 + 0.2 * Math.min(1, ++frames / 3))
+      if (frames < 3) return
+      game.events.off('postrender', drawn)
+      game.scene.sleep('station')
+      res(game)
+    }
+    station.events.once('create', () => game.events.on('postrender', drawn))
+    game.scene.start('station')
+  }))
 }

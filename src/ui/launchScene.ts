@@ -7,11 +7,13 @@
 //
 // One canvas and one GL context live for the whole session and are re-attached each time the
 // launch field is shown. Without WebGL2 the launch field keeps a plain gradient backdrop.
-import { SHIPS } from '../core/data'
+import { SHIPS, type ShipId } from '../core/data'
+import type { DockShot } from './scene/docking'
 import { add, clamp, compose, cross, direction, lookAt, mix, mix3, mul, norm, perspective, point, rad, rotZ, scale, scaling, smooth, sub, translation, type M4, type V3 } from './scene/math'
 import type { Mesh } from './scene/mesh'
 import { FRAG_BACK, FRAG_FX, FRAG_MESH, VERT_FULL, VERT_FX, VERT_MESH } from './scene/shaders'
-import { DECK, padModel, vehicleModel, type PadModel, type StackId, type VehicleModel } from './scene/vehicles'
+import { hatchSwing, stationModel, type StationModel } from './scene/station'
+import { DECK, craftModel, padModel, vehicleModel, type CraftModel, type PadModel, type StackId, type VehicleModel } from './scene/vehicles'
 
 /** What the rocket is doing once it has left the pad. Distances are in metres at the scale the eye sees. */
 export interface FlightView {
@@ -52,11 +54,23 @@ export interface SceneState {
   orbit: number
   /** Seconds since the stack broke up, or -1. */
   boom: number
+  /** The docking film: when set, the station and the spacecraft are drawn in place of the pad and the stack. */
+  dock?: DockView | null
+}
+/** One moment of the docking film (staged in scene/docking.ts), above the ground the climb ended over. */
+export interface DockView {
+  ship: ShipId
+  shot: DockShot
+  /** Height above the ground, and distance east of the pad, metres. */
+  alt: number
+  range: number
 }
 export interface LaunchScene {
   canvas: HTMLCanvasElement
   /** Builds a ship's meshes ahead of the moment they are first drawn. */
   prepare(ship: StackId): void
+  /** Builds the station and a ship's spacecraft for the docking film. */
+  prepareDock(ship: ShipId): void
   draw(s: SceneState): void
   /** Frames a second lately, and pixels drawn per CSS pixel. */
   stats(): { fps: number; scale: number }
@@ -241,6 +255,113 @@ function build(): LaunchScene | null {
   // ---- frame statistics and resolution
   let pxScale = Math.min(window.devicePixelRatio || 1, 2), slow = 0, frames = 0, fps = 60, lastFrame = 0
 
+  /** Draws the frame's flames, glows and smoke over what is already there. */
+  const drawFx = (viewProj: M4, time: number) => {
+    if (quads) {
+      gl.depthMask(false); gl.disable(gl.CULL_FACE); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+      gl.useProgram(fx.p)
+      gl.uniformMatrix4fv(fx.u.uViewProj, false, viewProj)
+      gl.uniform1f(fx.u.uTime, time % 512)
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, noise)
+      gl.uniform1i(fx.u.uNoise, 0)
+      gl.bindVertexArray(fxVao)
+      gl.bindBuffer(gl.ARRAY_BUFFER, fxBuf)
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, fxData.subarray(0, quads * 6 * FX_FLOATS))
+      gl.drawArrays(gl.TRIANGLES, 0, quads * 6)
+      gl.disable(gl.BLEND); gl.depthMask(true)
+    }
+    gl.bindVertexArray(null)
+  }
+
+  // ---- the docking film: the station, and the spacecraft closing on it (staged in scene/docking.ts)
+  /** The docking frame laid along the flight path: its +y becomes the scene's +x, and the Earth is below. */
+  const LAID = rotZ(-Math.PI / 2)
+  let stationGpu: { body: Gpu; hatch: Gpu; lamps: StationModel['lamps'] } | null = null
+  const craftGpu = new Map<ShipId, { gpu: Gpu; model: CraftModel }>()
+  const dockParts = (ship: ShipId) => {
+    if (!stationGpu) { const st = stationModel(); stationGpu = { body: upload(st.mesh), hatch: upload(st.hatch), lamps: st.lamps } }
+    let c = craftGpu.get(ship)
+    if (!c) { const model = craftModel(ship); craftGpu.set(ship, c = { gpu: upload(model.mesh), model }) }
+    gl.bindVertexArray(null)
+    return { st: stationGpu, craft: c }
+  }
+
+  function drawDock(s: SceneState, k: DockView, bw: number, bh: number) {
+    const { st, craft } = dockParts(k.ship)
+    const shot = k.shot, eye = shot.eye, aspect = bw / bh
+    const cam = lookAt(eye, shot.target)
+    const viewProj = mul(perspective(shot.fov, aspect, shot.near, shot.view === 'nose' ? 500 : 1400), cam.view)
+    const eyeH = k.alt + eye[1]
+    const exposure = 1.2
+    gl.viewport(0, 0, bw, bh)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+    // 1. the Earth below and the sky, as they were at the end of the climb
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE); gl.depthMask(false)
+    gl.useProgram(back.p)
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, noise)
+    gl.uniform1i(back.u.uNoise, 0)
+    gl.uniform2f(back.u.uRes, bw, bh)
+    gl.uniform1f(back.u.uTime, s.time)
+    gl.uniform1f(back.u.uPx, pxScale)
+    gl.uniform3fv(back.u.uCamR, cam.right); gl.uniform3fv(back.u.uCamU, cam.up); gl.uniform3fv(back.u.uCamF, cam.forward)
+    gl.uniform2f(back.u.uLens, Math.tan(shot.fov / 2), aspect)
+    gl.uniform1f(back.u.uShiftY, 0)
+    gl.uniform1f(back.u.uEyeH, eyeH)
+    gl.uniform2f(back.u.uEyeXZ, eye[0] + k.range, eye[2])
+    gl.uniform3fv(back.u.uSun, SUN)
+    gl.uniform1f(back.u.uFlood, 0)
+    gl.uniform3fv(back.u.uLightA, LAMP_A); gl.uniform3fv(back.u.uLightB, LAMP_B)
+    gl.uniform4f(back.u.uStack, 0, 0, 0, 0)
+    gl.uniform4f(back.u.uFire, 0, 0, 0, 0)
+    gl.uniform1f(back.u.uExposure, exposure)
+    gl.uniform1f(back.u.uPixel, (2 * Math.tan(shot.fov / 2)) / bh)
+    gl.bindVertexArray(fullVao)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+
+    // 2. the station and the spacecraft, in the daylight the climb ended in; the open hatch throws a warm light of its own
+    gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.depthFunc(gl.LEQUAL); gl.clear(gl.DEPTH_BUFFER_BIT); gl.enable(gl.CULL_FACE)
+    gl.useProgram(meshP.p)
+    gl.uniformMatrix4fv(meshP.u.uViewProj, false, viewProj)
+    gl.uniform3fv(meshP.u.uEye, eye)
+    gl.uniform1f(meshP.u.uEyeH, eyeH)
+    gl.uniform3fv(meshP.u.uSun, SUN)
+    gl.uniform3fv(meshP.u.uLightDir, [...DAY_KEY, ...DAY_FILL, ...EARTH_SHINE])
+    gl.uniform3fv(meshP.u.uLightCol, [1.9, 1.71, 1.44, 0.07, 0.1, 0.16, 0.14, 0.21, 0.36])
+    gl.uniform3f(meshP.u.uAmbSky, 0.010, 0.016, 0.03); gl.uniform3f(meshP.u.uAmbGround, 0.003, 0.004, 0.006)
+    gl.uniform4f(meshP.u.uFire, -0.4, 0, 0, 0.1 * shot.light)
+    gl.uniform3f(meshP.u.uFogCol, 0.03, 0.045, 0.07)
+    gl.uniform1f(meshP.u.uFog, 0)
+    gl.uniform1f(meshP.u.uExposure, exposure)
+    gl.uniform1f(meshP.u.uTime, s.time % 64)
+    gl.uniform2f(meshP.u.uLampFade, 1, 0)
+    gl.uniform2f(meshP.u.uPadXZ, 0, 0)
+    gl.uniform2f(meshP.u.uMirror, 0, 0)
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, noise)
+    gl.uniform1i(meshP.u.uNoise, 0)
+    const put = (g: Gpu, m: M4) => { gl.uniformMatrix4fv(meshP.u.uModel, false, m); gl.bindVertexArray(g.vao); gl.drawElements(gl.TRIANGLES, g.count, g.type, 0) }
+    put(st.body, LAID)
+    put(st.hatch, mul(LAID, hatchSwing(shot.hatch)))
+    // from its own docking camera the spacecraft is behind the lens
+    const craftAt = compose(translation([-shot.gap, 0, 0]), LAID, craft.model.place)
+    if (shot.view === 'outside') put(craft.gpu, craftAt)
+
+    // 3. lamps, the thrusters' puffs, and the light through the hatch
+    quads = 0
+    for (const l of st.lamps) {
+      const at = point(LAID, l.at), on = l.rate ? (Math.sin(s.time * l.rate * 6.2832) > 0.7 ? 1 : 0.06) : 1
+      sprite(at, l.size * 4, cam.right, cam.up, [l.col[0], l.col[1], l.col[2], 0.4 * on], 0)
+      sprite(at, l.size * 1.4, cam.right, cam.up, [1, 1, 1, 0.85 * on], 0)
+    }
+    if (shot.view === 'outside' && shot.jets > 0.01) for (const j of craft.model.jets) sprite(point(craftAt, j), 0.7 + 0.8 * shot.jets, cam.right, cam.up, [0.82, 0.9, 1, 0.42 * shot.jets], 0)
+    if (shot.light > 0.01) {
+      const at: V3 = [0.2, 0, 0]
+      sprite(at, 0.7 + 1.6 * shot.light, cam.right, cam.up, [1, 0.88, 0.66, 0.8 * shot.light], 0)
+      sprite(at, 5 * shot.light, cam.right, cam.up, [1, 0.8, 0.55, 0.16 * shot.light], 0)
+    }
+    drawFx(viewProj, s.time)
+  }
+
   function draw(s: SceneState) {
     if (dead) return
     const now = performance.now()
@@ -261,6 +382,7 @@ function build(): LaunchScene | null {
     if (canvas.width !== bw || canvas.height !== bh) { canvas.width = bw; canvas.height = bh }
     const dt = lastTime < 0 ? 0 : clamp(s.time - lastTime, 0, 0.1)
     lastTime = s.time
+    if (s.dock) return drawDock(s, s.dock, bw, bh)
 
     const b = built(s.ship), v = b.model
     const f = s.flight
@@ -515,25 +637,13 @@ function build(): LaunchScene | null {
         sprite(sub(at, scale(axis, e.r * 0.6)), e.r * mix(5.5, 9, wide), cam.right, cam.up, [col[0], col[1] * 0.9, col[2] * 0.8, 0.55 * thrust * mix(1, 0.35, wide)], 0)
       }
     }
-    if (quads) {
-      gl.depthMask(false); gl.disable(gl.CULL_FACE); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
-      gl.useProgram(fx.p)
-      gl.uniformMatrix4fv(fx.u.uViewProj, false, viewProj)
-      gl.uniform1f(fx.u.uTime, s.time % 512)
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, noise)
-      gl.uniform1i(fx.u.uNoise, 0)
-      gl.bindVertexArray(fxVao)
-      gl.bindBuffer(gl.ARRAY_BUFFER, fxBuf)
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, fxData.subarray(0, quads * 6 * FX_FLOATS))
-      gl.drawArrays(gl.TRIANGLES, 0, quads * 6)
-      gl.disable(gl.BLEND); gl.depthMask(true)
-    }
-    gl.bindVertexArray(null)
+    drawFx(viewProj, s.time)
   }
 
   return {
     canvas,
     prepare: id => { if (!dead) built(id) },
+    prepareDock: id => { if (!dead) dockParts(id) },
     draw,
     stats: () => ({ fps, scale: pxScale }),
   }

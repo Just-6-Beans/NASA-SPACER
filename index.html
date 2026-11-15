@@ -6,8 +6,68 @@
 <meta name="theme-color" content="#05070d" />
 <title>SPACER</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Ccircle cx=%2216%22 cy=%2216%22 r=%2214%22 fill=%22%2305121c%22 stroke=%22%235ff2c5%22 stroke-width=%223%22/%3E%3Cpath d=%22M9 20l7-10 7 10%22 fill=%22none%22 stroke=%22%23ff6a2b%22 stroke-width=%223%22/%3E%3C/svg%3E" />
+<style>
+/* The loading screen. It is in the page itself, so it shows before any script or stylesheet has
+   arrived. Only transform and opacity move, so it stays smooth while the game loads behind it. */
+html, body { margin: 0; height: 100%; background: #020812; }
+#boot { position: fixed; inset: 0; z-index: 1000; overflow: hidden; background: radial-gradient(120% 90% at 50% 62%, #0b2440 0%, #051426 42%, #020812 78%); color: #e2f5ff; transition: opacity .8s ease .15s; }
+#boot.done { opacity: 0; pointer-events: none; }
+.boot-stars { position: absolute; left: 0; right: 0; top: -100%; height: 200%; opacity: .75; animation: boot-fall 26s linear infinite;
+  background-image: radial-gradient(1.2px 1.2px at 12% 9%, #fff 60%, transparent), radial-gradient(1px 1px at 31% 23%, #cfe6ff 60%, transparent), radial-gradient(1.4px 1.4px at 58% 14%, #fff 60%, transparent), radial-gradient(1px 1px at 79% 31%, #bcd9ff 60%, transparent), radial-gradient(1.2px 1.2px at 91% 6%, #fff 60%, transparent), radial-gradient(1px 1px at 44% 41%, #fff 60%, transparent), radial-gradient(1.3px 1.3px at 7% 37%, #d9ecff 60%, transparent), radial-gradient(1px 1px at 68% 46%, #fff 60%, transparent), radial-gradient(1px 1px at 22% 48%, #cfe6ff 60%, transparent), radial-gradient(1.2px 1.2px at 86% 44%, #fff 60%, transparent);
+  background-size: 100% 50%; }
+.boot-stars.far { opacity: .4; animation-duration: 60s; background-size: 61% 50%; }
+.boot-lift { position: absolute; left: 50%; top: 46%; width: 0; height: 0; transition: transform 1s cubic-bezier(.55, 0, .9, .35); }
+#boot.done .boot-lift { transform: translateY(-130vh); }
+.boot-rocket { position: absolute; left: 0; top: 0; height: min(38vh, 300px); aspect-ratio: 80 / 300; transform: translate(-50%, -50%); animation: boot-hover 3.8s ease-in-out infinite; }
+.boot-rocket svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.boot-flame { transform-origin: 40px 232px; animation: boot-flame .11s steps(2, jump-none) infinite alternate; }
+.boot-glow { animation: boot-glow 1.9s ease-in-out infinite alternate; }
+.boot-text { position: absolute; left: clamp(20px, 4vw, 60px); bottom: clamp(22px, 5.5vh, 56px); max-width: min(78vw, 460px); }
+.boot-text b { display: block; font: 700 clamp(24px, 3.2vw, 38px)/1.05 'Barlow Condensed', 'Arial Narrow', sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.boot-text b i { font-style: normal; animation: boot-dots 1.4s steps(1) infinite; }
+.boot-text b i:nth-child(2) { animation-delay: .2s; } .boot-text b i:nth-child(3) { animation-delay: .4s; }
+.boot-text span { display: block; min-height: 16px; margin-top: 8px; font: 12px/1.3 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; color: #86aac4; }
+.boot-bar { width: min(64vw, 280px); height: 3px; margin-top: 10px; border-radius: 2px; background: rgba(134, 170, 196, .22); overflow: hidden; }
+.boot-bar i { display: block; width: 100%; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #3fd0ff, #5ff2c5); transform: scaleX(0); transform-origin: left; transition: transform .35s ease-out; }
+@keyframes boot-fall { to { transform: translateY(50%); } }
+@keyframes boot-hover { 0%, 100% { transform: translate(-50%, -50%) translateY(-9px) rotate(-.7deg); } 50% { transform: translate(-50%, -50%) translateY(9px) rotate(.7deg); } }
+@keyframes boot-flame { from { transform: scale(.94, .9); opacity: .86; } to { transform: scale(1.05, 1.08); opacity: 1; } }
+@keyframes boot-glow { from { opacity: .5; } to { opacity: .85; } }
+@keyframes boot-dots { 0%, 100% { opacity: .2; } 30%, 60% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .boot-stars, .boot-rocket, .boot-flame, .boot-glow, .boot-text b i { animation: none; }
+  .boot-rocket { transform: translate(-50%, -50%); }
+  #boot.done .boot-lift { transform: none; }
+}
+</style>
 </head>
 <body>
+<div id="boot" role="status" aria-label="Preparing to launch">
+  <div class="boot-stars far"></div><div class="boot-stars"></div>
+  <div class="boot-lift"><div class="boot-rocket" aria-hidden="true">
+    <svg viewBox="0 0 80 300" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bt-skin" x1="0" x2="1"><stop offset="0" stop-color="#7c8794"/><stop offset=".3" stop-color="#e9eef3"/><stop offset=".5" stop-color="#ffffff"/><stop offset=".78" stop-color="#bfc8d1"/><stop offset="1" stop-color="#59626e"/></linearGradient>
+        <linearGradient id="bt-dark" x1="0" x2="1"><stop offset="0" stop-color="#07090c"/><stop offset=".45" stop-color="#3b424b"/><stop offset="1" stop-color="#0c0e12"/></linearGradient>
+        <linearGradient id="bt-fire" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffdf2"/><stop offset=".18" stop-color="#ffe2a6"/><stop offset=".5" stop-color="#ff9a45" stop-opacity=".85"/><stop offset="1" stop-color="#ff5a1f" stop-opacity="0"/></linearGradient>
+        <radialGradient id="bt-halo"><stop offset="0" stop-color="#ffb26b" stop-opacity=".55"/><stop offset="1" stop-color="#ff7a2e" stop-opacity="0"/></radialGradient>
+        <filter id="bt-soft" x="-60%" y="-20%" width="220%" height="150%"><feGaussianBlur stdDeviation="2.2"/></filter>
+      </defs>
+      <ellipse class="boot-glow" cx="40" cy="244" rx="46" ry="38" fill="url(#bt-halo)"/>
+      <g class="boot-flame" filter="url(#bt-soft)"><path d="M30 230 Q40 226 50 230 Q49 268 40 298 Q31 268 30 230Z" fill="url(#bt-fire)"/></g>
+      <path d="M31 226h18l2 6H29z" fill="url(#bt-dark)"/>
+      <path d="M28 196 L18 228 L28 224Z M52 196 L62 228 L52 224Z" fill="url(#bt-dark)"/>
+      <rect x="28" y="112" width="24" height="114" fill="url(#bt-skin)"/>
+      <rect x="28" y="98" width="24" height="15" fill="url(#bt-dark)"/>
+      <rect x="28" y="52" width="24" height="46" fill="url(#bt-skin)"/>
+      <path d="M22 116h6v9h-6z M52 116h6v9h-6z" fill="url(#bt-dark)"/>
+      <path d="M28.5 52 L29 40 Q30 20 40 9 Q50 20 51 40 L51.5 52Z" fill="url(#bt-skin)"/>
+      <path d="M33.5 28 q2.4-1.6 4.4-1.6 v5.6 h-4.9z M42.1 26.4 q2 0 4.4 1.6 l.5 4 h-4.9z" fill="#10151c"/>
+      <path d="M28 150h24 M28 186h24 M28 74h24" stroke="#8d97a3" stroke-width=".7" opacity=".7"/>
+    </svg>
+  </div></div>
+  <div class="boot-text"><b>Preparing to launch<i>.</i><i>.</i><i>.</i></b><span id="boot-step">Starting up</span><div class="boot-bar"><i id="boot-fill"></i></div></div>
+</div>
 <div id="app"></div>
 <script type="module" src="/src/main.ts"></script>
 </body>

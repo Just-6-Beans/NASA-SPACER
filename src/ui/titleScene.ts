@@ -558,6 +558,7 @@ export function mountBackdrop(host: HTMLElement) {
     if (host.isConnected) attached = true
     else if (attached || now - born > 2000) return window.removeEventListener('pointermove', onMove)
     requestAnimationFrame(tick)
+    if (host.inert && drawn) return // fading out under the next screen: hold the last frame and leave the graphics card to that screen
     const dt = (now - last) / 1000
     last = now
     const t = still ? 24 : (now - EPOCH) / 1000

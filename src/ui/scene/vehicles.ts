@@ -5,7 +5,7 @@
 // Nothing here is NASA data. Units are metres; y is up; the stack stands on the pad deck at y = 0
 // and flies toward +x; the camera looks from +z.
 import type { ShipId } from '../../core/data'
-import { compose, identity, mix, rad, rotY, smooth, translation, type V3 } from './math'
+import { compose, identity, mix, rad, rotX, rotY, rotZ, smooth, translation, type M4, type V3 } from './math'
 import { Mesh, bell, mat, ogive, type Mat } from './mesh'
 
 // ---- Finishes: muted, so the lighting does the work ---------------------------------
@@ -30,6 +30,9 @@ const LAMP = mat([1, 0.97, 0.9], 0.5, 0, 1)
 
 const tinted = (m: Mat, k: number): Mat => ({ ...m, col: [m.col[0] * k, m.col[1] * k, m.col[2] * k] })
 const toward = (m: Mat, to: V3, t: number): Mat => ({ ...m, col: [mix(m.col[0], to[0], t), mix(m.col[1], to[1], t), mix(m.col[2], to[2], t)] })
+/** The same finishes for what is drawn beside the rockets: the station in the docking film (scene/station.ts). */
+export const FINISH = { WHITE, WARM_WHITE, GREY, PALE, BLACK, DARK, STEEL, GLASS, SOLAR, STRUCT, STRUCT_LIGHT, LAMP }
+export { tinted }
 
 export interface Engine {
   /** Where the exhaust leaves, in the stack's own coordinates. */
@@ -199,6 +202,12 @@ function shuttle(): VehicleModel {
 
   // orbiter: nose up, belly against the tank, on the side facing the camera
   const Y = 9.0, Z = 7.3 // where the orbiter's tail end and centre line sit in the stack
+  orbiterInto(core, Y, Z)
+  return shuttleStack(core, Y, Z)
+}
+
+/** The orbiter, nose up: its tail end at height Y, its centre line Z out from the stack's axis, its back toward +z. */
+function orbiterInto(core: Mesh, Y: number, Z: number) {
   const stations: [number, number, number, number][] = [ // distance from the tail, half-width, top, belly (belly as a positive depth)
     [0, 3.3, 2.5, 2.3], [5.4, 3.2, 2.75, 2.3], [6.2, 2.75, 2.9, 2.3], [15, 2.75, 2.9, 2.3], [24, 2.75, 2.9, 2.3],
     [26.4, 2.7, 3.0, 2.25], [27.3, 2.6, 2.95, 2.2], [28.2, 2.45, 2.7, 2.1], [29.6, 2.05, 2.1, 1.8], [31, 1.45, 1.35, 1.25], [32.2, 0.75, 0.62, 0.62], [32.8, 0.12, 0.1, 0.1],
@@ -238,7 +247,10 @@ function shuttle(): VehicleModel {
   }
   for (const [x, z] of [[0, 1.4], [-1.5, -0.7], [1.5, -0.7]]) { core.xf = translation([x, 0, Z + z]); core.lathe([{ pts: bell(Y + 0.1, 3.0, 0.42, 1.15, 8), m: DARK }], 18) }
   core.xf = identity()
+}
 
+/** The rest of the Shuttle stack round the tank and the orbiter. */
+function shuttleStack(core: Mesh, Y: number, Z: number): VehicleModel {
   // solid rocket boosters: flared skirt, joints, pointed nose
   const srb = (x: number) => {
     const m = new Mesh()
@@ -423,6 +435,100 @@ export function vehicleModel(id: StackId): VehicleModel {
   let v = cache.get(id)
   if (!v) cache.set(id, v = BUILD[id]())
   return v
+}
+
+// ------------------------------------------------------------------ What flies on to the station
+// The spacecraft alone, once the last stage has gone, for the docking film (scene/docking.ts).
+// The same shapes and finishes as on the stacks above, with the nose opened onto the docking ring.
+export interface CraftModel {
+  mesh: Mesh
+  /** Puts the mesh in the docking frame: the centre of its docking ring at the origin, closing on the station along +y. */
+  place: M4
+  /** Where its small thrusters are, in the mesh's own coordinates. */
+  jets: V3[]
+}
+
+/** A docking ring on a capsule's roof (radius r at height y), and the nose cover swung open on its hinge. Returns the height of the ring's face. */
+function dockingNose(m: Mesh, r: number, y: number, cover: [number, number][]): number {
+  const top = y + 0.4
+  m.lathe([
+    { pts: [[r, y], [0.62, y]], m: GREY, flat: true },
+    { pts: [[0.62, y], [0.62, top]], m: STEEL, flat: true },
+    { pts: [[0.62, top], [0.42, top]], m: STEEL, flat: true },
+    { pts: [[0.42, top], [0.42, y + 0.08]], m: DARK, flat: true },
+    { pts: [[0.42, y + 0.08], [0, y + 0.08]], m: DARK, flat: true },
+  ], 28)
+  // the cover is a shell seen from both sides, standing open on the side away from the Earth
+  m.xf = compose(translation([-r, y, 0]), rotZ(rad(108)), translation([r, -y, 0]))
+  m.lathe([{ pts: cover, m: tinted(WHITE, 0.92) }, { pts: [...cover].reverse().map(([a, b]): [number, number] => [Math.max(0, a - 0.04), b]), m: DARK }], 24)
+  m.xf = identity()
+  return top
+}
+
+/** Crew Dragon: the capsule and its trunk. */
+function dragon(): CraftModel {
+  const R = 1.83, m = new Mesh()
+  m.lathe([
+    { pts: [[0, 56.8], [R, 56.8]], m: DARK, flat: true },
+    { pts: [[R, 56.8], [R, 60.5]], m: WHITE, flat: true },
+    { pts: [[R, 60.5], [R + 0.17, 60.75], [R + 0.17, 61.0]], m: DARK, flat: true },
+    { pts: [[R + 0.15, 61.0], [R - 0.2, 62.2], [1.28, 63.3], [1.02, 63.95]], m: WHITE },
+  ], 36)
+  for (let k = 0; k < 4; k++) { m.xf = around(rad(45 + k * 90)); m.box([R - 0.02, 56.9, -0.05], [R + 0.5, 58.5, 0.05], WHITE) } // trunk fins
+  for (const a of [70, 110]) { m.xf = around(rad(a)); m.box([1.5, 62.25, -0.22], [1.6, 62.8, 0.22], GLASS) } // windows
+  m.xf = identity()
+  const top = dockingNose(m, 1.02, 63.95, [[1.02, 63.95], ...ogive(0.98, 64.05, 64.9, 6)])
+  return { mesh: m, place: translation([0, -top, 0]), jets: [45, 135, 225, 315].map((a): V3 => [Math.cos(rad(a)) * 2.0, 61.3, Math.sin(rad(a)) * 2.0]) }
+}
+
+/** Starliner: the capsule and its service module. */
+function starliner(): CraftModel {
+  const S = 2.28, m = new Mesh()
+  m.lathe([
+    { pts: [[0, 46.4], [S, 46.4]], m: DARK, flat: true },
+    { pts: [[S, 46.4], [S, 47.55], [S, 47.75], [S, 48.9]], m: WHITE, flat: true }, // service module
+    { pts: [[S, 48.9], [S + 0.03, 49.05], [S, 49.2]], m: DARK, flat: true },
+    { pts: [[S, 49.2], [1.9, 50.2], [1.42, 51.1], [1.02, 51.6]], m: PALE },
+    { pts: [[1.02, 51.6], [0.94, 52.0]], m: tinted(PALE, 0.85), flat: true },
+  ], 36, (_, y, mm) => (mm === WHITE && y > 47.5 && y < 47.8 ? GREY : mm))
+  for (let k = 0; k < 4; k++) {
+    m.xf = around(rad(45 + k * 90))
+    m.box([S - 0.03, 46.75, -0.5], [S + 0.24, 48.5, 0.5], tinted(WHITE, 0.82)) // thruster pods
+    m.xf = around(rad(k * 90), 1.15)
+    m.lathe([{ pts: bell(46.4, 0.75, 0.14, 0.36), m: DARK }], 12)
+  }
+  for (const a of [68, 112]) { m.xf = around(rad(a)); m.box([1.58, 50.55, -0.2], [1.7, 51.0, 0.2], GLASS) }
+  m.xf = identity()
+  const top = dockingNose(m, 0.94, 52.0, ogive(0.94, 52.0, 52.4, 5))
+  return { mesh: m, place: translation([0, -top, 0]), jets: [45, 135, 225, 315].map((a): V3 => [Math.cos(rad(a)) * (S + 0.3), 47.6, Math.sin(rad(a)) * (S + 0.3)]) }
+}
+
+/** The Shuttle orbiter, with the docking tunnel that stands in its forward payload bay. It docks back first. */
+function orbiter(): CraftModel {
+  const m = new Mesh()
+  orbiterInto(m, 0, 0)
+  const at = 22.5, face = 4.5 // how far the tunnel is from the tail, and how far its ring stands from the centre line
+  m.xf = compose(translation([0, at, 0]), rotX(Math.PI / 2))
+  m.lathe([
+    { pts: [[1.05, 2.4], [1.05, face - 0.6]], m: WHITE, flat: true },
+    { pts: [[1.05, face - 0.6], [0.62, face - 0.4]], m: GREY, flat: true },
+    { pts: [[0.62, face - 0.4], [0.62, face]], m: STEEL, flat: true },
+    { pts: [[0.62, face], [0.42, face]], m: STEEL, flat: true },
+    { pts: [[0.42, face], [0.42, face - 0.3]], m: DARK, flat: true },
+    { pts: [[0.42, face - 0.3], [0, face - 0.3]], m: DARK, flat: true },
+  ], 28)
+  m.xf = identity()
+  // its back (+z) turns toward the station (+y of the docking frame), its nose away from the Earth (-x)
+  const turn = new Float32Array([0, 0, -1, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1])
+  return { mesh: m, place: compose(turn, translation([0, -at, -face])), jets: [[0, 31, 1.2], [-2, 3, 3.6], [2, 3, 3.6]] }
+}
+
+const CRAFT: Record<ShipId, () => CraftModel> = { falcon9: dragon, atlasv: starliner, shuttle: orbiter }
+const crafts = new Map<ShipId, CraftModel>()
+export function craftModel(id: ShipId): CraftModel {
+  let c = crafts.get(id)
+  if (!c) crafts.set(id, c = CRAFT[id]())
+  return c
 }
 
 // ------------------------------------------------------------------ The pad

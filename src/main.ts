@@ -19,8 +19,8 @@ import { bindDpad, clearHeld, input, setBlocked } from './game/input'
 import { $, el, esc, isTouch, toast } from './ui/dom'
 import { titleScreen, type CrewLink, type Draft, type LinkStatus, type Mode, type TitleUi } from './ui/intro'
 import { launchField, type FieldLink, type FieldUi } from './ui/launchField'
-import { warmLaunchScene } from './ui/launchScene'
-import { STARTER, cleanLoadout, type LaunchRecord } from './core/loadout'
+import { boot, fontsStep, forecastStep, launchStep, loadTheRest, marsStep, prepare } from './ui/preload'
+import { STARTER, cargoKg, cleanLoadout, type LaunchRecord } from './core/loadout'
 import { closePanel, openPanel, panelOpen, refreshPanel, type PanelCtx } from './ui/panels'
 import { reportScreen } from './ui/report'
 import { roverScreen } from './ui/roverView'
@@ -61,7 +61,8 @@ let shipTimer = 0
 let soloOnly = false // the player chose a solo mission while a co-op join was still in flight
 let powerInFlight = false
 let powerWanted: Power | null = null
-const gameReady = createGame(gameHost).then(g => { game = g; g.loop.sleep(); return g })
+let artShare: (share: number) => void = () => {} // the loading screen's bar, while it is up
+const gameReady = createGame(gameHost, share => artShare(share)).then(g => { game = g; g.loop.sleep(); return g })
 
 const station = () => game!.scene.getScene('station') as StationScene
 
@@ -153,7 +154,7 @@ function goField() {
       clearTimeout(shipTimer)
       if (coop.isHost) coop.sendLaunch(d.ship)
     },
-    onDone: (d, launch) => { draft = d; lastLaunch = launch; saveDraft(); void dock() },
+    onDone: (d, launch, filmed) => { draft = d; lastLaunch = launch; saveDraft(); void dock(filmed) },
   }, { descend: true })
   show('field', ui.el, { fade: 650 })
   field = ui
@@ -184,7 +185,8 @@ function flightChanged() {
   if (screen === 'field') field?.update()
 }
 
-async function dock() {
+/** `filmed`: the docking film has just shown the two craft meet, with its own sound. */
+async function dock(filmed = false) {
   await gameReady
   mission = new Mission({
     callSign: draft.callSign, suit: draft.suit as SuitId, ship: draft.ship as ShipId,
@@ -195,7 +197,7 @@ async function dock() {
   briefed = false
   enterStation(true)
   toast(`Docked at 408 km. Welcome aboard, ${mission.profile.callSign}.`, 'ok')
-  sound.play('dock')
+  if (!filmed) sound.play('dock')
 }
 
 // ------------------------------------------------------------------ Station
@@ -709,5 +711,22 @@ async function joinCoop() {
   alert: (id: AlertId) => fireAlert(id), get popup() { return !!popup },
 }
 
+// The game opens on the loading screen (index.html). The title is put in the page beneath it
+// straight away, because its Mars is baked there; nothing can be pressed until loading is done.
+app.inert = true
 goTitle()
-setTimeout(warmLaunchScene, 1400) // build the launch field's scene while the title is up
+void (async () => {
+  sound.warm()
+  await prepare([
+    fontsStep,
+    marsStep,
+    { label: 'Loading the station', weight: 4, run: report => { artShare = report; return gameReady } },
+    launchStep,
+    forecastStep(cargoKg({ cargo: draft.cargo })),
+  ])
+  artShare = () => {}
+  app.inert = false
+  if (screen === 'title') goTitle() // a fresh title, so its entrance plays as the loading screen clears
+  await boot.done()
+  loadTheRest() // the rover's map, photos and films, fetched while the player plays
+})()

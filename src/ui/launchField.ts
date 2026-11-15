@@ -5,7 +5,10 @@
 //      inside one budget, and watch what the weight does to the lift.
 //   3. Countdown and ascent: the pilot steers the stack to orbit. Too heavy, or flown badly, and
 //      the launch fails; the debrief says which, and the pilot flies again or changes the design.
-//   4. Orbit: the station comes up ahead, and the scene dissolves into the deck.
+//   4. Orbit, then the docking film (scene/docking.ts): the spacecraft closes on the station, seen
+//      from outside and then from its docking camera; the hatch opens and its light becomes the deck.
+//      Not playable, and it can be skipped. Without WebGL, or where motion is to be kept low, a
+//      still picture of the station comes up instead.
 //
 // The scene is WebGL (launchScene.ts); the panels and read-outs are DOM (src/field.css). What is
 // real: the three launch systems and what NASA says about them (src/data/launchVehicles.ts).
@@ -28,6 +31,7 @@ import { $, $$, el, esc, isTouch, reducedMotion } from './dom'
 import { drawDial, drawMap, type Trail } from './flightInstruments'
 import type { Draft } from './intro'
 import { launchScene, type SceneState } from './launchScene'
+import { CONTACT, DOCK_SECONDS, FRAMING, dockShot, type DockShot } from './scene/docking'
 
 export type FieldRole = 'solo' | 'host' | 'guest'
 /** What the launch field needs to know about the co-op room. main.ts backs it with the Colyseus room. */
@@ -47,8 +51,8 @@ export interface FieldHandlers {
   onDraft(d: Draft): void
   /** This pilot started their countdown. */
   onLaunch(d: Draft): void
-  /** In orbit: dock. */
-  onDone(d: Draft, launch: LaunchRecord): void
+  /** Docked. `filmed`: the docking film was shown, so the player has already seen and heard the two craft meet. */
+  onDone(d: Draft, launch: LaunchRecord, filmed: boolean): void
 }
 export interface FieldUi {
   el: HTMLElement
@@ -59,6 +63,8 @@ export interface FieldUi {
   autopilot(on: boolean): void
   warp(steps: number): void
   state(): Record<string, unknown>
+  /** For automated checks: show the docking film held at one moment (seconds), or let it run again (null). */
+  film(seconds: number | null): void
 }
 
 const DESCENT_MS = 4200
@@ -75,6 +81,22 @@ const STAGES: Record<ShipId, [string, string, string]> = {
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t))
 const smooth = (a: number, b: number, t: number) => { const u = clamp01((t - a) / (b - a)); return u * u * (3 - 2 * u) }
 const inOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
+/**
+ * OUR MODEL: the second stage is flown at this many times real time, so the whole climb stays
+ * under a minute (about 30 s of first stage, then 22 to 28 s). The model and its results are
+ * untouched: only the clock runs faster, the change eases in over the first seconds after
+ * staging, and the pilot's steering is slowed by the same factor so it feels the same.
+ */
+const STAGE2_PACE = 2.2
+/** What the picture needs from the model at one step. */
+interface Pose { h: number; ang: number; pitch: number; speed: number; t: number }
+const poseOf = (a: Ascent): Pose => ({ h: altitude(a), ang: Math.atan2(a.x, a.y), pitch: pitch(a), speed: speed(a), t: a.t })
+/** Moves `from` toward `to` like a damped spring that never overshoots: returns the new value and speed. */
+function glide(from: number, to: number, vel: number, time: number, dt: number): [number, number] {
+  const w = 2 / Math.max(1e-4, time), x = w * dt, e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x)
+  const d = from - to, t = (vel + w * d) * dt
+  return [to + (d + t) * e, (vel - w * t) * e]
+}
 const REAL = '<span class="tag real">NASA data</span>'
 const MODEL = '<span class="tag model">Our model</span>'
 const HELP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 2-2.8 2.4-2.8 4.2"/><circle cx="12" cy="17.6" r=".6" fill="currentColor"/></svg>'
@@ -142,17 +164,24 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
     <div class="lf-result hidden" id="result" role="alertdialog" aria-live="assertive"></div>
     <img class="lf-station" id="station" src="${asset('station-exterior.svg')}" alt="" />
     <div class="lf-veil" id="veil"></div>
+    <div class="lf-film" id="film" aria-hidden="true">
+      <div class="lf-reticle"><i></i></div>
+      <div class="lf-film-cap"><small id="filmk"></small><b id="filmt"></b><span id="filmr"></span></div>
+      <div class="lf-film-note">Docking film · our own artist's impression, not NASA imagery · hours shortened to seconds</div>
+    </div>
+    <div class="lf-white" id="white"></div>
+    <button class="btn ghost small lf-skip" id="skip" hidden>Skip ›</button>
     <div class="lf-foot">${REAL}<span>The three launch systems are real; what the game says about them comes from NASA pages, retrieved ${formatDate(ROCKET_DATA.retrieved)}. Prices, masses and the ascent are our model. The scene is our own artist's impression, not NASA imagery.</span></div>
   </section>`)
   if (scene) $('#scene', s).append(scene.canvas)
 
   const design = $('#design', s), rocketPanel = $('#rocketPanel', s), loadPanel = $('#loadPanel', s), checkPanel = $('#checkPanel', s)
   const input = $('#cs', s) as HTMLInputElement, pilotPop = $('#pilotpop', s), result = $('#result', s)
-  const station = $('#station', s), veil = $('#veil', s)
+  const station = $('#station', s), veil = $('#veil', s), white = $('#white', s), skipBtn = $('#skip', s)
   const mapC = $('#map', s) as unknown as HTMLCanvasElement, dialC = $('#dial', s) as unknown as HTMLCanvasElement
 
   let index = Math.max(0, SHIPS.findIndex(x => x.id === d.ship))
-  let phase: 'arrive' | 'design' | 'count' | 'flight' | 'result' | 'orbit' | 'over' = opts.descend && !still && scene ? 'arrive' : 'design'
+  let phase: 'arrive' | 'design' | 'count' | 'flight' | 'result' | 'orbit' | 'film' | 'over' = opts.descend && !still && scene ? 'arrive' : 'design'
   const born = performance.now()
   let t0 = born, raf = 0, lastNow = born
   let helpOpen = false
@@ -169,6 +198,21 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
   const failures: AscentResult['outcome'][] = []
   let lastResult: AscentResult | null = null
   let chase = 0, orbitK = 0, boomAt = -1, lastTick = COUNT_FROM + 1, ignited = false, endedAt = 0, hudAt = 0, stagedSaid = false, liftSaid = false
+  // What keeps the picture smooth. The model moves in fixed steps; the picture is drawn between
+  // the last two of them (`poseWas`, `poseNow`), so the rocket never jumps when a frame holds no
+  // step or two. The camera, the flame and the buffeting ease toward their values instead of
+  // switching, and the pilot's steering eases in and out.
+  let poseWas: Pose | null = null, poseNow: Pose | null = null
+  let chaseV = 0, thrustShown = 0, shakeShown = 0, turnEase = 0
+  /** How fast model time runs. It eases up to STAGE2_PACE once the first stage has gone. */
+  let pace = 1
+  /** When the first stage fell away, on the page's clock. */
+  let stagedReal = 0
+  // The docking film (staged in scene/docking.ts): when it began and, if the player skipped it, when;
+  // the moment it is held at for a check; how far east the climb ended; what its caption last said.
+  let filmAt = 0, skipAt = 0, filmHold: number | null = null, rangeNow = 0, filmBeat = '', filmRange = '', touched = false
+  /** The film needs the 3D scene. Without it, or where motion is to be kept low, the old still picture of the station is used. */
+  const filmed = !!scene && !still
 
   const current = () => SHIPS[index]
   const loadout = (): Loadout => ({ cargo: { ...d.cargo } })
@@ -320,6 +364,7 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
     lastTick = COUNT_FROM + 1
     ignited = false; liftSaid = false; stagedSaid = false
     sim = null; trail = []; bank = 0; throttle = 1; boomAt = -1; orbitK = 0; lastResult = null
+    poseWas = poseNow = null; pace = 1; turnEase = 0; thrustShown = 0; shakeShown = 0
     held.left = held.right = held.up = held.down = false
     const ship = current()
     $('#countk', s).textContent = `${ship.name} · ${cleanCallSign(input.value)}${attempts > 1 ? ` · launch ${attempts}` : ''}`
@@ -335,7 +380,8 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
 
   function controls(): Controls {
     if (assist && sim) return guidanceControls(sim)
-    return { turn: (held.right ? 1 : 0) - (held.left ? 1 : 0), throttle }
+    // divided by the pace, so the nose swings as fast on the screen in the second stage as in the first
+    return { turn: turnEase / pace, throttle }
   }
 
   function endFlight() {
@@ -396,7 +442,39 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
       attempts, failures: [...failures], cargoKg: cargoKg(loadout()), marginPct: lastResult.marginPct,
       forecastPct: designForecast(ship, loadout()).marginPct, seconds: lastResult.seconds, assisted: assist,
     }
-    on.onDone(snapshot(), rec)
+    on.onDone(snapshot(), rec, filmAt > 0)
+  }
+
+  // ------------------------------------------------------------------ the docking film
+  function startFilm(now: number) {
+    phase = 'film'
+    filmAt = now
+    skipAt = 0; touched = false; filmBeat = ''; filmRange = ''
+    s.classList.add('lf-film-on')
+    skipBtn.hidden = false
+    $('#ph', s).textContent = 'Docking with the station'
+  }
+  /** The player does not want to watch: the picture dips out and the station follows at once. */
+  function skipFilm() {
+    if (phase === 'orbit' && filmed) startFilm(performance.now())
+    if (phase !== 'film' || skipAt) return
+    skipAt = performance.now()
+    skipBtn.hidden = true
+  }
+  const BEATS: Record<DockShot['beat'], [string, string]> = {
+    approach: ['Outside view', 'Closing on the station'], final: ['Docking camera', 'Final approach'],
+    contact: ['Docking camera', 'Contact and capture'], hatch: ['Docking camera', 'Hatch open'],
+  }
+  /** The film's caption, touched only when what it says changes. */
+  function filmText(shot: DockShot) {
+    if (shot.beat !== filmBeat) {
+      filmBeat = shot.beat
+      $('#filmk', s).textContent = BEATS[shot.beat][0]
+      $('#filmt', s).textContent = BEATS[shot.beat][1]
+      s.classList.toggle('lf-film-nose', shot.beat === 'final' || shot.beat === 'contact')
+    }
+    const range = shot.beat === 'hatch' ? 'Welcome aboard' : `Range ${shot.gap < 10 ? shot.gap.toFixed(1) : Math.round(shot.gap)} m`
+    if (range !== filmRange) $('#filmr', s).textContent = filmRange = range
   }
 
   // ------------------------------------------------------------------ every frame
@@ -460,10 +538,11 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
       if (p >= 1) arrive(); else descent = 1 - inOut(p)
     }
     if (swap) {
+      // the lamps ease down, the stack changes in the dark, the lamps ease back up
       const t = now - swap.at
-      if (!swap.done && t >= 190) { swap.done = true; index = swap.to; d.ship = current().id; render() }
-      dim = t < 190 ? t / 190 : Math.max(0, 1 - (t - 190) / 300)
-      if (t >= 490) { swap = null; dim = 0 }
+      if (!swap.done && t >= 240) { swap.done = true; index = swap.to; d.ship = current().id; render() }
+      dim = t < 240 ? smooth(0, 240, t) : 1 - smooth(300, 760, t)
+      if (t >= 760) { swap = null; dim = 0 }
     }
     if (phase === 'count') {
       const left = COUNT_FROM - (now - t0) / 1000
@@ -476,41 +555,66 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
       }
       if (left <= IGNITION_AT && !ignited) { ignited = true; sound.play('ignite') }
       ignite = ignited ? clamp01((IGNITION_AT - left) / IGNITION_AT) * 0.75 : 0
-      chase = Math.min(0.2, chase + dt * 0.05)
+      thrustShown = ignite
       if (left <= 0) {
         phase = 'flight'
         t0 = now
         sim = startAscent(current().id, cargoKg(loadout()))
+        poseWas = poseNow = poseOf(sim)
         s.classList.add('lf-flying')
         $('#countn', s).textContent = ''
         $('#countt', s).textContent = ''
       }
-    } else if (designing()) chase = Math.max(0, chase - dt * 0.9)
+    }
+    // the camera glides toward where each part of the launch wants it, with no change of pace that shows
+    const lifted = !!sim && sim.status !== 'pad' && phase !== 'design'
+    const [chaseGoal, chaseTime] = designing() ? [0, 0.4] : lifted ? [1, 1.05] : [0.2, 1.7]
+    ;[chase, chaseV] = glide(chase, chaseGoal, chaseV, chaseTime, dt)
 
     if (phase === 'flight' && sim) {
       if (held.up) throttle = Math.min(1, throttle + dt * 0.8)
       if (held.down) throttle = Math.max(0, throttle - dt * 0.8)
-      bank += dt * warp
+      turnEase += ((held.right ? 1 : 0) - (held.left ? 1 : 0) - turnEase) * Math.min(1, dt * 11)
+      pace += ((sim.stage === 2 ? STAGE2_PACE : 1) - pace) * Math.min(1, dt * 0.9)
+      bank += dt * warp * pace
       let n = 0
       while (bank >= DT && (sim.status === 'pad' || sim.status === 'flying') && n++ < 600) {
+        poseWas = poseNow
         stepAscent(sim, controls())
+        poseNow = poseOf(sim)
         bank -= DT
         if (sim.status === 'flying' && Math.round(sim.t / DT) % 12 === 0) trail.push([Math.atan2(sim.x, sim.y), altitude(sim)])
       }
       if (sim.status === 'flying' && !liftSaid) { liftSaid = true; sound.play('launch') }
-      if (sim.stage === 2 && !stagedSaid) { stagedSaid = true; sound.play('alert') }
-      if (sim.status !== 'pad') chase = Math.min(1, chase + dt / 2.8)
+      if (sim.stage === 2 && !stagedSaid) { stagedSaid = true; stagedReal = now; sound.play('alert') }
       if (sim.status === 'orbit' || sim.status === 'failed') endFlight()
     }
     if (phase === 'orbit') {
       const t = (now - t0) / 1000
       orbitK = smooth(0, 2.6, t)
-      station.style.opacity = String(smooth(0.9, 2.2, t))
-      station.style.transform = `translate(-50%, -50%) scale(${(0.06 + 1.5 * inOut(clamp01((t - 0.9) / 3.4))).toFixed(3)})`
-      veil.style.opacity = String(smooth(3.3, 4.2, t))
-      if (t > 4.3) return dock()
+      if (filmed) {
+        // a moment to read the orbit, then the picture dips to black and the docking film opens out of it
+        veil.style.opacity = String(smooth(1.35, 1.85, t))
+        if (t >= 1.9) startFilm(now)
+      } else {
+        station.style.opacity = String(smooth(0.9, 2.2, t))
+        station.style.transform = `translate(-50%, -50%) scale(${(0.06 + 1.5 * inOut(clamp01((t - 0.9) / 3.4))).toFixed(3)})`
+        veil.style.opacity = String(smooth(3.3, 4.2, t))
+        if (t > 4.3) return dock()
+      }
     }
-    if (sim && phase !== 'design') hud(now)
+    let shot: DockShot | null = null, filmT = 0
+    if (phase === 'film') {
+      filmT = filmHold ?? (now - filmAt) / 1000
+      shot = dockShot(filmT, FRAMING[current().id], window.innerWidth / Math.max(1, window.innerHeight))
+      const out = skipAt ? smooth(0, 300, now - skipAt) : 0
+      veil.style.opacity = String(Math.max(shot.black, out))
+      white.style.opacity = String(shot.white * (1 - out))
+      filmText(shot)
+      if (!touched && filmT >= CONTACT && !skipAt) { touched = true; sound.play('dock') }
+      if (filmHold === null && (skipAt ? now - skipAt > 320 : filmT >= DOCK_SECONDS)) return dock()
+    }
+    if (sim && phase !== 'design' && phase !== 'film') hud(now)
 
     // ---- the scene
     if (!scene) return
@@ -518,18 +622,26 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
       time: still && designing() ? 20 : time, ship: current().id, dim, descent, chase,
       ptr: still ? [0, 0] : ptr, shiftY: narrowLayout() ? (designing() ? 0.47 : 0.14) : 0,
       ignite, flight: null, orbit: orbitK, boom: boomAt < 0 ? -1 : time - boomAt,
+      // the ground goes by below at the pace of a real orbit
+      dock: shot ? { ship: current().id, shot, alt: showAltM(PLANET.targetAlt), range: rangeNow + 7600 * filmT } : null,
     }
     if (sim) {
-      const h = altitude(sim), ang = Math.atan2(sim.x, sim.y)
       const live = sim.status === 'pad' || sim.status === 'flying'
+      // between the last two steps of the model, by the share of a step still owed
+      const a = poseNow ?? poseOf(sim), b = live && poseWas ? poseWas : a, k = live ? clamp01(bank / DT) : 1
+      const h = b.h + (a.h - b.h) * k, ang = b.ang + (a.ang - b.ang) * k, sp = b.speed + (a.speed - b.speed) * k
       const burning = live && sim.gap <= 0 && (sim.stage === 1 ? sim.fuel1 > 0 : sim.fuel2 > 0)
       const alt = showAltM(h)
-      const q = Math.exp(-Math.max(0, h) / PLANET.scaleHeight) * speed(sim) ** 2
+      const q = Math.exp(-Math.max(0, h) / PLANET.scaleHeight) * sp ** 2
+      const ease = Math.min(1, dt * 7)
+      thrustShown += ((burning ? sim.throttle : 0) - thrustShown) * ease
+      shakeShown += ((still ? 0 : Math.min(1, q / 5200) * 0.8 + (burning && h < 400 ? 0.3 : 0)) - shakeShown) * ease
+      rangeNow = ang * PLANET.radius * (1 + 30 * (Math.max(0, h) / PLANET.targetAlt) ** 1.5)
       st.flight = {
-        alt, range: ang * PLANET.radius * (1 + 30 * (Math.max(0, h) / PLANET.targetAlt) ** 1.5), pitch: pitch(sim),
-        thrust: burning ? sim.throttle : 0, stage: sim.stage,
-        sinceStaging: sim.stagedAt === null ? -1 : sim.t - sim.stagedAt + (live ? 0 : (now - endedAt) / 1000),
-        air: Math.exp(-alt / 8500), shake: still ? 0 : Math.min(1, q / 5200) * 0.8 + (burning && h < 400 ? 0.3 : 0),
+        alt, range: rangeNow, pitch: b.pitch + (a.pitch - b.pitch) * k,
+        thrust: thrustShown < 0.004 ? 0 : thrustShown, stage: sim.stage,
+        sinceStaging: sim.stagedAt === null ? -1 : (now - stagedReal) / 1000, // real seconds, so the spent stage falls away at its own pace
+        air: Math.exp(-alt / 8500), shake: shakeShown,
       }
     }
     scene.draw(st)
@@ -576,6 +688,10 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
       if (e.key === 'z' || e.key === 'Z') throttle = 1
       return
     }
+    if (phase === 'orbit' || phase === 'film') {
+      if (!e.repeat && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); skipFilm() }
+      return
+    }
     if (e.repeat) return
     if (phase === 'arrive') return arrive()
     if (phase !== 'design') return
@@ -601,6 +717,7 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
     const set = (v: boolean) => (e: Event) => { e.preventDefault(); held[k] = v; b.classList.toggle('on', v) }
     b.addEventListener('pointerdown', set(true)); b.addEventListener('pointerup', set(false)); b.addEventListener('pointercancel', set(false)); b.addEventListener('pointerleave', set(false))
   })
+  skipBtn.addEventListener('click', () => { sound.play('ui'); skipFilm() })
   s.addEventListener('pointerdown', () => arrive())
   // swipe the stack sideways to change it
   let swipe: { x: number; y: number } | null = null
@@ -643,5 +760,12 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
       sim: sim && { status: sim.status, failure: sim.failure, t: sim.t, alt: altitude(sim), speed: speed(sim), pitch: pitch(sim), guide: guidance(sim), stage: sim.stage, fuel2: sim.fuel2 },
       stats: scene?.stats() ?? null,
     }),
+    film(seconds: number | null) {
+      filmHold = seconds
+      if (seconds === null || !scene || phase === 'film') return
+      swap = null; dim = 0
+      s.classList.add('lf-ready', 'lf-launching', 'lf-flying')
+      startFilm(performance.now())
+    },
   }
 }

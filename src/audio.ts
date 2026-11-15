@@ -24,6 +24,13 @@ class Sound {
     return this.ctx
   }
 
+  /**
+   * Opens the audio output ahead of the first sound. Opening it takes a tenth of a second or
+   * more, which would otherwise land on the player's first click. It stays silent and suspended
+   * until that click resumes it.
+   */
+  warm() { try { this.ensure() } catch { /* no audio: the game is silent */ } }
+
   setMuted(m: boolean) {
     this.muted = m
     try { localStorage.setItem('spacer.muted', m ? '1' : '0') } catch { /* ignore */ }

@@ -12,7 +12,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "server": "tsx server/index.ts",
-    "test": "tsx --test test/ascent.test.ts test/coop.test.ts test/data.test.ts test/flight.test.ts test/greenhouse.test.ts test/lanes.test.ts test/loadout.test.ts test/mission.test.ts test/rockets.test.ts test/rovertasks.test.ts test/station.test.ts test/stationtasks.test.ts",
+    "test": "tsx --test test/ascent.test.ts test/coop.test.ts test/data.test.ts test/docking.test.ts test/flight.test.ts test/greenhouse.test.ts test/lanes.test.ts test/loadout.test.ts test/mission.test.ts test/rockets.test.ts test/rovertasks.test.ts test/station.test.ts test/stationtasks.test.ts",
     "geo": "node scripts/build-geo.mjs",
     "art": "node scripts/gen-art.mjs",
     "data": "node scripts/fetch-nasa-data.mjs && node scripts/build-ops-dates.mjs && node scripts/fetch-launch-vehicles.mjs",

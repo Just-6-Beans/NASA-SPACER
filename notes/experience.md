@@ -7,6 +7,16 @@ Only the experience lane edits this file. Everyone reads it.
 
 ## Done
 
+### Loading screen, smoother launch, docking film (15 Nov, at a human's request, merged to main)
+
+Asked for by a human, each choice asked and answered. The station rooms and their art were left as they were: a grey, less cartoony restyle was tried and the human rejected it, so nothing in `scripts/art-*.mjs` or `public/assets/` changed.
+
+- **Loading screen.** The first thing on opening: a small rocket hovering, "Preparing to launch" at the lower left (inline in `index.html`, so it shows before any script). `src/ui/preload.ts` readies only what the title, launch and station need (typefaces, the title's Mars, the station deck, every rocket and the lift forecasts), then fetches `public/nasa` quietly in the background through the `virtual:media-list` module in `vite.config.ts`. About 10 to 15 s in dev mode. Skipped when the browser asks to save data.
+- **Smoother launch** (`src/ui/launchField.ts`). The rocket is drawn between the last two model steps, the camera, flame, shake and steering ease instead of switching, and rocket changes dim and brighten. The second stage's clock runs 2.2 times faster (`STAGE2_PACE`), with steering slowed to match: first stage about 32 s, second about 22 s, under a minute in all. The ascent model and its results are unchanged. Measured at a steady 60 frames a second.
+- **Docking film** (about 10.8 s, not playable, skippable with the button or Esc, Enter or Space). After orbit: a dip to black, an outside view of the spacecraft closing on a 3D station, a cut to the docking camera, contact, the hatch opens and its light becomes the deck. Staging is pure and tested (`src/ui/scene/docking.ts`, `test/docking.test.ts`); the station exterior (`scene/station.ts`) and the three spacecraft (`craftModel` in `scene/vehicles.ts`) use the rockets' own finishes; `drawDock` in `launchScene.ts` draws it. Where WebGL is missing or reduced motion is set, the old still picture of the station is used. `window.__spacer.field().film(seconds)` holds it at one moment for checks. All of it is our own artist's impression and the film says so on screen.
+- **Crosses lanes:** `test/docking.test.ts` is a new file in the rules lane's `test/`; `package.json` (test list) and `vite.config.ts` are shared.
+- **Not done:** the HUD and panel restyle and the first-time hint pop-ups were asked for and are not started.
+
 ### Station tasks S1 to S5, the alerts, the dust storm and the new report (15 Nov, LOCAL ONLY, not committed or pushed)
 
 Asked for by a human on this device (aizux7), from the team's `TasksList.pdf`. Work is in the clone at `GameTest\NASA-SPACER-Claude-main`, on top of `main` at 8f4f281, in the working tree. It crosses all three lanes; the last bullet lists what a commit has to name.
