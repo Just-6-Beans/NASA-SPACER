@@ -80,6 +80,7 @@ Other commands:
 | `npm run data` | Download the NASA snapshots again into `data/nasa/`, then rebuild the operations dates (needs a network connection; the game itself never does) |
 | `npm run data:ops` | Rebuild `data/nasa/ops-dates.json` from the committed snapshots (offline) |
 | `npm run data:rovers` | Download the rover expedition's NASA snapshots, map tiles, pictures and films again (needs a network connection). Add `-- --only=satellite,pictures` to run just some steps |
+| `npm run data:rovertasks` | Rebuild `data/nasa/rover-tasks.json`: the rover's rockets, five of Perseverance's rock samples and the real events behind the rover tasks. It downloads each source and stops if a quoted sentence is no longer there (needs a network connection) |
 
 On Windows you can double-click `play.bat`. It installs dependencies if needed, starts the co-op service and the game, and opens the browser.
 
@@ -103,11 +104,13 @@ On the rover screen, tap the map to place points for the rover to drive to. Use 
 1. **Solo mission** → choose a spacecraft → enter a call sign and pick a suit → **Launch** (or **Skip animation**). For two players, choose **Co-op mission** instead (see below).
 2. You dock at the station. Walk up to **Payload**, just ahead of you. Pick an instrument and **Activate payload**. The relay faults.
 3. Go to **Rover Comms** (rear right) and rotate the receiver segments to match the reference. **Confirm match**.
-4. At **Power Grid** (rear left), raise Communications to at least 4. At 5 the link is direct and skips the relay hand-off, so the signal delay is shorter. Research at 3 or more makes rover drilling use 30 % less battery.
-5. Optional: at **Calibration** (front right), tune gain and offset until both standards turn green so drilled samples are analysed. Optional routine tasks: battery balancing (driving draws 30 W less), cargo, water (+5 to the base score), medical.
-6. Back at **Rover Comms**, open the rover screen. First you **choose your rover**: Perseverance in Jezero Crater or Curiosity in Gale Crater. Each card shows a real selfie, what that rover is good and not so good at, and a button to look at its parts. You keep the rover you choose for the whole mission.
-7. **Tap the map** to place points. The rover drives them in order and the last point ⚑ is the spot it checks. Watch the battery and Mars-days forecast, then **▶ Start deployment**. The rover moves along your path while its camera plays a real drive film. When it drives into the ring around a camera mark, it saves that real NASA photo to your album by itself and adds to your score.
-8. At the spot, **run tests** (Photograph, Weather, Radiation, Drill). The big answer at the top says whether it is a good place, a risky place or a bad place. Then **Build the base here**, good or bad, or **Explore another spot**. When the battery gets low, **Recharge**: it runs on a timer, and you can go back to the station while it charges. Read the report and commission the habitat if your crew passed the medical check. Then **Replay with this crew** or **Return to title**.
+4. At **Power Grid** (rear left), raise Communications to at least 4. At 5 the link is direct and skips the relay hand-off, so the signal delay is shorter. Research at 3 or more makes coring rock samples use 30 % less battery.
+5. Optional: at **Calibration** (front right), tune gain and offset until both standards turn green, so the rover can read what its rocks are made of. Optional routine tasks: battery balancing (driving draws 30 W less), cargo, water (+5 to the base score), medical.
+6. Back at **Rover Comms**, open the rover screen. First you **choose your rover**: Perseverance in Jezero Crater or Curiosity in Gale Crater. Then you **choose its rocket** on the launch pad: the Atlas V 541 that really flew both rovers, or a cheaper Falcon 9 with no mass to spare (Perseverance only). The Saturn V is there to look at. Press **Launch** and watch it go; if the launch fails, a backup flies and three Mars days are lost.
+7. **Rover navigation.** **Tap the map** to place points. The rover drives them in order and the last point ⚑ is where it stops. The plan shows the battery, the Mars days and the **stuck risk** of the path, then **Start deployment**. When the rover drives into the ring around a camera mark, it saves that real NASA photo to your album by itself.
+8. **Stuck rover rescue.** Once a mission the rover stops with wheel trouble. Read the telemetry (six wheel currents, tilt, motor temperature), say what the problem is, and choose a fix. Every fix costs Mars days, and a wrong one wears the wheels.
+9. **Sample selection.** Drive to the **◆ sample site**. Scan five rocks, compare their clues, and seal three in tubes. What they are worth fills the Rock samples check for the whole crater.
+10. At a spot, **run tests** (Photograph, Weather, Radiation). The big answer at the top says whether it is a good place, a risky place or a bad place. Then **Build the base**, good or bad, or **Explore on**. When the battery gets low, **Recharge**: it runs on a timer, and you can go back to the station while it charges. Read the report and commission the habitat if your crew passed the medical check. Then **Replay with this crew** or **Return to title**.
 
 ## The station
 
@@ -177,27 +180,39 @@ If the service is offline, the crew link says so and offers **Retry** or **Fly s
 - **Driving cost:** distance plus climb. Uphill costs more: the rover's mass times Mars gravity for every metre gained.
 - **Photo spots:** camera marks on the map are places where the real rover took the photos saved in the game (16 per rover). There is nothing to press: when the rover drives within 120 m of one, or parks there, its real photos join your album and the spot adds +2 to the base score, up to +10. It costs no battery and each spot counts once. The plan shows how many spots a drive will pass. The album strip under the camera and the **My photos** tab open them full size.
 - **A spot's slope:** within 75 m of a real rover stop, the tilt NASA measured there. Anywhere else, the average slope from the MOLA grid (about 460 m), and the game says so.
-- **Tests:** Photograph (80 Wh, about 6 % of the gauge) fills Level ground. Weather (40 Wh, 3 %) fills Sunlight and Warmth, once for the whole region. Radiation (40 Wh, 3 %) fills Low radiation, once for the region. Drill (300 Wh with IR-S1, 380 Wh with GPR-2, about 21 % or 26 %) fills Rock sample. A test you cannot afford says so on its button.
+- **Tests:** Photograph (80 Wh, about 6 % of the gauge) fills Level ground. Weather (40 Wh, 3 %) fills Sunlight and Warmth, once for the whole region. Radiation (40 Wh, 3 %) fills Low radiation, once for the region. A test you cannot afford says so on its button. The sixth check, Rock samples, is filled at the sample site (below).
+- **The rover's rocket:** after the rover, you choose what carries it to Mars, on the same 3D launch pad as the crew launch. Every rocket shows its price, its chance of success and how many rovers it has really flown.
+  - **Atlas V 541:** 24 cr, 98 %. It really launched both rovers (26 Nov 2011 and 30 Jul 2020). The price is NASA's $243 million to launch Mars 2020, at one credit for each $10 million.
+  - **Falcon 9, booster thrown away:** 11 cr, 80 %, Perseverance only. SpaceX lists 4,020 kg to Mars for it; the Mars 2020 spacecraft is about 4,019 kg (our sum of two NASA numbers), so one kilogram is to spare. The price stands in from NASA's $109.4 million Falcon 9 launch of IMAP.
+  - **Saturn V:** not for sale. It retired in 1973.
+  - The dice are real: a failed launch costs 3 Mars days while a backup rover flies. It is never a dead end. The price comes out of the 160 cr mission budget, so more station cargo can leave only the cheaper rocket affordable.
+- **Stuck rover rescue:** once a mission a drive ends early with wheel trouble. The chance follows the real ground: a path steeper than the real rover is known to handle (MOLA), or more than 250 m from anywhere it has parked, is riskier, and the plan says so before you send it.
+  - **Telemetry:** six wheel currents, tilt and motor temperature, with one reading always missing. One wheel far above the rest is a blocked wheel; every wheel high with the tilt creeping up is soft sand; tilt near its limit is a slope too steep; hot motors need rest.
+  - **Fixes:** Reverse (half a Mars day), Rotate wheels (1), Change route (2) and Wait (1). Each cause has one fix that works at the first try. A wrong fix costs its days and wears the wheels.
+  - The rover is held for at most 5 Mars days. Past 20 % wheel wear it drives at 70 % speed for the rest of the mission, so every metre takes longer and costs more battery. Curiosity starts at 8 %: its real wheels are worn.
+- **Sample selection:** one spot on each map, a place the real rover parked, is the **◆ sample site**. Stop within 60 m of it and five rocks are waiting. Scanning is free and shows colour, texture and what the rock is made of (read clearly only by a calibrated instrument). Sealing three tubes costs 300 Wh (380 Wh with GPR-2) and their science value, 0 to 100, fills the Rock samples check for every spot in the crater.
+  - The rocks are modelled on five samples Perseverance really sealed: Roubion, Montdenier, Skyland, Hazeltop and Sapphire Canyon. After sealing, each rock shows its entry in NASA's catalog and what NASA has said about it. With Curiosity the game says that the real Curiosity carries no sample tubes.
 - **Verdict:** more than 10° is a bad place. Level ground with a site score of 60 or more is a good place; otherwise it is risky. Unmeasured bars score 0. You can build on any spot; the score and stars follow the verdict.
 - **The camera:** while the rover drives it plays a real drive film made from the rover's own camera frames: Perseverance's sol 130 autonomous drive (NASA PIA24743) and Curiosity crossing the Dingo Gap dune (NASA PIA17938). The game lays moving grain, scan lines and labels over it so it looks like a signal coming in from Mars, and says so. The longer the drive, the longer it plays (about 22 m a second, from 8 to 70 seconds). When the rover stops at a real photo spot, the camera shows the photo NASA's rover took there. Anywhere else it keeps the last picture of the drive until the rover drives again, and says that this picture was not taken at that spot.
 - **Rover parts:** NASA's own 3D picture of each rover (an artist's concept, labelled as not a photo) with a dot on each part. The dots were placed by us and show roughly where each part is.
 - **Real (NASA):** rover positions, tilts and elevations ([Perseverance](https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_waypoints.json), [Curiosity](https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_waypoints.json)); the orbital map tiles behind NASA's location maps ([Perseverance](https://science.nasa.gov/mission/mars-2020-perseverance/location-map/), [Curiosity](https://science.nasa.gov/mission/msl-curiosity/location-map/)); raw images taken inside the map ([Perseverance](https://mars.nasa.gov/mars2020/multimedia/raw-images/), [Curiosity](https://mars.nasa.gov/msl/multimedia/raw-images/)); map heights (MOLA gridded topography, NASA PDS); sunrise, sunset and temperatures at Gale (Curiosity REMS); radiation at Gale (Curiosity RAD via RadLab, May 2024); terrain roughness (MOLA); MMRTG 110 W at launch with 4.8 %/year decay; Perseverance battery 2,408 Wh and the 40 % rule; driving under 200 W; top speeds 152 and 144 m/h; rover masses 1,025 and 899 kg; the length of a Mars day; two real selfies (PIA26344, PIA24543), two artist's concepts (PIA22105, PIA14760) and two real drive films from the [NASA Image and Video Library](https://images.nasa.gov/) and Photojournal.
-- **Our model:** a 30 W base load, the battery each test uses, the Curiosity battery's watt-hours (from 2 × 42 Ah at Perseverance's ratio), recharge times, the ten-day limit, the photo bonus, the bar scores, the rock-sample bar, the 10° limit and the stars. Weather and radiation come from Gale and stand in for Jezero too.
+- **Real, for the rocket and the two tasks** (`data/nasa/rover-tasks.json`, every fact with the exact sentence it rests on): the Atlas V 541 launches of both rovers and what "541" means; NASA's cost to launch Mars 2020 and two Falcon 9 missions; the launch mass of Curiosity's spacecraft (3,893 kg) and the 126 kg by which Perseverance is heavier; the Saturn V's last flight; five entries of NASA's [Mars Rock Samples](https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/) catalog and NASA's releases about those rocks; the 43 sample tubes; Curiosity's worn wheels and the rock that stuck to its drill from 25 April to 1 May 2026; Opportunity's five weeks in a sand trap in 2005. Not NASA, and labelled so: SpaceX's figure for what a Falcon 9 can send to Mars, and a news report that Mars Sample Return was left unfunded in January 2026.
+- **Our model:** a 30 W base load, the battery each test uses, the Curiosity battery's watt-hours (from 2 × 42 Ah at Perseverance's ratio), recharge times, the ten-day limit, the photo bonus, the bar scores, the 10° limit and the stars; rocket prices in credits, success rates and the cost of a failed launch; how often the rover gets stuck, its telemetry, the fixes and wheel wear; the scan read-outs, the science value of each rock and where the sample site is. Weather and radiation come from Gale and stand in for Jezero too.
 - **Offline:** everything runs from `data/nasa/` and `public/nasa/` (about 41 MB: 26 MB of map tiles, plus the photos, pictures and drive films), refreshed with `npm run data:rovers`. The one exception is **Load newest photos** on the My photos tab, which needs internet and says so.
 - **Signal delay:** the Earth to Mars light time on 30 Mar 2029, 5.4 minutes, from JPL Horizons (`data/nasa/ops-dates.json`), plus the ship's relay hand-off (our model) unless Communications is 5 or more. It is shown on the rover camera, at Rover Comms and at Mission Ops. The other two operations dates in that file are not used by the rover expedition.
 
 ## Simulated rules in brief
 
-| Ship | Payload | Budget | Rover battery | Relay hand-off |
+| Crew launch | Launch cost | Left of 160 cr | Rover battery | Relay hand-off |
 | --- | ---: | ---: | ---: | ---: |
-| Odyssey | 18 kg | 100 cr | 100% | 3 min |
-| Atlas | 25 kg | 113 cr | 92% | 3 min |
-| Vector | 12 kg | 88 cr | 100% | 2 min |
+| Space Shuttle | 45 cr | 115 cr | 100% | 2 min |
+| Falcon 9 + Crew Dragon | 22 cr | 138 cr | 92% | 3 min |
+| Atlas V N22 + Starliner | 36 cr | 124 cr | 100% | 3 min |
 
-- **Instruments:** IR-S1 costs 42 cr and weighs 7 kg; rover drilling uses 300 Wh with it. GPR-2 costs 68 cr and weighs 13 kg; drilling uses 380 Wh.
-- **Power:** Life support 3 and Communications 4 are needed to send the rover out. Communications 5 is a direct link with no relay hand-off. Research 3 or more makes drilling use 30 % less battery.
-- **Tasks:** battery balancing makes driving draw 30 W less; cargo adds 5 cr; water adds +5 to the base score; calibration gets drilled samples analysed; the medical check clears the habitat.
-- **Budget:** the supply budget pays for the instrument. Nothing else is charged.
+- **Instruments:** IR-S1 costs 42 cr; coring three sample tubes uses 300 Wh with it. GPR-2 costs 68 cr; coring uses 380 Wh.
+- **Power:** Life support 3 and Communications 4 are needed to send the rover out. Communications 5 is a direct link with no relay hand-off. Research 3 or more makes coring use 30 % less battery.
+- **Tasks:** battery balancing makes driving draw 30 W less; cargo adds 5 cr; water adds +5 to the base score; calibration lets the rover read what its rocks are made of; the medical check clears the habitat.
+- **Budget:** 160 cr pays for the crew launch, the station cargo, the rover's instrument (42 or 68 cr) and the rover's rocket (11 or 24 cr). A design has to leave at least 53 cr for the last two.
 
 ## Puzzle spoilers (optional)
 
@@ -215,7 +230,7 @@ If the service is offline, the crew link says so and offers **Retry** or **Fly s
 ## Acceptance scenarios (verified by `npm test` and in the browser)
 
 1. Place two points and deploy: the rover stops at the last point, which becomes spot B, and the forecast matches what happened.
-2. At a flat real stop, all four tests with a calibrated instrument give a good place.
+2. At a flat real stop, the three tests and three tubes sealed at the sample site give a good place.
 3. A steep real stop is a bad place, and the base can still be built there for one star.
 4. A drive longer than the battery ends in safe mode partway. Recharging ends safe mode, refills the battery and uses up Mars days (about 2.5 for Curiosity, about 1.1 for Perseverance). It runs on a countdown of one Mars hour each second, and can be left, stopped early or skipped.
 5. Station choices change the rover: ship charge, battery balancing, research power, the water purifier, and Communications ≥ 4 to deploy.
@@ -224,18 +239,22 @@ If the service is offline, the crew link says so and offers **Retry** or **Fly s
 8. Ten Mars days: driving and recharging use them up, a drive must fit in the time left, and when they run out the base can still be built on a visited spot.
 9. A real photo spot the rover parks at or drives past joins the album by itself and adds +2 to the score (at most +10). It costs no battery, counts once, and the forecast names the spots a drive will pass.
 10. Two tabs: both astronauts appear and move, power syncs, avatars hide and reappear, and solo works with the server offline.
+11. The rover's rocket: nothing works until one is chosen; its price is NASA's cost figure in credits and comes out of the budget; the Falcon 9 is refused for Curiosity and the Saturn V for both; a failed launch costs 3 Mars days and the mission carries on.
+12. Stuck rover rescue: wheel trouble ends a drive early, once a mission and never on a short hop; each cause shows in the telemetry in its own way and has one fix that frees the rover at once; wrong fixes wear the wheels, and past the limit the rover drives slower; it is held for at most 5 Mars days.
+13. Sample selection: the sample site is a real rover stop; three of five rocks go in tubes; their value fills the Rock samples check for every spot; the debrief names what was left behind.
 
 ## Project layout
 
 - `data/nasa/`: NASA snapshots. `earth-mars-geometry.json` (JPL Horizons) and `curiosity-weather.json` (Curiosity REMS) are the trimmed downloads; `ops-dates.json` is the small extract the game reads. Each file records its source, provider and retrieval date. The rover expedition adds `<rover>-area.json` (real stops, photos, MOLA heights), `<rover>-satellite.json` (orbital map tiles), `gale-rems-recent.json`, `mola-roughness-regions.json` and `site-references.json` (radiation, films, pictures); their image and video files are in `public/nasa/`.
-- `src/data/`: typed access to that extract, plus the source lines the game shows.
-- `src/core/`: pure TypeScript rules (data, power, tasks, mission, co-op protocol validation, `survey.ts` for the map, driving, tests, photos, recharging and site scores, `rovers.ts` for rover facts and parts). This code is shared with the server and tests.
+  - `rover-tasks.json` holds what NASA says about the rover's rockets, five of Perseverance's rock samples and the real events behind the rover tasks, each fact beside the exact sentence it rests on.
+- `src/data/`: typed access to that extract, plus the source lines the game shows (`roverTasks.ts` for the rover's rocket and the two tasks).
+- `src/core/`: pure TypeScript rules (data, power, tasks, mission, co-op protocol validation, `survey.ts` for the map, driving, tests, photos, recharging and site scores, `rovers.ts` for rover facts and parts, `delivery.ts` for the rover's rocket, `rescue.ts` for the stuck-rover rescue and route risk, `samples.ts` for the sample selection). This code is shared with the server and tests.
 - `src/art/geo.json`: station and Mars geometry, read by both the art generator and the game.
 - Station code: `src/game/deck.ts` (typed geometry), `src/game/stationFx.ts` (mission state drawn on the deck), `src/game/nav.ts` (the floor guide's route), `src/ui/ops.ts` (Mission Ops), `src/ui/stationHud.ts` (objective, deck map).
 - `src/game/`: Phaser scenes (station and Mars) and input.
-- `src/ui/`: title (with its WebGL2 backdrop in `titleScene.ts`), fleet, crew, launch, task panels, rover operations (`roverView.ts`, `roverPanels.ts`, `mapView.ts`), and the report.
+- `src/ui/`: title (with its WebGL2 backdrop in `titleScene.ts`), fleet, crew, launch, task panels, rover operations (`roverView.ts`, `roverPanels.ts`, `mapView.ts`), the rover's rocket on the launch pad (`rocketPick.ts`), the two rover tasks and their pop-up (`roverTasks.ts`, styled by `src/tasks.css`), and the report.
 - `server/`: the Colyseus `spacer_power` room.
-- `scripts/`: the art generator, the NASA downloads (`fetch-nasa-data.mjs` for the operations dates, `fetch-rover-data.mjs` for the rover expedition) and the operations-date builder (`build-ops-dates.mjs`). `test/` holds the tests.
+- `scripts/`: the art generator, the NASA downloads (`fetch-nasa-data.mjs` for the operations dates, `fetch-rover-data.mjs` for the rover expedition, `fetch-rover-tasks.mjs` for the rover's rocket and the two tasks) and the operations-date builder (`build-ops-dates.mjs`). `test/` holds the tests.
 
 ## Current local review build
 

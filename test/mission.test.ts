@@ -27,8 +27,22 @@ function ready(region: RegionId, opts: { power?: Power; water?: boolean; balance
   if (opts.water) m.complete('water', 'test')
   if (opts.balanced) m.complete('battery', 'test')
   m.setPower(opts.power ?? READY)
+  // The dice are fixed: the rover's rocket succeeds (a low roll), and after that no drive ends in
+  // wheel trouble (a high roll). test/rovertasks.test.ts plays the other outcomes.
+  m.rng = () => 0
   assert.equal(m.chooseRover(region === 'jezero' ? 'perseverance' : 'curiosity'), null)
+  assert.match(m.deployBlock()!, /rocket/, 'the rover needs a rocket before it can work')
+  assert.equal(m.chooseRocket('atlas541'), null)
+  m.rng = () => 0.999
   return m
+}
+/** Drives to the sample site and seals the three best rocks: the sixth check, for the whole region. */
+function sealBest(m: Mission) {
+  const site = m.sampleSite!
+  assert.equal(m.addWaypoint({ x: site.x, y: site.y }), null)
+  assert.equal(m.deploy(), null)
+  assert.ok(m.atSampleSite)
+  assert.equal(m.collectSamples(['sapphire', 'hazeltop', 'skyland']), null)
 }
 
 /** Real stops between `min` and `max` metres from the start: the flattest and the steepest. */
@@ -145,18 +159,26 @@ test('tests fill in the bars: a flat real stop becomes a good place', () => {
   assert.equal(r.verdict.level, 'unknown', 'nothing measured yet')
   assert.equal(r.bars.filter(b => b.score !== null).length, 1, 'only roughness is known from orbit')
   const before = m.batteryWh
-  for (const t of ['photo', 'weather', 'radiation', 'drill'] as const) assert.equal(m.runTest(t), null)
-  assert.equal(before - m.batteryWh, 80 + 40 + 40 + 300)
+  for (const t of ['photo', 'weather', 'radiation'] as const) assert.equal(m.runTest(t), null)
+  assert.equal(before - m.batteryWh, 80 + 40 + 40)
   assert.match(m.runTest('photo')!, /Already done/)
-  r = m.report(m.spotHere!)
+  assert.match(m.runTest('drill')!, /sample site/, 'rock cores are not a button at a spot any more')
+  const flat = m.spotHere!
+  r = m.report(flat)
+  assert.deepEqual(r.bars.filter(b => b.score === null).map(b => b.id), ['sample'], 'the sixth check waits for the sample site')
+  // Three tubes sealed at the sample site fill it, for this spot and every other.
+  sealBest(m)
+  assert.equal(before - m.batteryWh - m.drives[1].usedWh, 80 + 40 + 40 + 300, 'coring three tubes costs what a drill did')
+  r = m.report(flat)
   assert.equal(r.ground.source, 'rover')
   assert.equal(r.ground.tiltDeg, s.tiltDeg)
   assert.ok(r.bars.every(b => b.score !== null))
+  assert.equal(r.bars.find(b => b.id === 'sample')!.score, 100)
   assert.equal(r.verdict.level, 'good')
   assert.ok(r.score >= 60)
-  // Region-wide readings carry over to the starting spot; its own photo and drill do not.
+  // Region-wide readings carry over to the starting spot; its own photo does not.
   const a = m.report(m.spots[0])
-  assert.deepEqual(a.bars.filter(b => b.score === null).map(b => b.id), ['level', 'sample'])
+  assert.deepEqual(a.bars.filter(b => b.score === null).map(b => b.id), ['level'])
 })
 
 test('a bad spot can still be built on: it scores low and the report says why', () => {
@@ -300,7 +322,7 @@ test('signal delay: real light time for the operations date, plus the relay hand
   assert.equal(m.setOpsDate(OPS_DATES[2].id), null)
   assert.equal(m.signalMin, OPS_DATES[2].lightMin)
   assert.match(m.setOpsDate('2031-01-01')!, /not on offer/)
-  assert.equal(m.funds, m.credits, 'nothing is charged after the instrument')
+  assert.equal(m.funds, m.credits, "nothing is charged after the rover's rocket")
 })
 
 test('the mission lasts 10 Mars days: driving and recharging use them up', () => {
@@ -386,16 +408,24 @@ test('photos save themselves: real photo spots the rover parks at or drives past
 
 test('battery limits how many spots can be checked', () => {
   const m = ready('gale')
-  m.runTest('photo'); m.runTest('weather'); m.runTest('radiation'); m.runTest('drill')
-  const s = flatStop('curiosity', 300, 500)
-  m.addWaypoint({ x: s.x, y: s.y })
+  m.runTest('photo'); m.runTest('weather'); m.runTest('radiation')
+  // The trip to the sample site and the coring there take most of one charge.
+  const site = m.sampleSite!
+  m.addWaypoint({ x: site.x, y: site.y })
   m.deploy()
-  m.runTest('photo'); m.runTest('drill')
+  m.runTest('photo')
+  assert.equal(m.sampleCost, testWh('drill', 'ir', false))
+  assert.equal(m.collectSamples(['montdenier', 'skyland', 'roubion']), null)
   assert.ok(m.spareWh < 400, `little left: ${m.spareWh} Wh`)
   const d = simulateDrive(ROVERS.curiosity, m.pos, [{ x: 1400, y: -1400 }], m.batteryWh, false)
   assert.ok(d.safeMode, 'not enough for another long drive')
-  const cost = testWh('drill', 'ir', false)
-  if (m.spareWh < cost) assert.match(m.testBlock('drill') ?? 'Already done', /Already done|Needs/)
+  assert.match(m.sampleBlock()!, /already sealed/, 'and there are only three tubes')
+  // With too little battery left, the tubes cannot be filled at all.
+  const low = ready('gale')
+  low.addWaypoint({ x: site.x, y: site.y })
+  low.deploy()
+  low.batteryWh = reserveWh(ROVERS.curiosity) + 100
+  assert.match(low.sampleBlock()!, /needs 300 Wh/)
 })
 
 test('station choices change the rover: ship charge, balancing, research, water, comms', () => {
@@ -417,9 +447,12 @@ test('Curiosity at Gale works the same way and has level real stops nearby', () 
   assert.equal(m.rover!.id, 'curiosity')
   const s = flatStop('curiosity')
   assert.ok(s.tiltDeg <= MAX_BASE_TILT)
+  // Curiosity has a sample site too. The trip and the coring empty much of its smaller charge, so it recharges.
+  sealBest(m)
+  assert.equal(m.recharge(), null)
   m.addWaypoint({ x: s.x, y: s.y })
   m.deploy()
-  for (const t of ['photo', 'weather', 'radiation', 'drill'] as const) assert.equal(m.runTest(t), null)
+  for (const t of ['photo', 'weather', 'radiation'] as const) assert.equal(m.runTest(t), null)
   const r = m.report(m.spotHere!)
   assert.notEqual(r.verdict.level, 'bad')
   assert.equal(m.decideBase(m.spotHere!.id), null)
@@ -427,9 +460,9 @@ test('Curiosity at Gale works the same way and has level real stops nearby', () 
 })
 
 test('payload rules: the instrument has to fit what the launch left, payload locks', () => {
-  const m = new Mission({ callSign: '  ', suit: 'sage', ship: 'shuttle', loadout: { cargo: { water: 2000, shielding: 1500, oxygen: 400 } } })
+  const m = new Mission({ callSign: '  ', suit: 'sage', ship: 'shuttle', loadout: { cargo: { water: 2000, shielding: 1500, parts: 1000 } } })
   assert.equal(m.profile.callSign, 'Pilot')
-  assert.match(m.selectInstrument('gpr')!, /costs 68 cr; the launch and its cargo left 58 cr/)
+  assert.match(m.selectInstrument('gpr')!, /costs 68 cr and the rover's rocket at least 11 cr; the launch and its cargo left 72 cr/)
   assert.equal(m.selectInstrument('ir'), null)
   m.activatePayload()
   assert.ok(m.selectInstrument('ir'))

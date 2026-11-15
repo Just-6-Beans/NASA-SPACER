@@ -11,8 +11,8 @@ export type RouteId = 'ridge' | 'basin'
 export type ScanId = 'quick' | 'deep'
 export type SiteId = 'shelf' | 'hollow' | 'plain'
 
-/** What the whole mission may spend, in credits: the launch, the station cargo, and the rover instrument chosen aboard. */
-export const MISSION_BUDGET = 136
+/** What the whole mission may spend, in credits: the launch, the station cargo, the rover instrument chosen aboard, and the rocket that carries the rover (src/core/delivery.ts). */
+export const MISSION_BUDGET = 160
 
 /** A launch system: a real rocket and the real spacecraft it carries to the station. */
 export interface Ship {
@@ -28,7 +28,7 @@ export interface Ship {
   /** Station cargo in kilograms that a clean ascent carries with propellant to spare (our model).
    *  More can fly on a thinner margin: the limit comes out of the ascent model in ascent.ts. */
   payloadKg: number
-  /** Credits left for instruments, supplies and the landing once the launch is paid: MISSION_BUDGET - launchCost. */
+  /** Credits left for station cargo, the rover instrument and the rover's rocket once the launch is paid: MISSION_BUDGET - launchCost. */
   budget: number
   battery: number
   /** Minutes the station relay adds to each signal leg, on top of the light time. */
@@ -45,21 +45,21 @@ export interface Ship {
 export const SHIPS: Ship[] = [
   {
     id: 'shuttle', name: 'Space Shuttle', rocketName: 'Space Shuttle', craft: 'Orbiter', role: 'Heavy lift',
-    launchCost: 45, payloadKg: 4800, budget: 91, battery: 100, handoffMin: 2, rocket: 'space-shuttle',
+    launchCost: 45, payloadKg: 4800, budget: 115, battery: 100, handoffMin: 2, rocket: 'space-shuttle',
     blurb: 'The orbiter is spacecraft and rocket in one, with a cargo bay nothing else matches.',
     pros: ['Carries 4,800 kg of cargo with propellant to spare', 'Shortest relay hand-off (2 min)'],
     cons: ['The most expensive launch', 'Winged stack: breaks up under the least sideways air load'],
   },
   {
     id: 'falcon9', name: 'Falcon 9 + Crew Dragon', rocketName: 'Falcon 9 Block 5', craft: 'Crew Dragon', role: 'Lowest cost',
-    launchCost: 22, payloadKg: 3000, budget: 114, battery: 92, handoffMin: 3, rocket: 'falcon-9-crew-dragon',
+    launchCost: 22, payloadKg: 3000, budget: 138, battery: 92, handoffMin: 3, rocket: 'falcon-9-crew-dragon',
     blurb: 'A booster that lands and flies again, under a capsule that docks itself.',
     pros: ['The cheapest launch: most left to spend', 'Carries 3,000 kg of cargo with propellant to spare'],
     cons: ['Lowest thrust for its weight: slowest off the pad', 'The rover starts at 92% charge'],
   },
   {
     id: 'atlasv', name: 'Atlas V N22 + Starliner', rocketName: 'Atlas V N22', craft: 'Starliner', role: 'Steady climb',
-    launchCost: 36, payloadKg: 2100, budget: 100, battery: 100, handoffMin: 3, rocket: 'atlas-v-n22-starliner',
+    launchCost: 36, payloadKg: 2100, budget: 124, battery: 100, handoffMin: 3, rocket: 'atlas-v-n22-starliner',
     blurb: 'Built for crew: no nose cone, and a two-engine upper stage that flies a gentler path.',
     pros: ['Sturdiest stack: takes the roughest steering without breaking up', 'Full rover battery'],
     cons: ['Carries only 2,100 kg of cargo with propellant to spare', 'Mid-priced launch'],
@@ -82,12 +82,12 @@ export const INSTRUMENTS: Instrument[] = [
   {
     id: 'ir', name: 'IR Spectrometer', code: 'IR-S1', cost: 42, massKg: 7, quickDraw: 6, baseUncertainty: 19,
     calibration: { raw: [20, 60], target: [27, 77] },
-    note: 'Light and frugal. Analyses drilled rock for hydrated minerals. Drilling uses 300 Wh of rover battery.',
+    note: 'Light and frugal. Reads the minerals in a rock before it is cored. Coring three sample tubes uses 300 Wh of rover battery.',
   },
   {
     id: 'gpr', name: 'Ground Radar', code: 'GPR-2', cost: 68, massKg: 13, quickDraw: 18, baseUncertainty: 11,
     calibration: { raw: [16, 56], target: [22, 82] },
-    note: 'Heavy and power hungry. Sounds the drill hole for buried layers. Drilling uses 380 Wh of rover battery.',
+    note: 'Heavy and power hungry. Sounds the rock for buried layers before it is cored. Coring three sample tubes uses 380 Wh of rover battery.',
   },
 ]
 
@@ -143,8 +143,8 @@ export const CARGO: CargoItem[] = [
   {
     id: 'rack', name: 'Scientific experiment rack', note: 'A lab rack for the station that works on the rover\'s samples.',
     steps: [{ kg: 200, cost: 8, value: 1 }, { kg: 500, cost: 18, value: 2 }],
-    effect: v => v === 1 ? 'Drilling uses 30% less rover battery, whatever the research power.'
-      : 'Drilling uses 30% less battery, and drilled samples are studied even without calibration.',
+    effect: v => v === 1 ? 'Coring rock samples uses 30% less rover battery, whatever the research power.'
+      : 'Coring uses 30% less battery, and rock scans read clearly even without calibration.',
   },
 ]
 /** The step an item is loaded at, or null when it is not aboard. */

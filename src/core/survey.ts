@@ -175,9 +175,11 @@ export const TESTS: Record<TestId, TestInfo> = {
   photo: { id: 'photo', name: 'Photograph', verb: 'Photograph the ground', fills: 'Level ground', scope: 'spot' },
   weather: { id: 'weather', name: 'Weather', verb: 'Take a weather reading', fills: 'Sunlight and warmth', scope: 'region' },
   radiation: { id: 'radiation', name: 'Radiation', verb: 'Take a radiation reading', fills: 'Radiation', scope: 'region' },
-  drill: { id: 'drill', name: 'Drill', verb: 'Drill a rock sample', fills: 'Rock sample', scope: 'spot' },
+  // Coring is not a button at a spot: it is the sample selection at the sample site (samples.ts), and it counts for the whole region.
+  drill: { id: 'drill', name: 'Rock samples', verb: 'Core three rock samples', fills: 'Rock samples', scope: 'region' },
 }
-export const TEST_ORDER: TestId[] = ['photo', 'weather', 'radiation', 'drill']
+/** The tests a pilot can run at any spot. Rock samples are taken at the sample site instead. */
+export const TEST_ORDER: TestId[] = ['photo', 'weather', 'radiation']
 /** What a test does, in the words shown to the player. */
 export function testNote(r: RoverSpec, t: TestId): string {
   if (t === 'photo') return 'The cameras image the ground so its slope can be measured.'
@@ -185,9 +187,9 @@ export function testNote(r: RoverSpec, t: TestId): string {
   if (t === 'radiation') return r.id === 'perseverance'
     ? 'Perseverance has no radiation detector, so this relays Curiosity\'s RAD reading. One reading covers the whole region.'
     : 'RAD counts the radiation reaching the ground. One reading covers the whole region.'
-  return 'The arm drills a rock and your station instrument studies it.'
+  return 'The arm cores three rocks at the sample site and seals each core in a tube.'
 }
-/** MODEL: battery each test uses (NASA publishes no per-activity figures). */
+/** MODEL: battery each test uses (NASA publishes no per-activity figures). For 'drill': coring all three tubes. */
 export function testWh(t: TestId, inst: InstrumentId, fastDrill: boolean): number {
   if (t === 'photo') return 80
   if (t === 'weather' || t === 'radiation') return 40
@@ -211,8 +213,11 @@ export function orbitBars(reg: Region): Bar[] {
   return [{ id: 'rough', name: 'Smooth terrain', score: pct(100 * (1 - (reg.roughnessM - 1) / 4)), value: `Bumps about ${reg.roughnessM} m high, seen from orbit`, source: `MOLA laser altimeter, ${reg.name}`, real: `Terrain roughness of ${reg.roughnessM} m (RMS), measured from orbit and averaged over about 22 km.`, model: 'Score: 1 m or less is 100, 5 m or more is 0.', shared: true, needs: null }]
 }
 
-/** All six bars for a spot. A bar stays empty until its test has been run. */
-export function spotBars(r: RoverSpec, p: Pt, done: TestId[], calibrated: boolean): Bar[] {
+/**
+ * All six bars for a spot. A bar stays empty until its test has been run. `sample` is what the
+ * three tubes sealed at the sample site are worth (0 to 100), or null while none are sealed.
+ */
+export function spotBars(r: RoverSpec, p: Pt, done: TestId[], sample: { value: number; text: string } | null): Bar[] {
   const reg = region(r.region)
   const has = (t: TestId) => done.includes(t)
   const g = groundAt(r, p)
@@ -232,7 +237,7 @@ export function spotBars(r: RoverSpec, p: Pt, done: TestId[], calibrated: boolea
     { id: 'sun', name: 'Sunlight', score: has('weather') ? pct((day / 14) * 100) : null, value: has('weather') ? `${Math.round(day * 10) / 10} hours of daylight for solar panels` : 'Take a weather reading', source: gale, real: `Sunrise and sunset. ${standIn}`, model: 'Score: 14 h of daylight is 100.', shared: true, needs: 'weather' },
     { id: 'warm', name: 'Warmth', score: has('weather') ? pct(tmin + 100) : null, value: has('weather') ? `Nights ${tmin} °C, days ${tmax} °C: hard for a greenhouse` : 'Take a weather reading', source: gale, real: `Air temperature. ${standIn}`, model: 'Score: a −100 °C night is 0, a 0 °C night is 100.', shared: true, needs: 'weather' },
     { id: 'rad', name: 'Low radiation', score: has('radiation') ? pct(100 * (1 - RADIATION.mGyPerSol / 0.5)) : null, value: has('radiation') ? `${RADIATION.mGyPerSol} mGy each Mars day, measured at Gale` : 'Take a radiation reading', source: RADIATION.label, real: RADIATION.note, model: 'Score: 0 mGy per sol is 100, 0.5 or more is 0.', shared: true, needs: 'radiation' },
-    { id: 'sample', name: 'Rock sample', score: has('drill') ? (calibrated ? 100 : 60) : null, value: has('drill') ? (calibrated ? 'Drilled and studied' : 'Drilled, but not studied: the instrument was never calibrated') : 'Drill to collect one', source: 'Game rule', real: 'Not NASA data: this bar records whether your rover drilled here.', model: 'Studied sample 100, unstudied 60, none 0.', shared: false, needs: 'drill' },
+    { id: 'sample', name: 'Rock samples', score: sample ? sample.value : null, value: sample ? sample.text : 'Fill three tubes at the sample site', source: "Game rule, modelled on Perseverance's sample tubes", real: 'The five rocks at the sample site are modelled on samples Perseverance really sealed. What each is worth is our model, not a NASA figure.', model: 'Score: the science value of your three tubes, out of 100. No tubes: 0.', shared: true, needs: 'drill' },
   ]
 }
 

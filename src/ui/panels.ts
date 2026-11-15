@@ -119,7 +119,7 @@ function payloadTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
       const block = m.instrumentBlock(i.id)
       return `<button class="card" data-id="${i.id}" aria-pressed="${sel === i.id}" ${block || m.payloadActive ? 'disabled' : ''}>
         <h4>${i.name}</h4><div class="mono" style="color:#ff8f45">${i.code}</div><div style="margin-top:4px">${i.note}</div>
-        <div class="stats">Cost ${i.cost} cr · Mass ${i.massKg} kg<br/>Rover drilling uses ${i.id === 'gpr' ? 380 : 300} Wh (game model)</div>
+        <div class="stats">Cost ${i.cost} cr · Mass ${i.massKg} kg<br/>Coring three sample tubes uses ${i.id === 'gpr' ? 380 : 300} Wh (game model)</div>
         ${block ? `<div class="why">Blocked: ${esc(block)}</div>` : ''}</button>`
     }).join('')}</div>
     ${l && c ? `<div class="ledger">
@@ -182,7 +182,7 @@ function powerTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
   const d = m.ops
   const hand = m.ship.handoffMin
   const block = powerBlock(p)
-  body.innerHTML = `<p class="lead">Route ${POWER_TOTAL} units. A shorter signal delay (communications) competes with cheaper rover drilling (research). ${ctx.coopOn() ? `<b style="color:#5fd8f0">Shared with your crewmate · revision ${ctx.powerRevision()}</b>` : ''}</p>
+  body.innerHTML = `<p class="lead">Route ${POWER_TOTAL} units. A shorter signal delay (communications) competes with cheaper rock coring (research). ${ctx.coopOn() ? `<b style="color:#5fd8f0">Shared with your crewmate · revision ${ctx.powerRevision()}</b>` : ''}</p>
     <div class="power-rows">${rows.map(([k, label, need]) => `<div class="prow">
       <span class="lbl">${label}</span><button class="btn small" data-k="${k}" data-d="-1" aria-label="Decrease ${label}" ${p[k] <= 0 ? 'disabled' : ''}>−</button>
       <div class="cells">${Array.from({ length: POWER_TOTAL }, (_, i) => `<i class="${i < p[k] ? 'on' : ''} ${i === need - 1 ? 'need' : ''}"></i>`).join('')}</div>
@@ -193,7 +193,7 @@ function powerTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) {
       <div class="${p.life >= 3 ? 'on' : 'bad'}">${p.life >= 3 ? '✓' : '✗'} Life support ≥ 3 (required to send the rover out)</div>
       <div class="${p.comms >= 4 ? 'on' : 'bad'}">${p.comms >= 4 ? '✓' : '✗'} Communications ≥ 4 (required to send the rover out)</div>
       <div class="${fastRelay(p) ? 'on' : 'off'}">${fastRelay(p) ? '✓' : '○'} Communications ≥ 5: direct link, skips the ${hand} min relay hand-off → <b>${signalLeg(d.lightMin, hand, p)} min</b> signal delay one-way on ${d.label}. The light time itself cannot be shortened.</div>
-      <div class="${researchFilter(p) ? 'on' : 'off'}">${researchFilter(p) ? '✓' : '○'} Research ≥ 3: rover drilling uses 30 % less battery</div>
+      <div class="${researchFilter(p) ? 'on' : 'off'}">${researchFilter(p) ? '✓' : '○'} Research ≥ 3: coring rock samples uses 30 % less battery</div>
     </div>
     <div class="feedback ${block ? 'warn' : 'ok'}">${block ? esc(block) : 'Power ready: the rover can be sent out.'}</div>`
   $$('button[data-k]', body).forEach(b => b.addEventListener('click', () => {
@@ -242,7 +242,7 @@ function calibrationTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) 
   const { raw, target } = inst.calibration
   const r = T.calibrationCheck(raw, target, d.gain, d.offset)
   const scale = (v: number) => Math.max(0, Math.min(100, v))
-  body.innerHTML = `<p class="lead">Two reference standards check the <b>${inst.name} (${inst.code})</b>. Tune gain and offset until both adjusted readings land within ±1 of their references. You may skip this, but samples the rover drills are then <b>flagged</b> as unanalysed in the report.</p>
+  body.innerHTML = `<p class="lead">Two reference standards check the <b>${inst.name} (${inst.code})</b>. Tune gain and offset until both adjusted readings land within ±1 of their references. You may skip this, but at the sample site the rover then reads what each rock is made of only <b>faintly</b>.</p>
     <div class="formula">adjusted = raw × gain / 100 + offset</div>
     <div class="cal-grid">${[0, 1].map(i => `<div class="std ${r.within[i] ? 'ok' : ''}">
       <div>Standard ${i === 0 ? 'A (low)' : 'B (high)'}</div>
@@ -253,7 +253,7 @@ function calibrationTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) 
     <div class="row" style="justify-content:flex-end;gap:6px"><button class="btn small" data-f="gain" data-d="-1" ${done ? 'disabled' : ''}>Gain −1</button><button class="btn small" data-f="gain" data-d="1" ${done ? 'disabled' : ''}>Gain +1</button></div>
     <div class="slider"><label for="off">Offset</label><input type="range" id="off" min="${T.OFFSET_RANGE[0]}" max="${T.OFFSET_RANGE[1]}" step="1" value="${d.offset}" ${done ? 'disabled' : ''}/><span><b>${d.offset > 0 ? '+' : ''}${d.offset}</b></span></div>
     <div class="row" style="justify-content:flex-end;gap:6px"><button class="btn small" data-f="offset" data-d="-1" ${done ? 'disabled' : ''}>Offset −1</button><button class="btn small" data-f="offset" data-d="1" ${done ? 'disabled' : ''}>Offset +1</button></div>
-    <div class="feedback ${done ? 'ok' : ''}">${done ? `Calibration locked at gain ${d.gain}, offset ${d.offset >= 0 ? '+' : ''}${d.offset}: drilled samples will be analysed.` : 'Adjust, then lock calibration.'}</div>
+    <div class="feedback ${done ? 'ok' : ''}">${done ? `Calibration locked at gain ${d.gain}, offset ${d.offset >= 0 ? '+' : ''}${d.offset}: rock scans at the sample site will read clearly.` : 'Adjust, then lock calibration.'}</div>
     <div class="actions">${done ? '<span class="donebadge">COMPLETE</span>' : '<button class="btn primary" id="ok">Lock calibration</button><button class="btn" id="rs">Reset to defaults</button>'}</div>`
   const set = (f: 'gain' | 'offset', v: number) => {
     const [lo, hi] = f === 'gain' ? T.GAIN_RANGE : T.OFFSET_RANGE
@@ -268,7 +268,7 @@ function calibrationTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) 
   $('#ok', body)?.addEventListener('click', () => {
     const c = T.calibrationCheck(raw, target, d.gain, d.offset)
     if (!c.ok) { sound.play('fail'); fb(body, c.message, 'bad'); return }
-    ctx.done('calibration', `${inst.code} at gain ${d.gain}, offset ${d.offset >= 0 ? '+' : ''}${d.offset} (samples analysed)`)
+    ctx.done('calibration', `${inst.code} at gain ${d.gain}, offset ${d.offset >= 0 ? '+' : ''}${d.offset} (rock scans will read clearly)`)
     rerender()
   })
 }
@@ -305,10 +305,12 @@ function roverTab(body: HTMLElement, ctx: PanelCtx) {
   const rv = m.rover
   const status = m.base ? 'Base decided. Open the rover screen for the report.'
     : !rv ? 'First you choose your rover: Perseverance (Jezero Crater) or Curiosity (Gale Crater). You keep it for the whole mission.'
+      : !m.delivery ? `${rv.name} is chosen. Next: the rocket that carries it to Mars.`
+        : m.stuck ? `${rv.name} is stuck with wheel trouble. Open the rover screen to free it.`
       : m.charging ? `${rv.name} is recharging: ${spendPct(rv, m.batteryWh)}% now. Open the rover screen to see the timer.`
         : `${rv.name}: battery ${spendPct(rv, m.batteryWh)}%, ${m.spots.length} spot${m.spots.length === 1 ? '' : 's'} visited, ${m.photos.length} photo spot${m.photos.length === 1 ? '' : 's'} found, day ${m.sol} of the mission.`
-  body.innerHTML = `<p class="lead">Choose a real NASA rover, drive it across a real picture of its surroundings, test the ground, and pick where the crew's base goes. Commands travel at light speed, so every order is delayed by the real Earth to Mars light time.</p>
-    <div class="ledger"><span>Instrument</span><b>${m.instrumentInfo ? esc(m.instrumentInfo.code) : '—'}</b><span>Calibration</span><b>${m.calibrated ? 'Locked: samples analysed' : 'Uncalibrated: samples flagged'}</b>
+  body.innerHTML = `<p class="lead">Choose a real NASA rover and the rocket that carries it, drive it across a real picture of its surroundings, free it when it gets stuck, fill three sample tubes, and pick where the crew's base goes.</p>
+    <div class="ledger"><span>Instrument</span><b>${m.instrumentInfo ? esc(m.instrumentInfo.code) : '—'}</b><span>Calibration</span><b>${m.samplesStudied ? 'Rock scans read clearly' : 'Uncalibrated: rock scans are faint'}</b>
     <span>Power</span><b>${m.power.life}/${m.power.comms}/${m.power.research}</b><span>Signal delay</span><b>${signalLeg(d.lightMin, m.ship.handoffMin, m.power)} min one-way on ${d.label}</b></div>
     <div class="feedback ${block ? 'bad' : pb && !m.base ? 'warn' : 'ok'}">${esc(block ?? (pb && !m.base ? `${pb} You can open the rover screen, but starting a deployment stays blocked.` : status))}</div>
     <div class="actions"><button class="btn primary" id="go" ${block ? 'disabled' : ''}>Open the rover screen</button></div>`

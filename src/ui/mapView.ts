@@ -4,6 +4,7 @@
 // the points the player taps, and the rover itself. The player can zoom in and drag the map.
 import type { Mission, SpotReport } from '../core/mission'
 import type { RoverSpec } from '../core/rovers'
+import { SAMPLE_RANGE_M } from '../core/samples'
 import { PHOTO_RANGE_M, groundAt, halfMap, heightAt, photoPlaces, slopeAt, type DriveResult, type Pt } from '../core/survey'
 
 /** Map units: the whole 3 km square is MAP_PX wide, whatever size it is drawn at. */
@@ -151,10 +152,20 @@ export function mapSvg(m: Mission, rv: RoverSpec, o: MapOpts): string {
   const ring = (PHOTO_RANGE_M / rv.area.sizeM) * MAP_PX
   const cams = photoPlaces(rv).map(pl => {
     const q = px(pl), got = o.found.includes(pl.id)
-    return `<g class="mcam ${got ? 'got' : ''} ${o.inRange === pl.id ? 'hot' : ''}" data-place="${pl.id}" pointer-events="none">
+    // "near", not "hot": the parts guide has a .hot class of its own, and its CSS would move this mark across the map
+    return `<g class="mcam ${got ? 'got' : ''} ${o.inRange === pl.id ? 'near' : ''}" data-place="${pl.id}" pointer-events="none">
       ${got ? '' : `<circle class="mring" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${ring.toFixed(1)}" stroke-width="${u(1.5)}" stroke-dasharray="${u(5)} ${u(4)}"/>`}
       <g transform="${pin(q, k)}"><rect class="mbody" x="-10" y="-6" width="20" height="14" rx="3.5"/><rect class="mbody" x="-4.5" y="-9.5" width="9" height="5" rx="1.5"/>${got ? '<path class="mtick" d="M-4.5 1 L-1.2 4.3 L5 -3"/>' : '<circle class="mlens" cy="1" r="3.8"/>'}</g></g>`
   }).join('')
+  // The sample site: a diamond over a place the real rover parked, with the ring the rover has to stop inside.
+  const st = m.sampleSite
+  let site = ''
+  if (st) {
+    const q = px(st), r = (SAMPLE_RANGE_M / rv.area.sizeM) * MAP_PX
+    site = `<g class="msite ${m.samples ? 'done' : ''}" pointer-events="none">
+      ${m.samples ? '' : `<circle class="msring" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${r.toFixed(1)}" stroke-width="${u(1.5)}" stroke-dasharray="${u(3)} ${u(4)}"/>`}
+      <g transform="${pin({ x: q.x, y: q.y - 24 / k }, k)}"><rect class="msbody" x="-8" y="-8" width="16" height="16" rx="2" transform="rotate(45)"/>${m.samples ? '<path class="mtick" d="M-4.5 0.5 L-1.2 3.8 L5 -3.5"/>' : '<circle class="mscore" r="3"/>'}</g></g>`
+  }
   const history = m.drives.filter(d => d !== o.anim?.drive).map(d => `<polyline points="${pts([d.start, ...d.legs.map(l => l.to)])}" fill="none" stroke="#ff8a4c" stroke-width="${u(3)}" opacity=".85"/>`).join('')
   const hidden = o.anim ? m.spots[m.spots.length - 1]?.id : -1
   const spots = o.reports.filter(r => r.spot.id !== hidden || m.drives.length === 0).map(r => {
@@ -177,8 +188,8 @@ export function mapSvg(m: Mission, rv: RoverSpec, o: MapOpts): string {
   const anim = o.anim ? `<polyline points="${pts([o.anim.drive.start, ...o.anim.drive.legs.map(l => l.to)])}" fill="none" stroke="#ffb347" stroke-width="${u(2)}" stroke-dasharray="${u(6)} ${u(6)}" opacity=".8"/><polyline id="trail" points="${pts(o.anim.trail)}" fill="none" stroke="#ff8a4c" stroke-width="${u(4)}"/>` : ''
   return `<svg class="expmap ${o.planning ? 'planning' : ''}" viewBox="${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.size.toFixed(2)} ${vb.size.toFixed(2)}" role="application" aria-label="Map of the ${rv.area.sizeM / 1000} km around ${rv.name}. ${o.planning ? 'Tap to place points for the rover to drive to.' : ''}">
     <g stroke="#ffffff" stroke-opacity=".12" stroke-width="${u(1)}">${lines}</g>
-    ${track}${cams}${history}${plan}${anim}${spots}
-    <g id="rv" transform="${pin(px(o.anim?.pos ?? m.pos), k)}" pointer-events="none"><circle r="17" fill="#ff6a2b" opacity=".22"/><circle r="17" fill="none" stroke="#fff" stroke-width="4.5" opacity=".9"/><circle r="17" fill="none" stroke="#ff6a2b" stroke-width="3"/>
+    ${track}${cams}${site}${history}${plan}${anim}${spots}
+    <g id="rv" transform="${pin(px(o.anim?.pos ?? m.pos), k)}" pointer-events="none">${m.stuck && !o.anim ? '<circle class="mstuck" r="27"/>' : ''}<circle r="17" fill="#ff6a2b" opacity=".22"/><circle r="17" fill="none" stroke="#fff" stroke-width="4.5" opacity=".9"/><circle r="17" fill="none" stroke="#ff6a2b" stroke-width="3"/>
       <rect x="-9" y="-5" width="18" height="8" rx="2" fill="#ff6a2b" stroke="#04101c" stroke-width="1"/><circle cx="-6" cy="5" r="2.6" fill="#04101c"/><circle cx="0" cy="5" r="2.6" fill="#04101c"/><circle cx="6" cy="5" r="2.6" fill="#04101c"/><line x1="5" y1="-5" x2="5" y2="-11" stroke="#ff6a2b" stroke-width="2.4"/></g>
   </svg>`
 }
