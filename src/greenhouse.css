@@ -37,7 +37,7 @@
 .ghr > small { font-family: var(--mono); font-size: 10.5px; color: var(--ivory-dim); text-align: right; }
 .ghr.warn { border-left-color: var(--warn); } .ghr.warn > b { color: var(--warn); }
 .ghr.bad { border-left-color: var(--danger); } .ghr.bad > b { color: #ff8a7a; }
-.ghr.warn > span::after { content: ' ⚠'; } .ghr.bad > span::after { content: ' ✖'; }
+.ghr.warn > span::after { content: ' !'; } .ghr.bad > span::after { content: ' !!'; }
 
 .gh-ext, .gh-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 6px; }
 .gx, .gh-metrics > div { padding: 8px 10px; background: rgba(4,18,32,.8); border: 1px solid rgba(63,208,255,.22); display: flex; flex-direction: column; gap: 2px; }

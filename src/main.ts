@@ -308,12 +308,12 @@ function buildHud(): HTMLElement {
     </div>
     <div class="statbar" id="meters" aria-label="Station power"></div>
     <div class="clocks" id="clocks"></div>
-    <div class="banner hidden" id="banner" role="alert">⚠ Relay fault · Mars link down · Repair at Rover Comms</div>
+    <div class="banner hidden" id="banner" role="alert">Relay fault · Mars link down · Repair at Rover Comms</div>
     <div class="prompt hidden" id="prompt"></div>
     <div class="debugbox hidden" id="debug"><div id="dstats"></div><button class="btn small" id="d-add">+250 sprites</button> <button class="btn small" id="d-rst">Reset sprites</button><div style="margin-top:4px"><span style="color:#ff8a7a">red</span> = collision · <span style="color:#6ef2c6">mint</span> = feet · <span style="color:#ffb347">amber</span> = reach</div></div>
     ${isTouch() ? `<div class="dpad" id="dpad">
       <span></span><button data-dir="up" aria-label="Up">▲</button><span></span>
-      <button data-dir="left" aria-label="Left">◀</button><button data-dir="jog" aria-label="Jog">⇧</button><button data-dir="right" aria-label="Right">▶</button>
+      <button data-dir="left" aria-label="Left">◄</button><button data-dir="jog" aria-label="Jog">⇧</button><button data-dir="right" aria-label="Right">►</button>
       <span></span><button data-dir="down" aria-label="Down">▼</button><span></span></div>
       <button class="act" id="touch-act" aria-label="Interact">E</button>` : ''}
   </section>`)

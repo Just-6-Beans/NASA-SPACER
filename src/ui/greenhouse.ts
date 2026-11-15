@@ -78,7 +78,7 @@ function readingVals(gh: Greenhouse, v: Vals) {
   for (const r of Object.values(all)) {
     const d = DEC[r.id], flat = Math.abs(r.trend) < 0.6 * 10 ** -d
     v[`rv-${r.id}`] = r.value.toFixed(d)
-    v[`rt-${r.id}`] = flat ? '→ steady' : `${r.trend > 0 ? '↗ +' : '↘ −'}${Math.abs(r.trend).toFixed(Math.max(1, d))} / min`
+    v[`rt-${r.id}`] = flat ? 'steady' : `${r.trend > 0 ? 'rising +' : 'falling −'}${Math.abs(r.trend).toFixed(Math.max(1, d))} / min`
     v[`rs-${r.id}`] = r.status
   }
   return all
@@ -91,14 +91,14 @@ const statusBar = () => `<div class="ghbar" role="status"><span>Orbit <b data-v=
 function statusVals(gh: Greenhouse, v: Vals) {
   const x = gh.exterior, s = gh.summary()
   v.orbit = x.orbit
-  v.sun = x.sunlit ? '☀ SUNLIT' : '☾ ECLIPSE'
+  v.sun = x.sunlit ? 'SUNLIT' : 'ECLIPSE'
   v.sunnext = `${x.sunlit ? 'sunset' : 'sunrise'} in ${mmss(x.nextChange)}`
   v.sunc = x.sunlit ? 'ok' : 'dim'
   v.batt = `${Math.round(gh.batteryPct)}%`
   v.battc = gh.batteryPct < 20 ? 'bad' : gh.batteryPct < 40 ? 'warn' : ''
   v.tank = `${Math.round(gh.tankL)} L`
   v.food = `${kg(gh.foodKg)} kg`
-  v.alerts = s.alerts ? `⚠ ${s.alerts} alert${s.alerts > 1 ? 's' : ''}` : '✓ no alerts'
+  v.alerts = s.alerts ? `${s.alerts} alert${s.alerts > 1 ? 's' : ''}` : '✓ no alerts'
   v.alc = s.worst === 'damage' ? 'bad' : s.alerts ? 'warn' : 'ok'
 }
 
@@ -107,10 +107,10 @@ const jobsHtml = (gh: Greenhouse) => gh.jobs.length ? `<div class="gh-jobs">${gh
 function jobVals(gh: Greenhouse, v: Vals) { for (const j of gh.jobs) { v[`jw-${j.id}`] = pct(1 - j.left / j.total); v[`jt-${j.id}`] = `${Math.ceil(j.left)} s` } }
 
 const LEVEL: Record<AlertLevel, [string, string]> = {
-  warning: ['⚠ WARNING', 'A reading is off. The plants are not affected yet.'],
-  degraded: ['▼ DEGRADED', 'Growth is being held back.'],
-  damage: ['✖ DAMAGE', 'Plants are losing health.'],
-  recovery: ['↻ RECOVERY', 'The cause is fixed. The plants are still recovering.'],
+  warning: ['WARNING', 'A reading is off. The plants are not affected yet.'],
+  degraded: ['DEGRADED', 'Growth is being held back.'],
+  damage: ['DAMAGE', 'Plants are losing health.'],
+  recovery: ['RECOVERY', 'The cause is fixed. The plants are still recovering.'],
 }
 const alertsKey = (gh: Greenhouse, only?: (a: Alert) => boolean) => gh.alerts.filter(a => !only || only(a)).map(a => `${a.id}${a.level[0]}${+a.diagnosed}${+a.acknowledged}`).join(',')
 function alertCard(gh: Greenhouse, a: Alert) {
@@ -181,7 +181,7 @@ function overviewTab(gh: Greenhouse, remote: boolean): LiveTab {
       v.array = x.arrayState === 'tracking' ? `Tracking · ${gh.generationKw.toFixed(1)} kW` : x.arrayState === 'feathered' ? 'FEATHERED' : 'STRING OFFLINE'
       v.arraynote = x.arrayState === 'tracking' ? 'Making what the light allows.' : x.arrayState === 'feathered' ? 'Turned edge-on for a visiting vehicle. Shed loads or tie in the station bus until it turns back.' : 'One string did not reconnect. Output stays low until it is inspected.'
       v.arrc = x.arrayState === 'tracking' ? '' : 'warn'
-      v.rad = x.radiation === 'quiet' ? 'Quiet' : x.radiation === 'watch' ? '⚠ WATCH' : '☢ PARTICLE STORM'
+      v.rad = x.radiation === 'quiet' ? 'Quiet' : x.radiation === 'watch' ? 'WATCH' : 'PARTICLE STORM'
       v.radnote = x.radiation === 'quiet' ? 'No solar particle event.' : x.radiation === 'watch' ? 'A solar particle event is forecast. Plan to leave the module.' : `Leave the module and work from a shielded node. Dose so far ${gh.doseMsv.toFixed(2)} mSv (game value).`
       v.radc = x.radiation === 'quiet' ? '' : x.radiation === 'watch' ? 'warn' : 'bad'
       for (const b of gh.bays) {
@@ -520,7 +520,7 @@ export function greenhouseChip(gh: Greenhouse): { text: string; cls: '' | 'ok' |
   const s = gh.summary(), parts = [`${s.planted} growing`]
   if (s.ready) parts.push(`${s.ready} ready`)
   if (s.pollinate) parts.push(`${s.pollinate} to pollinate`)
-  if (s.alerts) parts.push(`⚠ ${s.alerts} alert${s.alerts > 1 ? 's' : ''}`)
+  if (s.alerts) parts.push(`${s.alerts} alert${s.alerts > 1 ? 's' : ''}`)
   return { text: `Greenhouse · ${parts.join(' · ')} · score ${gh.score().total}`, cls: s.worst === 'damage' ? 'bad' : s.alerts ? 'warn' : 'ok' }
 }
 

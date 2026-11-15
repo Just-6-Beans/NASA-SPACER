@@ -64,6 +64,12 @@
 .rover .legend .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 7px; vertical-align: -2px; box-shadow: 0 0 0 2px #04101c, 0 0 0 3px rgba(255,255,255,.25); }
 .rover .legend .dot.num { background: var(--cyan); color: #04101c; font-size: 10px; font-weight: 700; font-style: normal; text-align: center; line-height: 14px; }
 .rover .parts-legend { margin: 12px 0 4px; }
+/* What each part does: the picture on the left, the picked part's card beside it, so a tap shows the answer without scrolling. */
+.rover .partsgrid { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+/* side by side whenever both fit; the card only drops under the picture when the screen is too narrow for both */
+.rover .parts-main { flex: 1.35 1 380px; min-width: 0; }
+.rover .parts-info { flex: 1 1 280px; position: sticky; top: 0; min-width: 0; max-height: calc(100vh - 140px); overflow-y: auto; }
+.rover .parts-info .partcard.empty { min-height: 120px; display: grid; place-items: center; text-align: center; }
 .rover details.about { margin-top: 14px; font-size: 15px; color: var(--soft); }
 .rover details.about summary { cursor: pointer; color: var(--cyan); font-size: 15.5px; }
 .rover details.about p { margin: 8px 0; line-height: 1.55; max-width: 70ch; }
@@ -184,7 +190,7 @@
 .rover .rvbtns .btn { font-size: 19px; padding: 13px 10px; }
 .rover .choose-h .rvbtns { min-width: min(100%, 460px); }
 .rover .rvcard .reason, .rover .rvcard .cam-credit { margin: 0; }
-.rover .partcard { margin-top: 14px; max-width: 900px; background: #061321; border: 1px solid var(--line); border-left: 5px solid var(--mint); border-radius: 12px; padding: 14px 18px; }
+.rover .partcard { margin-top: 0; max-width: 900px; background: #061321; border: 1px solid var(--line); border-left: 5px solid var(--mint); border-radius: 12px; padding: 14px 18px; }
 .rover .partcard.empty { border-left-color: var(--line); color: var(--soft); font-size: 16px; }
 .rover .partcard h4 { margin: 0; font-family: var(--display); font-size: 28px; letter-spacing: .04em; text-transform: uppercase; }
 .rover .partcard .where { font-size: 14px; color: var(--cyan); margin-top: 2px; }
@@ -293,6 +299,7 @@
 .rover .verdictbox { border-radius: 14px; border: 2px solid var(--line); background: #061321; padding: 14px 18px; margin: 0 0 16px; }
 .rover .vtop { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
 .rover .vicon { font-size: 34px; line-height: 1; }
+.rover .vicon svg { display: block; width: 34px; height: 34px; }
 .rover .verdictbox b { display: block; font-family: var(--display); font-size: 29px; letter-spacing: .03em; text-transform: uppercase; line-height: 1.05; }
 .rover .verdictbox p { margin: 5px 0 0; font-size: 15.5px; line-height: 1.4; color: var(--soft); }
 .rover .vscore { text-align: center; }
@@ -331,6 +338,8 @@
   .rover .choose-h h2 { font-size: 32px; }
 }
 @media (max-width: 760px) {
+  .rover .partcard h4 { font-size: 22px; }
+  .rover .partcard p { font-size: 15px; }
   .rover { grid-template-columns: 1fr; grid-template-rows: 48px 62vh 1fr; font-size: 15px; }
   .rover .viewer { padding: 10px 12px 18px; }
   .rover .vtabs { margin-bottom: 10px; }
@@ -358,6 +367,7 @@
   .rover .tbtn { min-height: 112px; }
 }
 @media (max-width: 520px) {
+  .rover .parts-info { position: static; max-height: none; }
   .rover .mapgrid { grid-template-columns: 1fr; }
   .rover .mapview { width: min(100%, calc(62vh - 140px)); }
   .rover .status { grid-template-columns: 1fr; }

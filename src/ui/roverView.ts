@@ -56,7 +56,7 @@ export function barsHtml(bars: Bar[], fresh: string[] = []) {
 }
 export const starsHtml = (n: number) => `<span class="stars" aria-label="${n} of 3 stars">${[1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>`
 const VERDICT_WORD = { good: 'Good place', risky: 'Risky place', bad: 'Bad place', unknown: 'Not checked yet' }
-const VERDICT_ICON = { good: '👍', risky: '⚠️', bad: '👎', unknown: '❔' }
+const VERDICT_ICON = { good: ICONS.home, risky: ICONS.warn, bad: ICONS.warn, unknown: ICONS.scan }
 
 /** One big answer with one plain sentence under it. */
 export function verdictHtml(r: SpotReport) {
@@ -132,7 +132,7 @@ export function roverScreen(ctx: RoverCtx) {
     if (!rv) { bt.innerHTML = ''; return }
     const pct = spendPct(rv, wh)
     bt.className = `batt ${pct <= 15 ? 'low' : ''}`
-    bt.innerHTML = `${play ? '<span class="rec on"></span>' : ''}<span class="bcell"><i style="width:${pct}%"></i></span>${m.charging ? '⚡ Charging' : 'Battery'} ${pct}%`
+    bt.innerHTML = `${play ? '<span class="rec on"></span>' : ''}<span class="bcell"><i style="width:${pct}%"></i></span>${m.charging ? 'Charging' : 'Battery'} ${pct}%`
     bt.title = `${Math.round(wh)} Wh of ${rv.batteryWh} Wh. 0 % is the safe-mode line at ${reserveWh(rv)} Wh.`
   }
   /** Mission day in the top bar. */
@@ -141,7 +141,7 @@ export function roverScreen(ctx: RoverCtx) {
     if (!m.rover) { dc.innerHTML = ''; return }
     const left = Math.max(0, MISSION_SOLS - hoursUsed / SOL_HOURS)
     dc.className = `daychip ${left <= 2 ? 'low' : ''}`
-    dc.textContent = `☀ Day ${Math.min(MISSION_SOLS, Math.floor(hoursUsed / SOL_HOURS) + 1)} of ${m.missionSols}`
+    dc.textContent = `Day ${Math.min(MISSION_SOLS, Math.floor(hoursUsed / SOL_HOURS) + 1)} of ${m.missionSols}`
     dc.title = `${f1(left)} Mars days left. Driving and recharging use them up.`
   }
 
@@ -152,18 +152,18 @@ export function roverScreen(ctx: RoverCtx) {
     if (!force && spendPct(rv, m.batteryWh) > RECHARGE_OFFER_PCT && !m.stranded && m.canDrive) return ''
     const plan = m.rechargePlan()!
     const wait = `${span(plan.hours)}${plan.hours < 20 ? ' on Mars' : ''}, ${clock(plan.realMs)} on the timer`
-    if (!askCharge) return `<button class="btn charge" id="askcharge">🔌 Recharge the battery<small>takes ${wait}</small></button>`
+    if (!askCharge) return `<button class="btn charge" id="askcharge">Recharge the battery<small>takes ${wait}</small></button>`
     return `<div class="reason"><b>Recharge now?</b> ${plan.full
       ? `The rover parks while its power source refills the battery. That takes <b>${wait}</b>. You have ${f1(m.solsLeft)} Mars days left.`
       : `Only ${span(plan.hours).replace('about ', '')} of the mission are left, so the battery will only reach <b>${spendPct(rv, plan.toWh)}%</b>. After that the Mars days are over.`} You can go back to the station while it charges.</div>
-      <div class="row2"><button class="btn" id="nocharge">Not now</button><button class="btn primary" id="yescharge">🔌 Recharge</button></div>`
+      <div class="row2"><button class="btn" id="nocharge">Not now</button><button class="btn primary" id="yescharge">Recharge</button></div>`
   }
 
   /** What the battery is at now and how long a full charge would take from here. */
   function fullIn(rv: RoverSpec) {
     const plan = m.rechargePlan()
     if (!plan || m.batteryWh >= rv.batteryWh - 1 || m.timeUp) return ''
-    return `<p class="hint chargeinfo">⚡ The battery is at <b>${spendPct(rv, m.batteryWh)}%</b> now. A full charge from here takes <b>${span(plan.hours).replace('about ', '')}</b>${plan.hours < 20 ? ' on Mars' : ''} (${clock(plan.realMs)} on the timer).</p>`
+    return `<p class="hint chargeinfo">The battery is at <b>${spendPct(rv, m.batteryWh)}%</b> now. A full charge from here takes <b>${span(plan.hours).replace('about ', '')}</b>${plan.hours < 20 ? ' on Mars' : ''} (${clock(plan.realMs)} on the timer).</p>`
   }
 
   /** Battery and Mars days at the top of the side panel, with what a planned drive would leave. */
@@ -173,9 +173,9 @@ export function roverScreen(ctx: RoverCtx) {
     const left = m.solsLeft
     const leftAfter = afterHours === null ? left : Math.max(0, left - afterHours / SOL_HOURS)
     return `<div class="blk status">
-      <div class="stat"><span>🔋 Battery</span><b class="${after <= 15 ? 'low' : ''}">${afterWh === null ? `${now}%` : `${now}% → ${after}%`}</b>
+      <div class="stat"><span>Battery</span><b class="${after <= 15 ? 'low' : ''}">${afterWh === null ? `${now}%` : `${now}% → ${after}%`}</b>
         <div class="gauge" role="img" aria-label="Battery ${now} percent${afterWh === null ? '' : `, ${after} percent after the drive`}"><i class="now" style="width:${now}%"></i><i class="after ${after <= 15 ? 'low' : ''}" style="width:${after}%"></i></div></div>
-      <div class="stat"><span>☀ Mars days left</span><b class="${leftAfter <= 2 ? 'low' : ''}">${afterHours === null ? f1(left) : `${f1(left)} → ${f1(leftAfter)}`}</b>
+      <div class="stat"><span>Mars days left</span><b class="${leftAfter <= 2 ? 'low' : ''}">${afterHours === null ? f1(left) : `${f1(left)} → ${f1(leftAfter)}`}</b>
         <div class="gauge" role="img" aria-label="${f1(left)} of ${m.missionSols} Mars days left"><i class="now" style="width:${(left / MISSION_SOLS) * 100}%"></i><i class="after sun ${leftAfter <= 2 ? 'low' : ''}" style="width:${(leftAfter / MISSION_SOLS) * 100}%"></i></div></div>
       <p class="hint">${note}</p>
       ${fullIn(rv)}
@@ -227,13 +227,13 @@ export function roverScreen(ctx: RoverCtx) {
       ${statusBlk(rv, f ? f.endWh : null, f ? f.hours : null, note, !!f?.safeMode)}
       <div class="blk"><div class="blk-h"><span>① Tap the map</span><small>${n}/${MAX_WAYPOINTS} points</small></div>
         ${n ? `<div class="legs">${rows}</div>` : `<p class="hint">Place points on the map. ${esc(rv.name)} drives them in order, and the last one <b>⚑</b> is the spot it will test. Drive through a camera ring and the rover saves a real photo by itself.</p>`}
-        ${f?.photos.length ? `<p class="hint photoline">📷 This drive passes <b>${f.photos.length} real photo spot${f.photos.length > 1 ? 's' : ''}</b>${gain(f.photos.length) ? `: +${gain(f.photos.length)} score` : ' (the photo bonus is already at its most)'}.</p>` : ''}
+        ${f?.photos.length ? `<p class="hint photoline">This drive passes <b>${f.photos.length} real photo spot${f.photos.length > 1 ? 's' : ''}</b>${gain(f.photos.length) ? `: +${gain(f.photos.length)} score` : ' (the photo bonus is already at its most)'}.</p>` : ''}
         ${f?.safeMode ? `<div class="reason bad">Too far! The battery runs out ${f.distM} m along, before point ${f.reached + 1}. The rover would stop there in safe mode until you recharge it. Undo a point or pick a closer spot${m.rechargeBlock() ? '' : ', or recharge first'}.</div>` : f && spendPct(rv, f.endWh) < 9 ? '<div class="reason">Careful: almost nothing would be left for tests at the spot.</div>' : ''}
         ${n ? `<div class="row2"><button class="btn small" id="undo">↶ Undo last point</button><button class="btn small ghost" id="clear">Clear all</button></div>` : ''}
       </div>
       <div class="blk"><div class="blk-h"><span>② Send the rover</span></div>
         ${why ? `<div class="reason bad">${esc(why)}${/Communications|Life support/.test(why) ? ' Go back to the station (← Station) and change it at the Power Grid.' : ''}</div>` : !n ? '<p class="hint">Place at least one point first.</p>' : ''}
-        <button class="btn primary huge" id="deploy" ${block || busy ? 'disabled' : ''}>${busy ? 'Checking with crew…' : '▶ Start deployment'}</button>
+        <button class="btn primary huge" id="deploy" ${block || busy ? 'disabled' : ''}>${busy ? 'Checking with crew…' : 'Start deployment'}</button>
         ${msg ? `<div class="feedback ${msg.kind}">${esc(msg.text)}</div>` : ''}
       </div>
       ${here ? `<button class="btn" id="tospot">Test spot ${here.label} (where the rover is now)</button>` : ''}
@@ -250,13 +250,13 @@ export function roverScreen(ctx: RoverCtx) {
   function drivingHtml() {
     const d = play!.drive, rv = m.rover!
     return `<div class="side-h"><h2>Driving…</h2></div>
-      <div class="blk"><div class="blk-h"><span>🚙 Distance</span><b><span id="lv-d">0</span> / ${d.distM} m</b></div>
+      <div class="blk"><div class="blk-h"><span>Distance</span><b><span id="lv-d">0</span> / ${d.distM} m</b></div>
         <div class="gauge"><i class="after" id="lv-bar" style="width:0%"></i></div>
         <p class="hint">The real ${esc(rv.name)} would need about <b>${f1(d.hours)} hours</b> for this, at ${rv.topSpeedMh} m per hour. The game plays it in seconds.</p></div>
-      <div class="blk"><div class="blk-h"><span>🔋 Battery</span><b id="lv-b">${spendPct(rv, d.startWh)}%</b></div><div class="gauge"><i class="after" id="lv-bb" style="width:${spendPct(rv, d.startWh)}%"></i></div></div>
-      <div class="blk"><div class="blk-h"><span>📸 Photos saved</span><b id="lv-p">${m.photos.length - d.photos.length + play!.shown}</b></div>
+      <div class="blk"><div class="blk-h"><span>Battery</span><b id="lv-b">${spendPct(rv, d.startWh)}%</b></div><div class="gauge"><i class="after" id="lv-bb" style="width:${spendPct(rv, d.startWh)}%"></i></div></div>
+      <div class="blk"><div class="blk-h"><span>Photos saved</span><b id="lv-p">${m.photos.length - d.photos.length + play!.shown}</b></div>
         <p class="hint">${d.photos.length ? `This drive passes <b>${d.photos.length} real photo spot${d.photos.length > 1 ? 's' : ''}</b>. The rover saves each one by itself as it drives through the ring.` : 'This drive passes no real photo spot. Drive through a camera ring next time and the rover saves a real photo by itself.'}</p></div>
-      <button class="btn huge" id="skip">Skip to the spot ⏭</button>`
+      <button class="btn huge" id="skip">Skip to the spot</button>`
   }
 
   // ---------------------------------------------------------------- While the battery recharges
@@ -266,13 +266,13 @@ export function roverScreen(ctx: RoverCtx) {
     const full = c.toWh >= rv.batteryWh
     return `<div class="side-h"><h2>Recharging…</h2><button class="btn small" id="back">← Station</button></div>
       <div class="blk chargeblk"><div class="chargesky" aria-hidden="true"><i class="sunmoon"></i></div>
-        <div class="blk-h"><span>🔋 Battery now</span><b id="ch-b">${spendPct(rv, p.wh)}%</b></div><div class="gauge"><i class="after" id="ch-bar" style="width:${spendPct(rv, p.wh)}%"></i></div>
-        <div class="blk-h" style="margin-top:16px"><span>⏱ ${full ? 'Full charge in' : 'Charging ends in'}</span><b id="ch-t">${clock(p.msLeft)}</b></div>
+        <div class="blk-h"><span>Battery now</span><b id="ch-b">${spendPct(rv, p.wh)}%</b></div><div class="gauge"><i class="after" id="ch-bar" style="width:${spendPct(rv, p.wh)}%"></i></div>
+        <div class="blk-h" style="margin-top:16px"><span>${full ? 'Full charge in' : 'Charging ends in'}</span><b id="ch-t">${clock(p.msLeft)}</b></div>
         <p class="hint">For the real rover that is <b id="ch-h">${f1(p.hoursLeft)}</b> more Mars hours. ${esc(rv.name)}'s nuclear power source (MMRTG) puts about ${rechargeW(rv)} W into the battery, day and night. The game plays one Mars hour each second.</p>
-        <div class="blk-h" style="margin-top:16px"><span>☀ Mars days left</span><b id="ch-d">${f1(m.solsLeft)}</b></div>
+        <div class="blk-h" style="margin-top:16px"><span>Mars days left</span><b id="ch-d">${f1(m.solsLeft)}</b></div>
         ${full ? '' : `<p class="hint">The mission days run out before the battery is full: it will stop at ${spendPct(rv, c.toWh)}%.</p>`}
         <p class="hint">The rover cannot drive or test while it charges. You can go back to the station: the timer keeps running.</p></div>
-      <div class="row2"><button class="btn" id="stopcharge">■ Stop charging</button><button class="btn primary" id="skipcharge">Skip the wait ⏭</button></div>`
+      <div class="row2"><button class="btn" id="stopcharge">■ Stop charging</button><button class="btn primary" id="skipcharge">Skip the wait</button></div>`
   }
 
   // ---------------------------------------------------------------- At a spot: tests and verdict
@@ -296,18 +296,18 @@ export function roverScreen(ctx: RoverCtx) {
     const bonus = [m.photoBonus ? `+${m.photoBonus} for ${m.photos.length} photo spot${m.photos.length > 1 ? 's' : ''} found${m.photoBonus >= PHOTO_BONUS_MAX ? ' (the most you can get)' : ''}` : '', m.completed.has('water') ? `+${WATER_BONUS} for the water purifier` : ''].filter(Boolean)
     return `${head(`Spot ${spot.label}`)}
       ${timeUpHtml()}
-      <p class="lead">${g.source === 'rover' ? `📍 The real ${esc(rv.name)} parked right here on sol ${g.sol}, so the slope is NASA's own measurement.` : '🛰 No rover has been here. The slope comes from orbit, so it is less exact.'}</p>
+      <p class="lead">${g.source === 'rover' ? `The real ${esc(rv.name)} parked right here on sol ${g.sol}, so the slope is NASA's own measurement.` : 'No rover has been here. The slope comes from orbit, so it is less exact.'}</p>
       ${here && m.stranded ? '<div class="reason bad"><b>Safe mode.</b> The battery ran out on the way, so the rover stopped here. Recharge it to test or drive again.</div>' : ''}
       ${verdictHtml(r)}
-      ${here ? `<div class="blk"><div class="blk-h"><span>① Run tests</span><b class="${left <= 15 ? 'low' : ''}">🔋 ${left}% left</b></div><div class="tests">${tests}</div>${here ? rechargeHtml() : ''}</div>` : `<div class="reason">The rover is at spot ${m.spotHere?.label ?? '?'} now. Drive back here to run more tests.</div>`}
+      ${here ? `<div class="blk"><div class="blk-h"><span>① Run tests</span><b class="${left <= 15 ? 'low' : ''}">${left}% battery left</b></div><div class="tests">${tests}</div>${here ? rechargeHtml() : ''}</div>` : `<div class="reason">The rover is at spot ${m.spotHere?.label ?? '?'} now. Drive back here to run more tests.</div>`}
       <div class="blk"><div class="blk-h"><span>${here ? '② ' : ''}The six checks</span><small>tap a bar for its source</small></div>${barsHtml(r.bars, fresh)}
         ${r.verdict.missing.length ? '<p class="hint">A check that has not been measured counts as 0.</p>' : ''}
-        ${bonus.length ? `<p class="hint">⭐ Bonus on top: ${bonus.join(', ')}.</p>` : '<p class="hint">⭐ Find real photo spots on your drives to add bonus points.</p>'}</div>
+        ${bonus.length ? `<p class="hint">Bonus on top: ${bonus.join(', ')}.</p>` : '<p class="hint">Find real photo spots on your drives to add bonus points.</p>'}</div>
       ${msg ? `<div class="feedback ${msg.kind}">${esc(msg.text)}</div>` : ''}
       <div class="blk"><div class="blk-h"><span>${here ? '③ ' : ''}What next?</span></div>
       ${confirmBuild ? `<div class="reason bad">${r.verdict.level === 'bad' ? 'This is a bad place.' : r.verdict.level === 'unknown' ? 'This spot has not been checked.' : 'This place is risky.'} You can still build here, but the base will only score ${r.score} out of 100. Build anyway?</div>
         <div class="row2"><button class="btn" id="nobuild">No, keep looking</button><button class="btn primary" id="yesbuild">Yes, build here</button></div>`
-        : `<div class="row2"><button class="btn" id="explore" ${stuck ? 'disabled' : ''}>🧭 Explore another spot</button><button class="btn primary" id="build">🏗 Build the base here</button></div>`}
+        : `<div class="row2"><button class="btn" id="explore" ${stuck ? 'disabled' : ''}>Explore another spot</button><button class="btn primary" id="build">Build the base here</button></div>`}
       ${stuck && !confirmBuild && !m.timeUp && !m.stranded ? `<div class="reason">The battery is too low to drive again. ${canCharge ? 'Recharge it, build here, or pick another spot you visited.' : 'Build here, pick another spot you visited, or stay in orbit.'}</div>` : ''}
       ${m.spots.length > 1 || stuck ? '<button class="btn small" id="compare" style="margin-top:10px">Compare all my spots</button>' : ''}</div>`
   }
@@ -320,7 +320,7 @@ export function roverScreen(ctx: RoverCtx) {
       <p class="lead">Every place the rover stopped. Open one to see its checks. You can build on any of them.</p>
       <div class="spotlist">${rs.map(r => `<button class="spotrow ${r.verdict.level}" data-open="${r.spot.id}"><b>${r.spot.label}</b><span>${VERDICT_ICON[r.verdict.level]} ${VERDICT_WORD[r.verdict.level]}</span><em>${r.score}</em></button>`).join('')}</div>
       ${m.canDrive ? '' : rechargeHtml(true)}
-      <div class="row2"><button class="btn" id="defer">Stay in orbit</button>${m.canDrive ? '<button class="btn primary" id="explore">🧭 Keep exploring</button>' : ''}</div>`
+      <div class="row2"><button class="btn" id="defer">Stay in orbit</button>${m.canDrive ? '<button class="btn primary" id="explore">Keep exploring</button>' : ''}</div>`
   }
 
   function doneHtml() {
@@ -328,8 +328,8 @@ export function roverScreen(ctx: RoverCtx) {
     const sentence = b.reason.includes(': ') ? b.reason.slice(b.reason.indexOf(': ') + 2) : b.reason
     return `<div class="side-h"><h2>${b.approved ? 'Base built!' : 'No base built'}</h2></div>
       ${b.approved ? `<div class="bigstars">${starsHtml(b.stars)}</div>
-        <div class="verdictbox ${b.level}"><div class="vtop"><span class="vicon">🏗</span><div><b>${esc(b.name)}</b><p>${esc(sentence[0].toUpperCase() + sentence.slice(1))}.</p></div><div class="vscore"><b>${b.score}</b><small>out of 100</small></div></div></div>`
-        : '<div class="verdictbox unknown"><div class="vtop"><span class="vicon">🛰</span><div><b>The crew stays in orbit</b><p>No base was built this time.</p></div></div></div>'}
+        <div class="verdictbox ${b.level}"><div class="vtop"><span class="vicon">${ICONS.home}</span><div><b>${esc(b.name)}</b><p>${esc(sentence[0].toUpperCase() + sentence.slice(1))}.</p></div><div class="vscore"><b>${b.score}</b><small>out of 100</small></div></div></div>`
+        : '<div class="verdictbox unknown"><div class="vtop"><span class="vicon">${ICONS.dish}</span><div><b>The crew stays in orbit</b><p>No base was built this time.</p></div></div></div>'}
       <p class="lead">${b.approved ? 'The mission goes on. Read the report, then get the habitat ready.' : 'The mission goes on. Read the report to see what happened.'}</p>
       <button class="btn primary huge" id="report">Mission report →</button>`
   }
@@ -393,7 +393,7 @@ export function roverScreen(ctx: RoverCtx) {
     const before = Math.min(PHOTO_BONUS_MAX, (m.photos.length - (play ? play.drive.photos.length - play.shown : 0) - n) * PHOTO_BONUS_EACH)
     const now = Math.min(PHOTO_BONUS_MAX, (m.photos.length - (play ? play.drive.photos.length - play.shown : 0)) * PHOTO_BONUS_EACH)
     sound.play('shutter')
-    toast(now > before ? `📸 ${n > 1 ? `${n} real photos` : 'Real photo'} saved to your album! +${now - before} score` : `📸 ${n > 1 ? `${n} real photos` : 'Real photo'} saved to your album. The photo bonus is already at its most.`, 'ok', 3200)
+    toast(now > before ? `${n > 1 ? `${n} real photos` : 'Real photo'} saved to your album! +${now - before} score` : `${n > 1 ? `${n} real photos` : 'Real photo'} saved to your album. The photo bonus is already at its most.`, 'ok', 3200)
     drawViewer()
     set('#lv-p', String(m.photos.length - (play ? play.drive.photos.length - play.shown : 0)))
     flash(viewer)
@@ -418,7 +418,7 @@ export function roverScreen(ctx: RoverCtx) {
     toast(d.safeMode ? `Safe mode! The battery ran out ${d.distM} m along. Recharge to carry on.` : `Arrived at spot ${spot?.label}. Run tests to see if it is a good place.`, d.safeMode ? 'bad' : 'ok', 4500)
     if (m.timeUp) toast(`The ${m.missionSols} Mars days are over. Choose your base.`, 'warn', 5000)
     // Skipping the film still saves the photo spots the drive passed.
-    if (unseen > 0) toast(`📸 ${unseen} real photo${unseen > 1 ? 's' : ''} saved to your album on the way.`, 'ok', 3500)
+    if (unseen > 0) toast(`${unseen} real photo${unseen > 1 ? 's' : ''} saved to your album on the way.`, 'ok', 3500)
     render()
   }
 

@@ -68,13 +68,13 @@ function rvCardHtml(r: RoverSpec, v: ViewerState) {
       <div class="rvname"><h3>${esc(r.name)}</h3><span class="badge ${t.easier ? 'easy' : 'hard'}">${t.easier ? 'Easier' : 'Harder'}</span></div>
       <p class="rvsub">${esc(region(r.region).name)} · on Mars since ${esc(r.landed.slice(0, 4))}</p>
       <div class="rvstats">${t.stats.map(x => `<div><small>${esc(x.label)}</small><b>${esc(x.value)}</b></div>`).join('')}</div>
-      <div class="pc pros"><h4>👍 Good</h4><ul>${t.pros.map(li).join('')}</ul></div>
-      <div class="pc cons"><h4>👎 Not so good</h4><ul>${t.cons.map(li).join('')}</ul></div>
+      <div class="pc pros"><h4>Good</h4><ul>${t.pros.map(li).join('')}</ul></div>
+      <div class="pc cons"><h4>Not so good</h4><ul>${t.cons.map(li).join('')}</ul></div>
       ${v.pick === r.id
         ? `<div class="reason"><b>Take ${esc(r.name)}?</b> It is your rover for the whole mission. You cannot switch later.</div>
            <div class="rvbtns"><button class="btn" data-nopick>No, go back</button><button class="btn primary" data-confirm="${r.id}">Yes, take ${esc(r.name)}</button></div>`
-        : `<div class="rvbtns"><button class="btn" data-peek="${r.id}">🔍 See its parts</button><button class="btn primary" data-pick="${r.id}">Choose ${esc(r.name)}</button></div>`}
-      <p class="cam-credit">Photo: “${esc(s.title)}”, ${esc(s.credit)} · <a href="${esc(s.page)}" target="_blank" rel="noopener">NASA page ↗</a></p>
+        : `<div class="rvbtns"><button class="btn" data-peek="${r.id}">See its parts</button><button class="btn primary" data-pick="${r.id}">Choose ${esc(r.name)}</button></div>`}
+      <p class="cam-credit">Photo: “${esc(s.title)}”, ${esc(s.credit)} · <a href="${esc(s.page)}" target="_blank" rel="noopener">NASA page</a></p>
     </div></article>`
 }
 
@@ -106,15 +106,16 @@ const lastFrame = (m: Mission) => (m.drafts.roverCam as { url: string } | undefi
 
 type Parked = { kind: 'here' | 'near'; photo: Photo; more: boolean; distM: number } | { kind: 'frame'; url: string }
 /**
- * What the camera shows while the rover is parked. At a real photo spot: the photo NASA's rover
- * took there. Anywhere else: the last picture of the drive that brought it here. Only when there
- * is neither (a film this browser cannot freeze) does it fall back to the nearest real photo.
+ * What the camera shows while the rover is parked. Once the rover has driven: always the last
+ * picture of its latest drive, even at a real photo spot (that spot's NASA photo is saved in My
+ * photos). Before the first drive: the photo NASA's rover took where it starts. Only when there is
+ * neither (a film this browser cannot freeze) does it fall back to the nearest real photo.
  */
 function parked(m: Mission, rv: RoverSpec, v: ViewerState, pos: Pt): Parked {
-  const here = placeNear(rv, pos)
-  if (here) { const list = here.place.photos; return { kind: 'here', photo: list[v.feedIdx % list.length], more: list.length > 1, distM: here.distM } }
   const url = lastFrame(m)
   if (url) return { kind: 'frame', url }
+  const here = placeNear(rv, pos)
+  if (here) { const list = here.place.photos; return { kind: 'here', photo: list[v.feedIdx % list.length], more: list.length > 1, distM: here.distM } }
   const list = nearPhotos(rv, pos, 1)
   const photo = list[v.feedIdx % list.length]
   return { kind: 'near', photo, more: list.length > 1, distM: dist(photo, pos) }
@@ -147,9 +148,9 @@ function screenHtml(m: Mission, rv: RoverSpec, v: ViewerState, pos: Pt, driving:
 function capHtml(m: Mission, rv: RoverSpec, v: ViewerState, pos: Pt, driving: boolean) {
   const film = DRIVE_FILMS.find(x => x.rover === rv.id)
   if (driving && film) return `<p class="cam-cap">${esc(film.note)}</p>
-    <p class="cam-credit">A real drive, not your exact path. The fuzz and the labels are added by the game · ${esc(film.credit)} · <a href="${esc(film.page)}" target="_blank" rel="noopener">NASA page ↗</a></p>`
+    <p class="cam-credit">A real drive, not your exact path. The fuzz and the labels are added by the game · ${esc(film.credit)} · <a href="${esc(film.page)}" target="_blank" rel="noopener">NASA page</a></p>`
   const p = parked(m, rv, v, pos)
-  if (p.kind === 'frame') return `<p class="cam-cap">The last picture from the drive. The real ${esc(rv.name)} took no photo within ${PHOTO_RANGE_M} m of this spot, so the camera keeps what it saw last.</p>
+  if (p.kind === 'frame') return `<p class="cam-cap">The last picture from the drive. ${placeNear(rv, pos) ? `The real ${esc(rv.name)}'s photo of this spot is saved in My photos.` : `The real ${esc(rv.name)} took no photo within ${PHOTO_RANGE_M} m of this spot, so the camera keeps what it saw last.`}</p>
     <p class="cam-credit">A picture from the real drive film, which was not filmed at this spot${film ? ` · ${esc(film.credit)}` : ''}</p>`
   const d = Math.round(p.distM)
   return `<p class="cam-cap">${d < 20 ? `${esc(rv.name)} took this right here` : `${esc(rv.name)} took this ${d} m from here`}, on sol ${p.photo.sol}, with its ${esc(p.photo.cameraName.replace(/ \(left\)/i, ''))}.${p.kind === 'near' ? ' It is the nearest real photo: this browser could not keep the last picture of the drive.' : ''}</p>
@@ -170,7 +171,7 @@ function albumStripHtml(m: Mission, rv: RoverSpec, h: ViewerHooks) {
   const places = photoPlaces(rv)
   const found = shownPhotos(m, h).map(id => places.find(p => p.id === id)!)
   const bonus = Math.min(PHOTO_BONUS_MAX, found.length * PHOTO_BONUS_EACH)
-  return `<div class="album-h"><b>📷 My photos</b><span>${found.length} of ${places.length} spots${bonus ? ` · <em>+${bonus} score${bonus >= PHOTO_BONUS_MAX ? ' (max)' : ''}</em>` : ''}</span></div>
+  return `<div class="album-h"><b>My photos</b><span>${found.length} of ${places.length} spots${bonus ? ` · <em>+${bonus} score${bonus >= PHOTO_BONUS_MAX ? ' (max)' : ''}</em>` : ''}</span></div>
     <div class="album">${found.map(pl => `<button class="thumb" data-album="${pl.id}" aria-label="Open your photo from sol ${pl.sol}" title="Open this photo"><img src="${src(pl.photos[0].file)}" alt=""/></button>`).join('')}${found.length < places.length ? '<span class="thumb empty" title="More photo spots are waiting on the map">?</span>' : ''}</div>
     <p class="album-tip">The rover saves a real NASA photo by itself when it drives through the ring of a camera mark or parks inside one. Each spot adds +${PHOTO_BONUS_EACH} to your score.</p>`
 }
@@ -265,7 +266,7 @@ function startFx(screen: HTMLElement) {
 }
 
 // ---------------------------------------------------------------- Map
-const mapHint = (h: ViewerHooks) => h.driving ? '🚙 The rover is driving. It saves a real photo by itself when it passes a camera mark.' : h.planning ? '👆 Tap the map to place points for the rover' : 'Tap a lettered spot to see its result'
+const mapHint = (h: ViewerHooks) => h.driving ? 'The rover is driving. It saves a real photo by itself when it passes a camera mark.' : h.planning ? 'Tap the map to place points for the rover' : 'Tap a lettered spot to see its result'
 
 function mapUiHtml(rv: RoverSpec, view: MapView) {
   const sb = scaleBar(rv, view)
@@ -298,7 +299,7 @@ function syncMapUi(root: HTMLElement, rv: RoverSpec, v: ViewerState) {
   const zl = $('#zlabel', root)
   if (zl) zl.textContent = `${v.view.k % 1 ? v.view.k.toFixed(1) : v.view.k}×`
   const mc = $('#mapcredit', root)
-  if (mc) mc.textContent = `${v.view.k > 1 ? '✋ Hold the right mouse button and drag to move the map · ' : ''}${v.view.mode === 'sat' ? `Real photo from orbit · ${rv.satellite.credit}` : 'Heights from the MOLA laser altimeter · NASA'}`
+  if (mc) mc.textContent = `${v.view.k > 1 ? 'Hold the right mouse button and drag to move the map · ' : ''}${v.view.mode === 'sat' ? `Real photo from orbit · ${rv.satellite.credit}` : 'Heights from the MOLA laser altimeter · NASA'}`
   $$('[data-mode]', root).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === v.view.mode)))
   applyView(root, v.view)
 }
@@ -307,8 +308,8 @@ function mapHtml(m: Mission, rv: RoverSpec, v: ViewerState, h: ViewerHooks) {
   const sat = rv.satellite
   return `<div class="maptop"><div class="maphint" id="maphint">${mapHint(h)}</div>
       <div class="mapbar">
-        <div class="modesw" role="group" aria-label="Map picture"><button class="msw" data-mode="sat" aria-pressed="true">🛰 Real photo</button><button class="msw" data-mode="height" aria-pressed="false">⛰ Heights</button></div>
-        <div class="zoomctl"><span>🔍 Zoom</span><button class="zb" data-zoom="-0.5" aria-label="Zoom out">−</button><input type="range" id="zoom" min="1" max="${MAX_ZOOM}" step="0.1" value="${v.view.k}" aria-label="Map zoom"/><button class="zb" data-zoom="0.5" aria-label="Zoom in">+</button><b id="zlabel">1×</b></div>
+        <div class="modesw" role="group" aria-label="Map picture"><button class="msw" data-mode="sat" aria-pressed="true">Real photo</button><button class="msw" data-mode="height" aria-pressed="false">Heights</button></div>
+        <div class="zoomctl"><span>Zoom</span><button class="zb" data-zoom="-0.5" aria-label="Zoom out">−</button><input type="range" id="zoom" min="1" max="${MAX_ZOOM}" step="0.1" value="${v.view.k}" aria-label="Map zoom"/><button class="zb" data-zoom="0.5" aria-label="Zoom in">+</button><b id="zlabel">1×</b></div>
       </div></div>
     <div class="mapgrid">
       <div class="mapbox">
@@ -330,7 +331,7 @@ function mapHtml(m: Mission, rv: RoverSpec, v: ViewerState, h: ViewerHooks) {
           <p><b>Real photo:</b> pictures of the ground taken from orbit by NASA's Mars Reconnaissance Orbiter, the same ones behind NASA's own “Where is ${esc(rv.name)}?” map. One dot on the screen is about ${sat.metresPerPixel} m of ground at full zoom.</p>
           <p><b>Heights:</b> from NASA's MOLA laser altimeter, in squares about 460 m wide. Lighter is higher and each line is 20 m. It shows the broad shape of the land, not rocks or small slopes. The game uses these heights to work out how much battery a climb costs.</p>
           <p>The white dots are the ${rv.area.stops.length} places the real rover parked. Within ${STOP_RANGE_M} m of one, a spot uses the tilt NASA measured there. The camera marks are ${photoPlaces(rv).length} places where it took the photos saved in this game.</p>
-          <p class="cam-credit">${esc(sat.provider)}, saved ${esc(sat.retrieved)} · <a href="${esc(sat.page)}" target="_blank" rel="noopener">NASA's map ↗</a><br/>${esc(rv.area.mola.provider)}<br/>${esc(rv.area.provider)}, saved ${esc(rv.area.retrieved)}.</p></details>
+          <p class="cam-credit">${esc(sat.provider)}, saved ${esc(sat.retrieved)} · <a href="${esc(sat.page)}" target="_blank" rel="noopener">NASA's map</a><br/>${esc(rv.area.mola.provider)}<br/>${esc(rv.area.provider)}, saved ${esc(rv.area.retrieved)}.</p></details>
       </div>
       <div id="feed" class="cam">
         <div class="cam-h"><b>Rover camera</b><span id="feed-tag">${tagHtml(m, rv, v, h.pos, h.driving)}</span></div>
@@ -350,9 +351,9 @@ function photosHtml(m: Mission, rv: RoverSpec, v: ViewerState) {
   return `<div class="vhead"><b>My photo album</b><p>Real photos from the spots your rover passed or parked at. It saves them by itself: <b>${found.length} of ${places.length}</b> found${m.photoBonus ? `, <b>+${m.photoBonus}</b> to your score` : ''}. Each spot adds +${PHOTO_BONUS_EACH}, up to +${PHOTO_BONUS_MAX}. They are raw: not cleaned up or colour-corrected.</p></div>
     <div class="photo-grid">${found.flatMap(pl => pl.photos.map(p => `<figure class="photo"><button class="pbtn" data-album="${pl.id}" data-photo="${esc(p.imageId)}" aria-label="Open this photo"><img src="${src(p.file)}" alt="${esc(p.cameraName)} raw image, ${esc(rv.name)} sol ${p.sol}" loading="lazy"/></button>
       <figcaption><b>${esc(p.cameraName)}</b> · sol ${p.sol} · ${esc(p.takenUtc.slice(0, 10))}<br/><span>${esc(p.credit)}</span></figcaption></figure>`)).join('')}
-      ${Array.from({ length: Math.min(missing, found.length ? 2 : 4) }, () => '<figure class="photo locked"><div class="lockbox"><span>📷</span><b>Not found yet</b><small>Drive through a camera ring on the map</small></div></figure>').join('')}</div>
+      ${Array.from({ length: Math.min(missing, found.length ? 2 : 4) }, () => '<figure class="photo locked"><div class="lockbox"><span>?</span><b>Not found yet</b><small>Drive through a camera ring on the map</small></div></figure>').join('')}</div>
     ${missing ? `<p class="cam-credit">${missing} photo spot${missing > 1 ? 's are' : ' is'} still waiting on the map.</p>` : '<p class="cam-credit">You found every photo spot on this map!</p>'}
-    <p class="cam-credit">${esc(rv.area.provider)}, saved ${esc(rv.area.retrieved)}. <a href="${esc(rv.area.gallery)}" target="_blank" rel="noopener">NASA's raw image gallery ↗</a></p>
+    <p class="cam-credit">${esc(rv.area.provider)}, saved ${esc(rv.area.retrieved)}. <a href="${esc(rv.area.gallery)}" target="_blank" rel="noopener">NASA's raw image gallery</a></p>
     <div class="vhead" style="margin-top:22px"><b>Newest from NASA</b><p>Load the most recent photos straight from NASA (needs internet). They are for looking, not for score. The rest of the game works offline.</p></div>
     <button class="btn" id="live" ${live.status === 'loading' ? 'disabled' : ''}>${live.status === 'loading' ? 'Loading…' : live.status === 'ok' ? 'Reload newest photos' : 'Load newest photos'}</button>
     ${live.status === 'error' ? `<div class="feedback bad">${esc(live.error)}</div>` : ''}
@@ -370,9 +371,9 @@ function openAlbum(m: Mission, rv: RoverSpec, placeId: number, imageId?: string)
   const box = el('<div class="lightbox" role="dialog" aria-modal="true" aria-label="Photo album"><div class="lb-inner"></div></div>')
   const draw = () => {
     const p = list[i]
-    $('.lb-inner', box).innerHTML = `<button class="lb-x" data-x aria-label="Close">✕</button>
+    $('.lb-inner', box).innerHTML = `<button class="lb-x" data-x aria-label="Close">×</button>
       <img src="${src(p.file)}" alt="${esc(p.cameraName)} raw image, ${esc(rv.name)} sol ${p.sol}"/>
-      <div class="lb-cap"><b>${esc(p.cameraName)} · sol ${p.sol}</b><span>Taken by the real ${esc(rv.name)} on ${esc(p.takenUtc.slice(0, 10))}. Raw and unprocessed. ${esc(p.credit)}</span><a href="${esc(p.source)}" target="_blank" rel="noopener">NASA's original ↗</a></div>
+      <div class="lb-cap"><b>${esc(p.cameraName)} · sol ${p.sol}</b><span>Taken by the real ${esc(rv.name)} on ${esc(p.takenUtc.slice(0, 10))}. Raw and unprocessed. ${esc(p.credit)}</span><a href="${esc(p.source)}" target="_blank" rel="noopener">NASA's original</a></div>
       ${list.length > 1 ? `<div class="lb-nav"><button class="btn" data-prev>‹ Back</button><span>${i + 1} of ${list.length}</span><button class="btn" data-next>Next ›</button></div>` : ''}`
   }
   const step = (d: number) => { i = (i + d + list.length) % list.length; draw() }
@@ -422,20 +423,24 @@ function partsPicHtml(rv: RoverSpec, v: ViewerState) {
     return `<button class="hot ${sel ? 'sel' : ''} ${lit ? 'lit' : ''}" data-part="${parts[0].id}" style="left:${(((at[0] - x0) / cw) * 100).toFixed(2)}%;top:${(((at[1] - y0) / ch) * 100).toFixed(2)}%" aria-label="${esc(names)}" title="${esc(names)}"><i class="ring"></i><i class="dot">${parts.length > 1 ? parts.length : ''}</i></button>`
   }).join('')
   return `<figure class="partspic"><div class="pp-frame" style="aspect-ratio:${(pic.width * cw).toFixed(0)}/${(pic.height * ch).toFixed(0)}"><img src="${src(pic.file)}" alt="NASA artist's concept of the ${esc(rv.name)} rover on Mars" style="width:${(10000 / cw).toFixed(2)}%;height:${(10000 / ch).toFixed(2)}%;left:${((-x0 / cw) * 100).toFixed(2)}%;top:${((-y0 / ch) * 100).toFixed(2)}%"/>${hot}<span class="pp-tag">NASA 3D picture · not a photo</span></div>
-    <figcaption class="cam-credit">“${esc(pic.title)}” (${esc(pic.date.slice(0, 4))}), ${esc(pic.credit)} · <a href="${esc(pic.page)}" target="_blank" rel="noopener">NASA page ↗</a><br/>${esc(pic.note)} The dots were placed by us and show roughly where each part is.</figcaption></figure>`
+    <figcaption class="cam-credit">“${esc(pic.title)}” (${esc(pic.date.slice(0, 4))}), ${esc(pic.credit)} · <a href="${esc(pic.page)}" target="_blank" rel="noopener">NASA page</a><br/>${esc(pic.note)} The dots were placed by us and show roughly where each part is.</figcaption></figure>`
 }
 
 function partsBodyHtml(rv: RoverSpec, v: ViewerState) {
   const job = v.highlightJob
-  return `${partsPicHtml(rv, v)}
-    <div class="legend parts-legend">
-      <span><i class="dot" style="background:var(--cyan)"></i>a part</span>
-      <span><i class="dot" style="background:var(--mint)"></i>the part you picked</span>
-      ${job ? `<span><i class="dot" style="background:var(--gold)"></i>used for <b>${JOB_NAME[job]}</b></span><button class="btn small" id="clearlit">Clear</button>` : ''}
-      <span><i class="dot num">2</i>several parts share a dot</span>
+  // The picture and the list of parts on the left; what the picked part does stays beside them.
+  return `<div class="partsgrid">
+    <div class="parts-main">${partsPicHtml(rv, v)}
+      <div class="legend parts-legend">
+        <span><i class="dot" style="background:var(--cyan)"></i>a part</span>
+        <span><i class="dot" style="background:var(--mint)"></i>the part you picked</span>
+        ${job ? `<span><i class="dot" style="background:var(--gold)"></i>used for <b>${JOB_NAME[job]}</b></span><button class="btn small" id="clearlit">Clear</button>` : ''}
+        <span><i class="dot num">2</i>several parts share a dot</span>
+      </div>
+      <div class="partlist">${rv.parts.map(p => `<button class="pchip ${p.id === v.part ? 'on' : ''} ${v.highlight.includes(p.id) ? 'lit' : ''}" data-part="${p.id}">${esc(p.name)}</button>`).join('')}</div>
     </div>
-    ${partCardHtml(rv, v)}
-    <div class="partlist">${rv.parts.map(p => `<button class="pchip ${p.id === v.part ? 'on' : ''} ${v.highlight.includes(p.id) ? 'lit' : ''}" data-part="${p.id}">${esc(p.name)}</button>`).join('')}</div>`
+    <aside class="parts-info" aria-live="polite">${partCardHtml(rv, v)}</aside>
+  </div>`
 }
 
 function partsHtml(rv: RoverSpec, v: ViewerState) {
@@ -452,7 +457,7 @@ export function partCardHtml(rv: RoverSpec, v: ViewerState) {
       <p>${esc(part.what)}</p>
       <ul>${part.facts.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
       <div class="used">In this game: <b>${esc(used(part))}</b></div>
-      <a href="${esc(part.url)}" target="_blank" rel="noopener">Source: NASA page ↗</a></div>`
+      <a href="${esc(part.url)}" target="_blank" rel="noopener">Source: NASA page</a></div>`
       : '<div class="partcard empty">Tap a dot on the rover to see what that part does.</div>'}`
 }
 
@@ -509,7 +514,7 @@ export function renderViewer(root: HTMLElement, m: Mission, v: ViewerState, rere
   root.onmousemove = e => {
     const map = (e.target as Element).closest('#mapview')
     const out = $('#readout', root)
-    if (map && out && rv) out.textContent = `📍 ${readout(rv, pointAt(map, e, rv, v.view))}`
+    if (map && out && rv) out.textContent = `${readout(rv, pointAt(map, e, rv, v.view))}`
   }
   root.oninput = e => {
     const t = e.target as HTMLInputElement

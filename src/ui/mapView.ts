@@ -171,7 +171,7 @@ export function mapSvg(m: Mission, rv: RoverSpec, o: MapOpts): string {
     const ok = [m.pos, ...f.legs.map(l => l.to)]
     const lost = f.safeMode ? [f.end, ...m.waypoints.slice(f.reached)] : []
     plan = `<polyline points="${pts(ok)}" fill="none" stroke="#04101c" stroke-width="${u(6)}" opacity=".55"/><polyline points="${pts(ok)}" fill="none" stroke="#ffb347" stroke-width="${u(3.5)}" stroke-dasharray="${u(9)} ${u(6)}"/>
-      ${lost.length ? `<polyline points="${pts(lost)}" fill="none" stroke="#ff5a4a" stroke-width="${u(3)}" stroke-dasharray="${u(4)} ${u(6)}"/><g transform="${pin(px(f.end), k)}"><text y="-8" text-anchor="middle" font-size="16">⚠</text></g>` : ''}
+      ${lost.length ? `<polyline points="${pts(lost)}" fill="none" stroke="#ff5a4a" stroke-width="${u(3)}" stroke-dasharray="${u(4)} ${u(6)}"/><g transform="${pin(px(f.end), k)}"><text y="-8" text-anchor="middle" font-size="16" font-weight="700">!</text></g>` : ''}
       ${m.waypoints.map((w, i) => { const last = i === m.waypoints.length - 1; return `<g transform="${pin(px(w), k)}"><circle r="${last ? 11 : 8}" fill="${i >= f.reached ? '#ff5a4a' : last ? '#ffb347' : '#fff'}" stroke="#04101c" stroke-width="2"/><text y="4" text-anchor="middle" font-size="${last ? 12 : 11}" font-weight="700" fill="#04101c">${last ? '⚑' : i + 1}</text></g>` }).join('')}`
   }
   const anim = o.anim ? `<polyline points="${pts([o.anim.drive.start, ...o.anim.drive.legs.map(l => l.to)])}" fill="none" stroke="#ffb347" stroke-width="${u(2)}" stroke-dasharray="${u(6)} ${u(6)}" opacity=".8"/><polyline id="trail" points="${pts(o.anim.trail)}" fill="none" stroke="#ff8a4c" stroke-width="${u(4)}"/>` : ''

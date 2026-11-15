@@ -133,7 +133,7 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
       </div>
       <div class="lf-keys">${touch ? '' : '<span><kbd>A</kbd><kbd>D</kbd> or <kbd>←</kbd><kbd>→</kbd> tilt</span><span><kbd>W</kbd><kbd>S</kbd> or <kbd>↑</kbd><kbd>↓</kbd> throttle</span>'}<span>Keep the white needle on the mint marker</span></div>
       <div class="lf-touch ${touch ? '' : 'hidden'}">
-        <button data-key="left" aria-label="Tilt back toward vertical">◀</button><button data-key="right" aria-label="Tilt over toward the horizon">▶</button>
+        <button data-key="left" aria-label="Tilt back toward vertical">◄</button><button data-key="right" aria-label="Tilt over toward the horizon">►</button>
         <button data-key="down" aria-label="Throttle down">−</button><button data-key="up" aria-label="Throttle up">+</button>
       </div>
       <div class="lf-simnote sim">Simulated ascent · our model on a small Earth · read-outs at real scale</div>
@@ -203,9 +203,9 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
         <div class="lf-tile ${r.liftoff ? 'real' : ''}" title="Thrust at lift-off divided by weight. ${r.liftoff ? `NASA's figures for the real vehicle. ${esc(r.liftoff.note)}` : 'Our estimate: NASA gives the thrust but no lift-off weight for this stack.'}"><small>Thrust ÷ weight</small><b>${v.twr.toFixed(2)}</b></div>
       </div>
       <div class="tradeoffs">${ship.pros.map(p => `<span class="pro">${esc(p)}</span>`).join('')}${ship.cons.map(c => `<span class="con">${esc(c)}</span>`).join('')}</div>
-      <div class="lf-switch"><button class="lf-arrow" id="prev" aria-label="Previous launch system">◀</button>
+      <div class="lf-switch"><button class="lf-arrow" id="prev" aria-label="Previous launch system">◄</button>
         <div class="lf-dots" aria-hidden="true">${SHIPS.map((_, i) => `<i class="${i === index ? 'on' : ''}"></i>`).join('')}</div>
-        <button class="lf-arrow" id="next" aria-label="Next launch system">▶</button></div>`
+        <button class="lf-arrow" id="next" aria-label="Next launch system">►</button></div>`
   }
 
   function loadHtml(_ship: Ship): string {

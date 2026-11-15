@@ -95,7 +95,7 @@ function tabsFor(id: string, ctx: PanelCtx): Tab[] {
     case 'calibration': return [{ id: 'cal', label: 'Two-point calibration', task: 'calibration', render: (b, r) => calibrationTab(b, r, ctx) }]
     case 'comms': {
       const rover: Tab = { id: 'rover', label: 'Rover', render: b => roverTab(b, ctx) }
-      const relay: Tab = { id: 'relay', label: m.relayFault ? '⚠ Relay repair' : 'Relay', task: 'relay', render: (b, r) => relayTab(b, r, ctx) }
+      const relay: Tab = { id: 'relay', label: m.relayFault ? 'Relay repair (fault)' : 'Relay', task: 'relay', render: (b, r) => relayTab(b, r, ctx) }
       if (m.relayFault) return [relay, rover]
       return m.completed.has('relay') ? [rover, relay] : [rover]
     }
