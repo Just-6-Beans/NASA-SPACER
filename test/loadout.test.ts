@@ -1,6 +1,7 @@
 // Mission design on the ground: one budget, real weight, and no launch system that is best at
 // everything. Then what each item of station cargo does once it is aboard, and how a launch is explained.
 import test from 'node:test'
+import { stationReady } from './station-helpers'
 import assert from 'node:assert/strict'
 import { flyAscent, liftLimitKg } from '../src/core/ascent'
 import { CARGO, INSTRUMENTS, MISSION_BUDGET, SHIPS, byId, cargoStep, type CargoId, type ShipId } from '../src/core/data'
@@ -107,6 +108,7 @@ function aboardMission(cargo: Partial<Record<CargoId, number>>, opts: { ship?: S
   assert.equal(m.selectInstrument(opts.instrument ?? 'ir'), null)
   assert.equal(m.activatePayload(), null)
   if (m.relayFault) m.complete('relay', 'test')
+  stationReady(m)
   m.setPower(opts.power ?? READY)
   // fixed dice: the rover's rocket succeeds, and no drive ends in wheel trouble
   m.rng = () => 0
@@ -149,7 +151,7 @@ test('oxygen storage tanks let life support run on fewer power units', () => {
   const without = aboardMission({}, { power: low }), with400 = aboardMission({ oxygen: 400 }, { power: low }), with800 = aboardMission({ oxygen: 800 }, { power: { life: 1, comms: 5, research: 4 } })
   assert.deepEqual([without.lifeNeed, with400.lifeNeed, with800.lifeNeed], [3, 2, 1])
   for (const m of [without, with400, with800]) m.addWaypoint({ x: 100, y: 0 })
-  assert.match(without.deployBlock()!, /Life support needs at least 3 units/)
+  assert.match(without.deployBlock()!, /Life support needs at least 30% of the station's power/)
   assert.equal(with400.deployBlock(), null, 'two units are enough with the tanks aboard, so comms 5 and research 3 both fit')
   assert.equal(with800.deployBlock(), null)
   assert.ok(with400.fastDrill, 'research 3 is now affordable alongside the direct link')

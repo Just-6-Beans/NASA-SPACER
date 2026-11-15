@@ -13,6 +13,7 @@ import {
 import * as T from '../src/core/tasks'
 import { validPose } from '../src/core/protocol'
 import { OPS_DATES } from '../src/data/opsDates'
+import { stationReady } from './station-helpers'
 
 const READY: Power = { life: 3, comms: 4, research: 2 }
 
@@ -23,8 +24,10 @@ function ready(region: RegionId, opts: { power?: Power; water?: boolean; balance
   assert.ok(m.relayFault)
   assert.match(m.roverAccess()!, /Relay/)
   m.complete('relay', 'test')
+  // the station's other main missions, and its alerts: the rover waits for them
+  assert.match(m.roverAccess()!, /crew's day/)
+  stationReady(m, !!opts.water)
   if (opts.calibrated) m.complete('calibration', 'test')
-  if (opts.water) m.complete('water', 'test')
   if (opts.balanced) m.complete('battery', 'test')
   m.setPower(opts.power ?? READY)
   // The dice are fixed: the rover's rocket succeeds (a low roll), and after that no drive ends in
@@ -491,20 +494,15 @@ test('tasks validate', () => {
   let cells = T.BATTERY_START
   for (const [a, b] of [[0, 3], [0, 3], [1, 2]]) cells = T.transferCell(cells, a, b).cells
   assert.ok(T.batteryBalanced(cells))
-  assert.equal(T.batteryTotal(cells), 12)
+  assert.equal(T.batteryTotal(cells), 20)
+  assert.deepEqual(cells.map(T.cellPct), [50, 50, 50, 50], 'the screen shows each cell in per cent')
+  assert.equal(T.cellPct(T.BATTERY_START[0]), 70)
   assert.ok(T.cargoCheck(['pump', 'mast']).ok)
   assert.ok(!T.cargoCheck(['battery', 'seal', 'pump']).ok)
-  assert.ok(T.waterCheck(['screen', 'carbon', 'uv']).ok)
-  assert.ok(!T.waterCheck(['uv', 'carbon', 'screen']).ok)
   assert.ok(T.medicalCheck(['baseline', 'exertion', 'recovery']).ok)
   assert.ok(T.calibrationCheck([20, 60], [27, 77], 125, 2).ok)
   assert.ok(T.calibrationCheck([16, 56], [22, 82], 150, -2).ok)
   assert.ok(!T.calibrationCheck([20, 60], [27, 77], 100, 0).ok)
-  let r = T.RELAY_START
-  r = T.rotateRelay(T.rotateRelay(r, 0), 0)
-  r = T.rotateRelay(T.rotateRelay(r, 1), 1)
-  r = T.rotateRelay(T.rotateRelay(r, 2), 2)
-  assert.ok(T.relayCheck(r).ok)
   assert.ok(T.habitatCheck(['anchor', 'seal', 'energize']).ok)
 })
 

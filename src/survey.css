@@ -391,3 +391,12 @@
   .rover .wearchip { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .rover .hot .ring, .rover .rec.on, .rover .tag.live i, .rover .sbar.pop, .report .sbar.pop, .rover .sbar.pop .track i, .report .sbar.pop .track i, .rover .bigstars .stars i.on, .report .bigstars .stars i.on, .rover .fx-bar, .rover .mcam.near .mring, .rover .mstuck, .rover .chargesky, .rover .fx-flash.go { animation: none; } }
+
+/* ---------- Dust storm (our model): a haze over the rover camera, and its chip in the plan ---------- */
+.rover .chip.dust { border-color: rgba(255,179,71,.7); color: #ffd9a0; background: rgba(120,70,20,.35); }
+.rover .dusthint { color: #ffd9a0; }
+.rover .cam.dusty .cam-screen { position: relative; }
+.rover .cam.dusty .cam-screen::after { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: radial-gradient(120% 90% at 30% 20%, rgba(214,150,84,.5), rgba(150,88,40,.72)); backdrop-filter: blur(2.2px) saturate(.7); animation: dustdrift 7s ease-in-out infinite alternate; }
+.rover .cam.dusty .cam-screen::before { content: "DUST STORM · SIMULATED HAZE"; position: absolute; right: 8px; bottom: 8px; z-index: 4; padding: 2px 7px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: #2a1404; background: #ffb347; border-radius: 2px; }
+@keyframes dustdrift { from { opacity: .82; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .rover .cam.dusty .cam-screen::after { animation: none; } }

@@ -6,7 +6,7 @@ import type { BayId, LoopId } from '../core/greenhouse'
 import type { BayKind } from '../core/crops'
 
 export type BayTerminalId = `bay-${BayId}`
-export type TerminalId = 'ops' | 'payload' | 'power' | 'comms' | 'calibration' | 'hab' | 'gh-control' | 'gh-prep' | 'gh-service' | BayTerminalId
+export type TerminalId = 'ops' | 'payload' | 'power' | 'comms' | 'calibration' | 'hab' | 'crew' | 'cupola' | 'gh-control' | 'gh-prep' | 'gh-service' | BayTerminalId
 export type ModuleId = 'cupola' | 'dock' | 'node3' | 'node1' | 'lab' | 'node2' | 'greenhouse' | 'comms'
 /** The three power buses, named after the fields of core Power. */
 export type Bus = 'life' | 'comms' | 'research'

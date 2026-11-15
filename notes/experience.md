@@ -7,6 +7,38 @@ Only the experience lane edits this file. Everyone reads it.
 
 ## Done
 
+### Station tasks S1 to S5, the alerts, the dust storm and the new report (15 Nov, LOCAL ONLY, not committed or pushed)
+
+Asked for by a human on this device (aizux7), from the team's `TasksList.pdf`. Work is in the clone at `GameTest\NASA-SPACER-Claude-main`, on top of `main` at 8f4f281, in the working tree. It crosses all three lanes; the last bullet lists what a commit has to name.
+
+Decisions the human made, each one asked and answered:
+
+- Crew Schedule and Water Recycling Loop are **required** before the rover unlocks, as the PDF's flow says.
+- A run has **one or two of the three alerts, at random**.
+- Of the event cards only the **dust storm** is added, on Mars: the rover's camera goes hazy and it drives slower, so each metre costs more battery. The solar flare stays out; the pump failure was already in the greenhouse.
+
+What was built:
+
+- **Crew schedule (S5)** at a new **Crew Quarters** console in Node 2 (`src/ui/stationTasks.ts`, rules in `src/core/stationTasks.ts`). Twelve two-hour blocks. Performance sets the time every alert allows (90% or more: +15%; under 75%: −25%).
+- **Water recycling loop (S2)** at Hab Systems, in place of the old three-stage water puzzle. Connect four parts, then a fresh filter bed (3 cr) or the old one, and the brine processor runs while Life support has 40% of the power. 93% and 98% are the station's real figures. Adds +5 or +8 to the base score.
+- **Three alerts** (`src/ui/stationAlerts.ts`): CO₂ rising (S1, an adapter from eight cargo parts, 90 s), Power down (S3, what stays on through a blackout, then the restart order) and Cabin alarm (S4, find the module on a station plan, seal it, shut down, muster, 30 s). The first goes off after the first main mission is done, the second after all four. An alert not dealt with costs crew health. They wait until no panel is open and take the whole screen.
+- **Relay repair** is now a signal: a drawn waveform with noise, a tuning dial, hold on the carrier for a second, and the carrier drifts two to four times by a different amount each time. The rotate-to-match puzzle is gone.
+- **Percentages.** The Power Grid, the HUD meters, the task drawer, the rover tab and every message show power as a share of the station (30%, 40%), and battery balancing shows each cell in per cent and moves 10% at a time.
+- **Payload bay.** The rover is gone from the station art: the bay is an instrument bench under a gantry, and the chosen instrument stands on one of its two pads (`scripts/art-station.mjs`, `scripts/build-geo.mjs`, `src/art/geo.json`, `src/game/stationFx.ts`).
+- **Cupola camera** ("Earth Observation"): eight real photographs of Earth taken from the International Space Station, with NASA's captions, dates and credit (`public/nasa/earth/`).
+- **Mission Ops** cut to three short tabs: brief, status, and data sources folded behind a tap.
+- **End report** (`src/ui/report.ts`, rules in `src/core/score.ts`): "Mission Score" first, then "Tasks you completed" and "Tasks you missed", each with its points and a line saying what happened, and what would add the most next time. The detail (causes, rover, greenhouse, sources, log) is folded underneath. Every task adds points; an alert or a rescue that never came up is not counted.
+- **Dust storm** on the rover screen: an ALERT pop-up with a NASA card, a haze over the camera labelled as simulated, a chip and a line in the drive plan. After any drive but the first, 40% chance, once a mission, two to three Mars days at 70% speed.
+- **Data** (`scripts/fetch-station-tasks.mjs` → `data/nasa/station-tasks.json`, `src/data/stationTasks.ts`): six cards (Apollo 13 filter and power-down, station water recovery, the fire on Mir, a crew day, the dust storm of 2018), 30 quotes found in their NASA pages by the script, and the eight photographs.
+- **Two CSS collisions found and avoided:** an input with id `dial` picks up the launch field's `#dial { height: 150px }`, so the relay's input is `#tune`. (Earlier: `.hot` inside `.rover`.)
+- **Checked** in headless Edge on the dev server, no console errors: the deck with the two new consoles and the payload bench; the crew day (pop-up, plan, done); CO₂ alert with a wrong part then the right one; payload; the relay through four drifts; Power Grid and battery in per cent; the water loop both steps; Power down with a wrong restart step; the Cupola photographs; Mission Ops; the task drawer; a dust storm on the rover plan and camera; the report; the cabin alarm in a second run; 420 px wide for the crew day, the cabin result and the report. `npm run check` passes (137 tests).
+- **Not checked:** a person playing it from start to finish, the measured play time (it will be longer: five more station steps), co-op with the new screens (each tab has its own tasks; no co-op file was touched, but the server's power message now reads in per cent because it calls `powerBlock`), a real phone, Firefox, Safari, an alert failing in the browser (the rules are tested).
+- **Crosses lanes, needs a human's yes before landing:**
+  - data lane: `data/nasa/station-tasks.json`, `scripts/fetch-station-tasks.mjs`, `src/data/stationTasks.ts`, the data section of `CREDITS.md`.
+  - rules lane: new `src/core/stationTasks.ts`, `src/core/score.ts`; changes in `tasks.ts`, `power.ts`, `mission.ts`; `test/stationtasks.test.ts`, `test/station-helpers.ts` and edits in `test/mission.test.ts`, `loadout.test.ts`, `rovertasks.test.ts`, `station.test.ts`, `coop.test.ts` (one message).
+  - shared: `package.json` (the test list and `data:station`), `lanes.json`, `README.md`.
+  - Exports that changed: `TaskId` has `schedule`, `scrubber`, `rationing`, `cabin`, `earth`; in `tasks.ts` `WATER_STAGES`, `WATER_ORDER`, `waterCheck`, `RELAY_SYMBOLS`, `RELAY_START`, `RELAY_TARGET`, `rotateRelay`, `relayCheck` are gone, `BATTERY_START` is `[7, 6, 4, 3]` of `BATTERY_MAX` 10 and `cellPct` is new; `powerBlock` messages read in per cent, `powerPct` and `COMMS_NEED` are new; `Mission.roverAccess()` also needs the crew's day, the water loop and any alert that is due; new `Mission.planDay`, `crewPerformance`, `alertSeconds`, `runWaterLoop`, `filterBlock`, `waterPct`, `waterBonus`, `brineOn`, `alertPlan`, `alertDue`, `startAlert`, `endAlert`, `crewHealth`, `failed`, `seeEarth`, `stationCauses`, `dust`, `dustActive`, `dustSolsLeft`; `Mission.bonus` uses the water loop's bonus. `src/art/geo.json`: `live.rover` is gone, `live.instIr`, `live.instGpr`, `live.crewScreen` are new, and there are terminals `crew` and `cupola`.
+
 ### Three sample sites, and the rescue gauges (15 Nov, LOCAL ONLY, not committed or pushed)
 
 Asked for by a human on this device (aizux7): "add more rock sample sites instead of there being only one", and fix the rescue screen where the temperature read-out sat on top of the other information. Branch `lane/experience-rover-tasks`, on top of `main` at 91aeaaf.

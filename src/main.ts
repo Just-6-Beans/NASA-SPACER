@@ -7,7 +7,8 @@ import type Phaser from 'phaser'
 import { SHIPS, SUITS, byId, type ShipId, type SuitId } from './core/data'
 import { deliveryRocket } from './core/delivery'
 import { Mission, TASK_INFO } from './core/mission'
-import { powerBlock, validPower, type Power } from './core/power'
+import { COMMS_NEED, powerBlock, powerPct, validPower, type Power } from './core/power'
+import type { AlertId } from './core/stationTasks'
 import { spendPct } from './core/survey'
 import type { TaskId } from './core/tasks'
 import { ROOM_NAME, type CrewMember } from './core/protocol'
@@ -25,6 +26,8 @@ import { reportScreen } from './ui/report'
 import { roverScreen } from './ui/roverView'
 import { NEED, deckMap, objectiveFor, stationView, type DeckMap } from './ui/stationHud'
 import { greenhouseChip, greenhouseProgress, greenhouseView, refreshGreenhousePanel, showGreenhouseBrief } from './ui/greenhouse'
+import { alertOverlay } from './ui/stationAlerts'
+import { stationIntro, type StationIntroId } from './ui/stationTasks'
 
 type ScreenName = 'title' | 'field' | 'station' | 'rover' | 'report'
 
@@ -233,11 +236,12 @@ function wireStation(s: StationScene) {
   s.onPose = p => { if (coop.connected && screen === 'station') coop.sendPose(p) }
   s.onBlocked = msg => toast(msg, 'warn')
   input.onInteract = () => {
-    if (screen !== 'station' || panelOpen()) return
+    if (screen !== 'station' || panelOpen() || popup) return
     const t = nearTerminal
     if (t) openTerminal(t.id)
   }
   input.onEscape = () => {
+    if (popup) return // a task card or an alert has to be answered
     if (coopPanel) return closeCoop()
     if (panelOpen()) return closeTask()
     if (drawerOpen) return toggleDrawer(false)
@@ -268,17 +272,65 @@ function panelCtx(): PanelCtx {
 }
 
 function openTerminal(id: string) {
-  if (!mission) return
+  if (!mission || popup) return
   sound.play('ui')
   setBlocked(true)
   if (id === 'ops') briefed = true
+  // The two station missions open with their NEW MISSION card, once.
+  const m = mission
+  const first: StationIntroId | null = id === 'crew' && !m.schedule ? 'schedule' : id === 'hab' && !m.waterLoop ? 'water' : null
+  const seen = (m.drafts.intros ??= {}) as Record<string, boolean>
+  if (first && !seen[first]) {
+    seen[first] = true
+    showPopup(stationIntro(first, m, () => { popup = null; openPanel(id, panelCtx()) }))
+    return
+  }
   openPanel(id, panelCtx())
 }
 function closeTask() {
   closePanel()
-  setBlocked(!!coopPanel)
+  setBlocked(!!coopPanel || !!popup)
   refresh()
 }
+
+// ------------------------------------------------------------------ Station alerts
+// One or two alerts go off in a run (src/core/stationTasks.ts). An alert waits until the pilot is
+// back on the deck with nothing open, gives them a moment, then takes the whole screen until it is over.
+let popup: HTMLElement | null = null // a task's opening card or an alert, over the deck
+let alertAt = 0 // when the alert that is due may go off, in performance.now() time
+function showPopup(node: HTMLElement) {
+  popup?.remove()
+  popup = node
+  document.body.append(node)
+  setBlocked(true)
+}
+function closePopup() {
+  popup?.remove()
+  popup = null
+  setBlocked(panelOpen() || !!coopPanel)
+  refresh()
+}
+function fireAlert(id: AlertId) {
+  const m = mission
+  if (!m || popup) return
+  sound.play('relay')
+  toggleDrawer(false)
+  showPopup(stationIntro(id, m, () => {
+    popup = null
+    if (m.startAlert(id)) return closePopup()
+    showPopup(alertOverlay(id, { m, refresh, close: closePopup }))
+    refresh()
+  }))
+  refresh()
+}
+setInterval(() => {
+  const m = mission
+  if (!m || screen !== 'station' || popup || panelOpen() || coopPanel || document.querySelector('.gh-pop')) { alertAt = 0; return }
+  const due = m.alertDue()
+  if (!due) { alertAt = 0; return }
+  if (!alertAt) { alertAt = performance.now() + 2200; refresh(); return }
+  if (performance.now() >= alertAt) { alertAt = 0; fireAlert(due) }
+}, 250)
 
 function completeTask(task: TaskId, detail: string) {
   if (!mission!.complete(task, detail)) return
@@ -304,7 +356,8 @@ function buildHud(): HTMLElement {
       <div class="crewn">${ICONS.crew}<span id="crewn">1 / 2 CREW</span></div></div>
     <div class="ops-sub">
       <div class="objline" id="objline" role="status"><span class="box"></span><span id="obj"></span></div>
-      <div class="ghchip" id="ghchip" role="status" title="The station greenhouse: optional, scored on its own"></div>
+      <div class="hudchips"><span class="hudchip" id="crewchip" role="status" title="Crew health: an alert that is not dealt with costs some"></span><span class="hudchip" id="waterchip" role="status" title="Water recovered by the recycling loop"></span>
+        <div class="ghchip" id="ghchip" role="status" title="The station greenhouse: optional, scored on its own"></div></div>
     </div>
     <div class="statbar" id="meters" aria-label="Station power"></div>
     <div class="clocks" id="clocks"></div>
@@ -350,10 +403,17 @@ function refresh() {
     $('#b-coop', hud).classList.toggle('mint', coop.connected)
     const p = m.power
     $('#meters', hud).innerHTML = ([['Life support', ICONS.leaf, 'life'], ['Comms', ICONS.signal, 'comms'], ['Research', ICONS.flask, 'research']] as [string, string, keyof Power][]).map(([n, ic, k]) =>
-      `<div class="sm bus-${k} ${p[k] < need[k] ? 'low' : ''}" title="${n}: ${p[k]} of 10 units${need[k] ? `, needs ${need[k]} to transmit` : ''}">${ic}<b>${n}<span>${p[k]}/10</span></b><div class="bar"><i style="width:${p[k] * 10}%"></i></div></div>`).join('')
-    $('#objline', hud).classList.toggle('alert', m.relayFault)
+      `<div class="sm bus-${k} ${p[k] < need[k] ? 'low' : ''}" title="${n}: ${powerPct(p[k])} of the station's power${need[k] ? `, needs ${powerPct(need[k])} to transmit` : ''}">${ic}<b>${n}<span>${powerPct(p[k])}</span></b><div class="bar"><i style="width:${p[k] * 10}%"></i></div></div>`).join('')
+    const alarm = !!m.alertActive || !!m.alertDue()
+    $('#objline', hud).classList.toggle('alert', m.relayFault || alarm)
     $('#crewn', hud).textContent = `${coop.connected ? coop.players : 1} / 2 CREW`
-    $('#banner', hud).classList.toggle('hidden', !m.relayFault)
+    $('#banner', hud).classList.toggle('hidden', !m.relayFault && !alarm)
+    $('#banner', hud).textContent = alarm ? 'Station alert · Stand by' : 'Relay fault · Mars link down · Repair at Rover Comms'
+    const crew = $('#crewchip', hud), water = $('#waterchip', hud)
+    crew.innerHTML = `Crew <b>${m.crewHealth}%</b>${m.crewPerformance === null ? '' : ` · performance <b>${m.crewPerformance}%</b>`}`
+    crew.className = `hudchip ${m.crewHealth < 60 ? 'bad' : m.crewHealth < 100 ? 'warn' : ''}`
+    water.innerHTML = m.waterPct === null ? 'Water <b>not recycled</b>' : `Water <b>${m.waterPct}%</b> recovered`
+    water.className = `hudchip ${m.waterPct === null || m.failed.has('water') ? 'warn' : ''}`
     $('#debug', hud).classList.toggle('hidden', !debugOn)
     if (drawerOpen) renderDrawer()
   }
@@ -400,11 +460,11 @@ setInterval(() => {
   const gh = m.greenhouse, onDeck = screen === 'station'
   const st = onDeck && game && station().created ? station() : null
   // the NEW MISSION pop-up, the first time the astronaut walks into the module
-  if (st?.inGreenhouse && !gh.briefed && !panelOpen() && !coopPanel) {
+  if (st?.inGreenhouse && !gh.briefed && !panelOpen() && !coopPanel && !popup) {
     gh.markBriefed()
     sound.play('ui')
     setBlocked(true)
-    showGreenhouseBrief(() => setBlocked(panelOpen() || !!coopPanel))
+    showGreenhouseBrief(() => setBlocked(panelOpen() || !!coopPanel || !!popup))
   }
   gh.tick(dt, { orbitPhase: st?.exteriorPhase, crewInside: !!st?.inGreenhouse, quiet: !onDeck })
   for (const n of gh.takeNotices()) {
@@ -434,12 +494,14 @@ function renderDrawer() {
     `<div class="task ${done ? 'done' : ''} ${em && !done ? 'em' : ''}"><span class="ck"></span><div><b>${esc(name)}</b><small>${esc(where)} · ${esc(prog)}</small></div></div>`
   const d = (k: string) => m.drafts[k] as Record<string, unknown> | undefined
   const prog = (t: TaskId) => m.completed.has(t) ? 'complete' : d(t) ? 'in progress (draft saved)' : 'not started'
-  const routine = (['battery', 'cargo', 'water', 'medical'] as TaskId[]).map(t => item(m.completed.has(t), TASK_INFO[t].name, TASK_INFO[t].where, `${prog(t)} · ${TASK_INFO[t].reward}`)).join('')
+  const routine = (['battery', 'cargo', 'medical', 'earth'] as TaskId[]).map(t => item(m.completed.has(t), TASK_INFO[t].name, TASK_INFO[t].where, `${prog(t)} · ${TASK_INFO[t].reward}`)).join('')
     + item(m.greenhouse.complete, TASK_INFO.greenhouse.name, TASK_INFO.greenhouse.where, `${greenhouseProgress(m.greenhouse)} · ${TASK_INFO.greenhouse.reward}`)
   const missionItems = [
     item(briefed, 'Read the mission brief', 'Mission Ops', briefed ? 'read' : 'not read'),
+    item(!!m.schedule, "Plan the crew's day", 'Crew Quarters', m.schedule ? `crew performance ${m.crewPerformance}%` : 'not planned · the rover waits for it'),
     item(m.payloadActive, 'Select & activate payload', 'Payload', m.payloadActive ? `${m.instrumentInfo!.code} active` : m.instrumentDraft ? 'instrument selected' : 'not started'),
-    item(!powerBlock(m.power, m.lifeNeed), 'Route transmission power', 'Power Grid', `life ${m.power.life}/${m.lifeNeed} · comms ${m.power.comms}/4`),
+    item(!powerBlock(m.power, m.lifeNeed), 'Route transmission power', 'Power Grid', `life support ${powerPct(m.power.life)} of ${powerPct(m.lifeNeed)} · communications ${powerPct(m.power.comms)} of ${powerPct(COMMS_NEED)}`),
+    item(!!m.waterLoop, 'Run the water recycling loop', 'Hab Systems', m.waterLoop ? `${m.waterPct}% recovered${m.failed.has('water') ? ' · not safe to drink' : ''}` : 'not run · the rover waits for it'),
     item(m.completed.has('calibration'), 'Two-point calibration (optional)', 'Calibration', prog('calibration')),
     item(!!m.delivery, 'Choose your rover and its rocket', 'Rover Comms', m.delivery ? `${m.rover!.name} on the ${deliveryRocket(m.delivery.rocket).name}${m.delivery.ok ? '' : ` · backup flew, ${m.delivery.solsLost} days lost`}` : m.rover ? `${m.rover.name} chosen · rocket not chosen` : 'not chosen'),
     item(m.spots.some(x => x.tests.includes('photo')), 'Rover navigation: drive and test a spot', 'Rover Comms', m.rover ? `${m.drives.length} deployment${m.drives.length === 1 ? '' : 's'} · ${m.spots.length} spot${m.spots.length === 1 ? '' : 's'} · ${m.photos.length} photo spot${m.photos.length === 1 ? '' : 's'}` : 'choose your rover first'),
@@ -449,10 +511,14 @@ function renderDrawer() {
   ].join('')
   const res = m.rescue
   const emergency = (m.payloadActive ? item(m.completed.has('relay'), 'Relay repair', 'Rover Comms', m.relayFault ? 'FAULT ACTIVE' : 'repaired', true) : '<div class="task"><span></span><small>No emergencies.</small></div>')
+    + m.alertPlan.map(id => {
+      const r = m.alertResults[id]
+      return r || m.alertActive === id ? item(!!r, TASK_INFO[id].name, 'Station alert', r ? (r.won ? `dealt with · +${r.points} points` : 'not dealt with in time') : 'ALERT ACTIVE', true) : ''
+    }).join('')
     + (res ? item(res.result !== null, 'Stuck rover rescue', 'Rover Comms', res.result === null ? `ROVER STUCK · ${res.solsUsed} of 5 days used` : `${res.result === 'held' ? 'held' : 'freed'} after ${res.solsUsed} Mars days · wheels ${m.wheelWear}% worn`, true) : '')
   const dr = el(`<aside class="drawer" id="drawer" aria-label="Tasks"><div class="row" style="justify-content:space-between"><h2 style="font-size:26px">Tasks</h2><button class="btn small" id="dclose">Close</button></div>
     <h3>Emergency</h3>${emergency}<h3>Mission</h3>${missionItems}<h3>Routine (optional)</h3>${routine}
-    <p style="font-size:12px;color:#b9ae95">Routine tasks are optional, but each one changes what you can afford or accomplish.</p></aside>`)
+    <p style="font-size:12px;color:#b9ae95">Routine tasks are optional. Every task adds to the mission score, and most change what you can afford or do.</p></aside>`)
   $('#dclose', dr).addEventListener('click', () => toggleDrawer(false))
   hud?.append(dr)
 }
@@ -500,6 +566,8 @@ function replay() {
 function leaveGameplay() {
   rover?.stop()
   closePanel()
+  popup?.remove()
+  popup = null
   drawerOpen = false
   hud = null
   map = null
@@ -521,7 +589,7 @@ function syncCrew() { /* remotes arrive via pose/crew messages after we announce
 
 function requestPower(p: Power) {
   const m = mission!
-  if (!validPower(p)) { toast('Allocation must stay within 10 units.', 'warn'); return }
+  if (!validPower(p)) { toast("The allocation cannot be more than 100% of the station's power.", 'warn'); return }
   if (!coop.connected) { m.setPower(p); refresh(); return }
   if (powerInFlight) { powerWanted = p; return }
   powerInFlight = true
@@ -638,6 +706,7 @@ async function joinCoop() {
 // expose a tiny read-only hook for automated testing
 ;(window as unknown as { __spacer: unknown }).__spacer = {
   get mission() { return mission }, get screen() { return screen }, station: () => game && station(), coop, field: () => field,
+  alert: (id: AlertId) => fireAlert(id), get popup() { return !!popup },
 }
 
 goTitle()

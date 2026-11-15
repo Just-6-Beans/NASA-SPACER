@@ -1,6 +1,7 @@
 // The rover's rocket, the stuck-rover rescue and the sample selection: what is real, what each
 // choice costs, and that no choice is best at everything.
 import test from 'node:test'
+import { stationReady } from './station-helpers'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import assert from 'node:assert/strict'
@@ -26,6 +27,7 @@ function aboard(opts: { ship?: 'atlasv' | 'shuttle' | 'falcon9'; cargo?: Record<
   assert.equal(m.activatePayload(), null)
   if (m.relayFault) m.complete('relay', 'test')
   if (opts.calibrated) m.complete('calibration', 'test')
+  stationReady(m)
   m.setPower({ life: 3, comms: 4, research: 2 })
   return m
 }

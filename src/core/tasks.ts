@@ -1,10 +1,18 @@
-// Pure validation for every station task. No DOM, no Phaser.
+// Pure validation for the station's routine tasks. No DOM, no Phaser.
+// The tasks from the team's mission spec (the water loop, the crew schedule, the three alerts)
+// and the relay's signal tuning are in stationTasks.ts.
 
-export type TaskId = 'battery' | 'cargo' | 'water' | 'medical' | 'calibration' | 'relay' | 'habitat' | 'greenhouse'
+export type TaskId =
+  | 'battery' | 'cargo' | 'water' | 'medical' | 'calibration' | 'relay' | 'habitat' | 'greenhouse'
+  | 'schedule' | 'scrubber' | 'rationing' | 'cabin' | 'earth'
 
 // ---- Battery balancing -------------------------------------------------
-export const BATTERY_START = [5, 4, 2, 1]
-export const BATTERY_MAX = 6
+// Each cell holds a charge in steps of BATTERY_STEP_PCT per cent, and one transfer moves one step.
+export const BATTERY_STEP_PCT = 10
+export const BATTERY_START = [7, 6, 4, 3]
+export const BATTERY_MAX = 10
+/** A cell's charge in per cent, as the screen shows it. */
+export const cellPct = (steps: number) => steps * BATTERY_STEP_PCT
 export function transferCell(cells: number[], from: number, to: number): { cells: number[]; error?: string } {
   if (from === to) return { cells, error: 'Pick two different cells.' }
   if (cells[from] <= 0) return { cells, error: `Cell ${from + 1} is empty.` }
@@ -14,8 +22,9 @@ export function transferCell(cells: number[], from: number, to: number): { cells
   next[to]++
   return { cells: next }
 }
-export const batteryBalanced = (cells: number[]) => cells.length === 4 && cells.every(c => c === 3)
 export const batteryTotal = (cells: number[]) => cells.reduce((a, b) => a + b, 0)
+/** Balanced: every cell holds the same charge. */
+export const batteryBalanced = (cells: number[]) => cells.length === 4 && cells.every(c => c === batteryTotal(cells) / cells.length)
 
 // ---- Cargo reconciliation ----------------------------------------------
 export const PALLET_KG = 11
@@ -34,21 +43,6 @@ export function cargoCheck(selected: string[]): { ok: boolean; kg: number; messa
   if (!selected.includes('pump')) return { ok, kg, message: 'Missing the liquid-transfer hardware.' }
   if (!selected.includes('mast')) return { ok, kg, message: 'Missing the signal-mount hardware.' }
   return { ok, kg, message: 'Something on the pallet is not liquid-transfer or signal-mount hardware.' }
-}
-
-// ---- Water purification -------------------------------------------------
-export const WATER_STAGES = [
-  { id: 'screen', name: 'Mesh screen', clue: 'Catches grit and particles' },
-  { id: 'carbon', name: 'Carbon bed', clue: 'Removes dissolved contaminants' },
-  { id: 'uv', name: 'UV lamp', clue: 'Disinfects clear, filtered water' },
-] as const
-export const WATER_ORDER = ['screen', 'carbon', 'uv']
-export function waterCheck(order: string[]): { ok: boolean; message: string } {
-  if (order.length < 3) return { ok: false, message: 'Place all three stages between intake and output.' }
-  if (order[0] !== 'screen') return { ok: false, message: 'Grit reaches the first stage and clogs it. What catches particles?' }
-  if (order[2] !== 'uv') return { ok: false, message: 'UV only works on water that is already clear. It belongs last.' }
-  if (order[1] !== 'carbon') return { ok: false, message: 'Dissolved contaminants slip through.' }
-  return { ok: true, message: 'Potable water confirmed. Imported water need drops by 8 cr.' }
 }
 
 // ---- Crew medical -------------------------------------------------------
@@ -78,18 +72,6 @@ export function calibrationCheck(raw: [number, number], target: [number, number]
     : values[1] - values[0] > target[1] - target[0] + 1 ? 'The spread is too large: lower the gain.' : 'Spread looks right; shift the offset.'
   else if (!within[0] || !within[1]) message = 'One standard matches but the other does not: adjust gain, then offset.'
   return { ok: within[0] && within[1], values, within, message }
-}
-
-// ---- Relay repair -------------------------------------------------------
-export const RELAY_SYMBOLS = ['—', '╱', '│', '╲']
-export const RELAY_START = [1, 3, 0]
-export const RELAY_TARGET = [3, 1, 2]
-export const rotateRelay = (idx: number[], seg: number) => idx.map((v, i) => (i === seg ? (v + 1) % 4 : v))
-export function relayCheck(idx: number[]): { ok: boolean; message: string } {
-  const wrong = idx.map((v, i) => v !== RELAY_TARGET[i]).filter(Boolean).length
-  return wrong === 0
-    ? { ok: true, message: 'Carrier lock. Relay restored.' }
-    : { ok: false, message: `${wrong} segment${wrong > 1 ? 's' : ''} still out of phase with the reference.` }
 }
 
 // ---- Habitat commissioning ---------------------------------------------

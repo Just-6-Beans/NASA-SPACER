@@ -56,7 +56,7 @@ test('two clients share poses and power, with validation', async () => {
     const transmits = () => bMsgs.filter(([t, m]) => t === 'notice' && m.kind === 'transmit').map(([, m]) => m)
     b.send('transmit-check', 2)
     await wait(150)
-    assert.match(transmits().at(-1).text, /Life support needs at least 3 units/)
+    assert.match(transmits().at(-1).text, /Life support needs at least 30% of the station's power/)
     b.send('transmit-check', { revision: 2, lifeNeed: 2 })
     await wait(150)
     assert.equal(transmits().at(-1).ok, true)

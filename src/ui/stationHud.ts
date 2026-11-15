@@ -19,15 +19,20 @@ export interface Objective { text: string; target: TerminalId | null; urgent: bo
 /** The next step, in words and as a place on the deck. */
 export function objectiveFor(m: Mission, briefed: boolean): Objective {
   const at = (target: TerminalId, text: string, urgent = false): Objective => ({ text, target, urgent })
+  // An alert comes before everything: it takes the screen as soon as the pilot is back on the deck.
+  if (m.alertActive || m.alertDue()) return { text: 'ALERT: a station emergency needs you now.', target: null, urgent: true }
   // The brief comes first, but a player who walks past it and starts work is not sent back.
-  if (!briefed && !m.instrumentDraft && !m.payloadActive) return at('ops', 'Read the mission brief at the Mission Ops table in the US Lab (down the hatch, then left).')
-  if (!m.payloadActive) return at('payload', m.instrumentDraft ? 'Activate the payload at the Payload terminal in the rover bay (US Lab).' : 'Choose a rover instrument at the Payload terminal in the rover bay (US Lab).')
+  if (!briefed && !m.instrumentDraft && !m.payloadActive && !m.schedule) return at('ops', 'Read the mission brief at the Mission Ops table in the US Lab (down the hatch, then left).')
   if (m.relayFault) return at('comms', 'EMERGENCY: repair the relay at Rover Comms (Comms module, below Node 2).', true)
   if (m.base) return { text: 'Mission decided. Review the report.', target: null, urgent: false }
+  // The station's main missions, in the order the deck is walked: the rover unlocks after them.
+  if (!m.schedule) return at('crew', "Plan the crew's day at Crew Quarters (Node 2, below the docking port).")
+  if (!m.payloadActive) return at('payload', m.instrumentDraft ? 'Activate the payload at the Payload terminal in the payload bay (US Lab).' : 'Choose a rover instrument at the Payload terminal in the payload bay (US Lab).')
   const pb = powerBlock(m.power, m.lifeNeed)
-  const rv = m.rover
-  if (!rv) return pb ? at('power', `Route power at the Power Grid (Node 1): ${pb}`) : at('comms', 'Open Rover Comms (Comms module, below Node 2) and choose your rover.')
   if (pb) return at('power', `Route power at the Power Grid (Node 1): ${pb}`)
+  if (!m.waterLoop) return at('hab', 'Run the water recycling loop at Hab Systems (Node 3, at the far left).')
+  const rv = m.rover
+  if (!rv) return at('comms', 'The station is ready. Open Rover Comms (Comms module, below Node 2) and choose your rover.')
   if (!m.delivery) return at('comms', `Choose the rocket that carries ${rv.name} to Mars at Rover Comms.`)
   if (m.stuck) return at('comms', `ALERT: ${rv.name} is stuck with wheel trouble. Free it at Rover Comms.`, true)
   if (m.charging) return at('comms', `${rv.name} is recharging (${spendPct(rv, m.batteryWh)}%). Do station tasks meanwhile, or watch the timer at Rover Comms.`)
@@ -52,7 +57,7 @@ export function stationView(m: Mission, o: Objective, guide: boolean): StationVi
     instrument: m.instrument,
     instrumentDraft: m.instrumentDraft,
     calibrated: m.calibrated,
-    // The rover bay screen: the rover's battery gauge once a rover is chosen, the cradle charge before.
+    // The payload bay screen: the rover's battery gauge once a rover is chosen, the charge it will arrive with before.
     battery: rv ? spendPct(rv, m.batteryWh) : m.ship.battery,
     linkMin: m.signalMin,
     linkNote: `${fmt(d.lightMin)} JPL HORIZONS ${direct ? '· DIRECT' : `+ ${m.ship.handoffMin} RELAY`}`,

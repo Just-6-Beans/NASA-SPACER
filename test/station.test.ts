@@ -61,7 +61,7 @@ test('nobody can walk out into space', () => {
 
 test('every terminal has a console, stands on open floor, and can be walked to from the docking port', () => {
   const ids = TERMINALS.map(t => t.id).sort()
-  assert.deepEqual(ids, [...BAY_IDS.map(b => `bay-${b}`), 'calibration', 'comms', 'gh-control', 'gh-prep', 'gh-service', 'hab', 'ops', 'payload', 'power'].sort())
+  assert.deepEqual(ids, [...BAY_IDS.map(b => `bay-${b}`), 'calibration', 'comms', 'crew', 'cupola', 'gh-control', 'gh-prep', 'gh-service', 'hab', 'ops', 'payload', 'power'].sort())
   for (const t of TERMINALS) {
     const box = SOLIDS.find(s => s.id === t.id)
     assert.ok(box, `${t.id} has a collision box`)

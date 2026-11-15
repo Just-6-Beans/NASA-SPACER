@@ -14,13 +14,18 @@ export function validPower(p: unknown): p is Power {
 
 export const unassigned = (p: Power) => POWER_TOTAL - p.life - p.comms - p.research
 
+/** A number of power units as a share of the station's power, the way every screen shows it: 4 units is "40%". */
+export const powerPct = (units: number) => `${Math.round((units / POWER_TOTAL) * 100)}%`
+
 /** Units life support needs before transmitting. Oxygen tanks carried up on the launch lower it. */
 export const LIFE_NEED = 3
+/** Units communications needs to reach Mars. */
+export const COMMS_NEED = 4
 /** Why transmission is blocked by power alone, or null when power is ready. */
 export function powerBlock(p: Power, lifeNeed = LIFE_NEED): string | null {
   if (!validPower(p)) return 'Power allocation is invalid.'
-  if (p.life < lifeNeed) return `Life support needs at least ${lifeNeed} unit${lifeNeed === 1 ? '' : 's'} before transmitting.`
-  if (p.comms < 4) return 'Communications needs at least 4 units to reach Mars.'
+  if (p.life < lifeNeed) return `Life support needs at least ${powerPct(lifeNeed)} of the station's power before transmitting.`
+  if (p.comms < COMMS_NEED) return `Communications needs at least ${powerPct(COMMS_NEED)} of the station's power to reach Mars.`
   return null
 }
 

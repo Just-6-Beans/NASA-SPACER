@@ -100,10 +100,11 @@ export class StationLive {
 
     // on the freestanding props (just in front of each prop, behind anyone standing before it)
     const bayDepth = prop('payload').depth + 0.2
-    const [rx, ry] = LIVE.rover
+    // the chosen instrument stands on a pad of the payload bench
+    const [ix, iy] = LIVE.instIr, [gx, gy] = LIVE.instGpr
     this.inst = {
-      ir: scene.add.image(rx + 112, ry - 2, 'prop-inst-ir').setOrigin(0).setScale(0.5).setDepth(bayDepth).setVisible(false),
-      gpr: scene.add.image(rx + 118, ry + 54, 'prop-inst-gpr').setOrigin(0).setScale(0.5).setDepth(bayDepth).setVisible(false),
+      ir: scene.add.image(ix, iy, 'prop-inst-ir').setOrigin(0.5, 1).setScale(0.8).setDepth(bayDepth).setVisible(false),
+      gpr: scene.add.image(gx, gy, 'prop-inst-gpr').setOrigin(0.5, 1).setScale(0.75).setDepth(bayDepth).setVisible(false),
     }
     this.bay = scene.add.graphics().setDepth(bayDepth)
     const [bx, by, bw, bh] = LIVE.battScreen

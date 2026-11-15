@@ -1,0 +1,409 @@
+{
+  "about": "What NASA says about the real events behind the station tasks and the dust storm, and eight photographs of Earth taken from the International Space Station. Built by scripts/fetch-station-tasks.mjs. Do not edit by hand.",
+  "retrieved": "2026-11-15",
+  "how": "Each card keeps the exact words of its source (quote) beside our short version (text). \"by script\": the script downloaded the source on the retrieval date and found the quote in it. The photographs and their captions come from the NASA Image and Video Library (images.nasa.gov); the short titles are ours.",
+  "limits": "These are descriptions of real events, not datasets: nothing here drives a game number. The conversion of 38 degrees Fahrenheit to about 3 degrees Celsius is ours. NASA publishes how long crews exercise; the hours of sleep and work in the game are our model.",
+  "model": "Our model, not NASA data: every rule of the station tasks (the adapter parts and timers, the power draws, the water loop figures other than 93 to 94% and 98%, the cabin alarm, the crew performance figure), the scores, and what a dust storm does to the rover in the game (a hazy camera and slower driving).",
+  "cards": [
+    {
+      "id": "apollo13-filter",
+      "title": "Apollo 13: a square filter, a round socket",
+      "provider": "NASA",
+      "text": "In April 1970 an oxygen tank blew up on the way to the Moon. The three astronauts sheltered in the lunar module, built for two. Its round sockets did not take the command module's square air filters, so mission control worked out an adapter from plastic bags, cardboard and tape.",
+      "backing": [
+        {
+          "quote": "oxygen tank No. 2 blew up, causing the No. 1 tank to also fail.",
+          "source": {
+            "title": "Apollo 13: Mission Details",
+            "provider": "NASA",
+            "url": "https://www.nasa.gov/missions/apollo/apollo-13-mission-details/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "There were enough lithium hydroxide canisters, which remove carbon dioxide from the spacecraft, but the square canisters from the command module were not compatible with the round openings in the lunar module environmental system.",
+          "source": {
+            "title": "Apollo 13: Mission Details",
+            "provider": "NASA",
+            "url": "https://www.nasa.gov/missions/apollo/apollo-13-mission-details/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "the LM was designed to support two men for two days and was being asked to care for three men for about four days.",
+          "source": {
+            "title": "Apollo 13: Mission Details",
+            "provider": "NASA",
+            "url": "https://www.nasa.gov/missions/apollo/apollo-13-mission-details/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "After a day and a half in the LM, a warning light showed that the carbon dioxide had built up to a dangerous level.",
+          "source": {
+            "title": "Apollo 13: Mission Details",
+            "provider": "NASA",
+            "url": "https://www.nasa.gov/missions/apollo/apollo-13-mission-details/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "Mission control devised a way to attach the CM canisters to the LM system by using plastic bags, cardboard",
+          "source": {
+            "title": "Apollo 13: Mission Details",
+            "provider": "NASA",
+            "url": "https://www.nasa.gov/missions/apollo/apollo-13-mission-details/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "April 17, 1970",
+          "source": {
+            "title": "Apollo 13: Mission Details",
+            "provider": "NASA",
+            "url": "https://www.nasa.gov/missions/apollo/apollo-13-mission-details/"
+          },
+          "checked": "by script"
+        }
+      ]
+    },
+    {
+      "id": "apollo13-power",
+      "title": "Apollo 13: the power-down",
+      "provider": "NASA",
+      "text": "To save power for the way home, the Apollo 13 crew turned off every system that was not critical and cut energy use to one fifth. The cabin cooled to 38 °F (about 3 °C). Flight controllers wrote the procedure for powering the command module up again in three days, not the usual three months.",
+      "backing": [
+        {
+          "quote": "All noncritical systems were turned off and energy consumption was reduced to 1/5",
+          "source": {
+            "title": "Apollo 13: Mission Details",
+            "provider": "NASA",
+            "url": "https://www.nasa.gov/missions/apollo/apollo-13-mission-details/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "When the electrical systems were turned off, the spacecraft lost an important source of heat. The temperature dropped to 38 degrees Fahrenheit and condensation formed on all the walls.",
+          "source": {
+            "title": "Apollo 13: Mission Details",
+            "provider": "NASA",
+            "url": "https://www.nasa.gov/missions/apollo/apollo-13-mission-details/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "The most remarkable achievement of mission control was quickly developing procedures for powering up the CM after its long, cold sleep. Flight controllers wrote the documents for this innovation in three days, instead of the usual three months.",
+          "source": {
+            "title": "Apollo 13: Mission Details",
+            "provider": "NASA",
+            "url": "https://www.nasa.gov/missions/apollo/apollo-13-mission-details/"
+          },
+          "checked": "by script"
+        }
+      ]
+    },
+    {
+      "id": "iss-water",
+      "title": "Space station water recovery: 98%",
+      "provider": "NASA",
+      "text": "The station turns urine, sweat and the moisture in breath back into drinking water. A distiller boils the urine at low pressure, filters and a catalytic reactor clean the water, and a brine processor recovers what the distiller leaves behind. Recovery was 93 to 94% before the brine processor and reached 98% with it.",
+      "backing": [
+        {
+          "quote": "One specialized component uses advanced dehumidifiers to capture moisture released into the cabin air from crew breath and sweat.",
+          "source": {
+            "title": "NASA Achieves Water Recovery Milestone on International Space Station",
+            "provider": "NASA, 20 June 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/nasa-achieves-water-recovery-milestone-on-international-space-station/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "Another subsystem, the Urine Processor Assembly (UPA), recovers water from urine using vacuum distillation.",
+          "source": {
+            "title": "NASA Achieves Water Recovery Milestone on International Space Station",
+            "provider": "NASA, 20 June 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/nasa-achieves-water-recovery-milestone-on-international-space-station/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "Distillation produces water and a urine brine that still contains some reclaimable water.",
+          "source": {
+            "title": "NASA Achieves Water Recovery Milestone on International Space Station",
+            "provider": "NASA, 20 June 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/nasa-achieves-water-recovery-milestone-on-international-space-station/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "It first uses a series of specialized filters, then a catalytic reactor that breaks down any trace contaminants that remain.",
+          "source": {
+            "title": "NASA Achieves Water Recovery Milestone on International Space Station",
+            "provider": "NASA, 20 June 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/nasa-achieves-water-recovery-milestone-on-international-space-station/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "Sensors check the water purity and unacceptable water is reprocessed.",
+          "source": {
+            "title": "NASA Achieves Water Recovery Milestone on International Space Station",
+            "provider": "NASA, 20 June 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/nasa-achieves-water-recovery-milestone-on-international-space-station/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "Before the BPA, our total water recovery was between 93 and 94% overall",
+          "source": {
+            "title": "NASA Achieves Water Recovery Milestone on International Space Station",
+            "provider": "NASA, 20 June 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/nasa-achieves-water-recovery-milestone-on-international-space-station/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "Recent assessments found that the BPA helped the system achieve the 98% water recovery goal.",
+          "source": {
+            "title": "NASA Achieves Water Recovery Milestone on International Space Station",
+            "provider": "NASA, 20 June 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/nasa-achieves-water-recovery-milestone-on-international-space-station/"
+          },
+          "checked": "by script"
+        }
+      ]
+    },
+    {
+      "id": "mir-fire",
+      "title": "Fire on Mir, 1997",
+      "provider": "NASA",
+      "text": "On 24 February 1997 an oxygen generator caught fire on the space station Mir with six people aboard. The flame cut off one of the two escape ships and filled the modules with smoke. The crew put on oxygen masks and fought it with extinguishers. Space station crews still drill for three emergencies: a fire, a pressure leak and an ammonia leak.",
+      "backing": [
+        {
+          "quote": "On Feb. 24, 1997, the six crew members aboard the Russian space station Mir faced significant danger when a fire ignited in an oxygen generating system.",
+          "source": {
+            "title": "25 Years Ago: Fire Aboard Space Station Mir",
+            "provider": "NASA Johnson Space Center, 23 February 2022",
+            "url": "https://www.nasa.gov/history/25-years-ago-fire-aboard-space-station-mir/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "not only cut off access to one of the two Soyuz escape vehicles but also filled the station",
+          "source": {
+            "title": "25 Years Ago: Fire Aboard Space Station Mir",
+            "provider": "NASA Johnson Space Center, 23 February 2022",
+            "url": "https://www.nasa.gov/history/25-years-ago-fire-aboard-space-station-mir/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "The crew quickly donned oxygen masks",
+          "source": {
+            "title": "25 Years Ago: Fire Aboard Space Station Mir",
+            "provider": "NASA Johnson Space Center, 23 February 2022",
+            "url": "https://www.nasa.gov/history/25-years-ago-fire-aboard-space-station-mir/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "The unlikely emergency scenarios the crew trains for include events such as depressurization, ammonia leaks and fires.",
+          "source": {
+            "title": "Station Trio Practices Emergency Before Radiation, Physics Research",
+            "provider": "NASA space station blog, 15 January 2019",
+            "url": "https://www.nasa.gov/blogs/spacestation/2019/01/15/station-trio-practices-emergency-before-radiation-physics-research/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "Responses include quickly donning safety gear, closing a module hatch to isolate pressure and ammonia leaks, extinguishing a fire and evacuating the station aboard the Soyuz crew ship.",
+          "source": {
+            "title": "Station Trio Practices Emergency Before Radiation, Physics Research",
+            "provider": "NASA space station blog, 15 January 2019",
+            "url": "https://www.nasa.gov/blogs/spacestation/2019/01/15/station-trio-practices-emergency-before-radiation-physics-research/"
+          },
+          "checked": "by script"
+        }
+      ]
+    },
+    {
+      "id": "crew-day",
+      "title": "A crew day in orbit",
+      "provider": "NASA",
+      "text": "Without gravity to work against, bones and muscles weaken: weight-bearing bones lose roughly 1% of their density each month. So station crews exercise for an average of two hours a day, on a treadmill, a bicycle and a weightlifting machine.",
+      "backing": [
+        {
+          "quote": "For every month in space, astronauts",
+          "source": {
+            "title": "Counteracting Bone and Muscle Loss in Microgravity",
+            "provider": "NASA, 1 December 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/counteracting-bone-and-muscle-loss-in-microgravity/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "weight-bearing bones become roughly 1% less dense if they don",
+          "source": {
+            "title": "Counteracting Bone and Muscle Loss in Microgravity",
+            "provider": "NASA, 1 December 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/counteracting-bone-and-muscle-loss-in-microgravity/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "Muscles, usually activated by simply moving around on Earth, also weaken because they no longer need to work as hard.",
+          "source": {
+            "title": "Counteracting Bone and Muscle Loss in Microgravity",
+            "provider": "NASA, 1 December 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/counteracting-bone-and-muscle-loss-in-microgravity/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "Crews exercise for an average of two hours a day.",
+          "source": {
+            "title": "Counteracting Bone and Muscle Loss in Microgravity",
+            "provider": "NASA, 1 December 2023",
+            "url": "https://www.nasa.gov/missions/station/iss-research/counteracting-bone-and-muscle-loss-in-microgravity/"
+          },
+          "checked": "by script"
+        }
+      ]
+    },
+    {
+      "id": "dust-2018",
+      "title": "The dust storm of 2018",
+      "provider": "NASA/JPL-Caltech",
+      "text": "In June 2018 a dust storm grew until it circled all of Mars. The solar-powered Opportunity rover sent its last message on 10 June and never woke. Curiosity runs on a nuclear power source, so it kept working, under a haze six to eight times thicker than normal.",
+      "backing": [
+        {
+          "quote": "The Opportunity rover stopped communicating with Earth when a severe Mars-wide dust storm blanketed its location in June 2018.",
+          "source": {
+            "title": "NASA's Record-Setting Opportunity Rover Mission on Mars Comes to End",
+            "provider": "NASA release, 13 February 2019",
+            "url": "https://www.nasa.gov/news-release/nasas-record-setting-opportunity-rover-mission-on-mars-comes-to-end/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "final communication was received June 10.",
+          "source": {
+            "title": "NASA's Record-Setting Opportunity Rover Mission on Mars Comes to End",
+            "provider": "NASA release, 13 February 2019",
+            "url": "https://www.nasa.gov/news-release/nasas-record-setting-opportunity-rover-mission-on-mars-comes-to-end/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "While Opportunity is powered by sunlight, which is blotted out by dust at its current location, Curiosity has a nuclear-powered battery that runs day and night.",
+          "source": {
+            "title": "Martian Dust Storm Grows Global; Curiosity Captures Photos of Thickening Haze",
+            "provider": "NASA/JPL-Caltech, 20 June 2018",
+            "url": "https://www.jpl.nasa.gov/news/martian-dust-storm-grows-global-curiosity-captures-photos-of-thickening-haze/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "The Martian dust storm has grown in size and is now officially a \"planet-encircling\" (or \"global\") dust event",
+          "source": {
+            "title": "Martian Dust Storm Grows Global; Curiosity Captures Photos of Thickening Haze",
+            "provider": "NASA/JPL-Caltech, 20 June 2018",
+            "url": "https://www.jpl.nasa.gov/news/martian-dust-storm-grows-global-curiosity-captures-photos-of-thickening-haze/"
+          },
+          "checked": "by script"
+        },
+        {
+          "quote": "six to eight times thicker than normal",
+          "source": {
+            "title": "Martian Dust Storm Grows Global; Curiosity Captures Photos of Thickening Haze",
+            "provider": "NASA/JPL-Caltech, 20 June 2018",
+            "url": "https://www.jpl.nasa.gov/news/martian-dust-storm-grows-global-curiosity-captures-photos-of-thickening-haze/"
+          },
+          "checked": "by script"
+        }
+      ]
+    }
+  ],
+  "earth": [
+    {
+      "id": "iss071e570863",
+      "title": "Aurora over the Indian Ocean",
+      "caption": "Green aurora burst throughout Earth's nighttime atmosphere as the International Space Station orbited 270 miles above the Indian Ocean.",
+      "taken": "Aug. 10, 2024",
+      "centre": "JSC",
+      "file": "nasa/earth/iss071e570863.jpg",
+      "page": "https://images.nasa.gov/details/iss071e570863",
+      "credit": "NASA"
+    },
+    {
+      "id": "iss073e0422279",
+      "title": "The Nile at night",
+      "caption": "Egypt's Nile River stretches from left to right in this nighttime view from the International Space Station, with the brightest city lights tracing its path from Minya to New Bani Sewf City, and onward to the sprawling metropolitan area of Cairo at the base of the Nile Delta. This photograph was taken at approximately 1:32 a.m. local time while the station was orbiting 259 miles above Earth.",
+      "taken": "July 18, 2025",
+      "centre": "JSC",
+      "file": "nasa/earth/iss073e0422279.jpg",
+      "page": "https://images.nasa.gov/details/iss073e0422279",
+      "credit": "NASA"
+    },
+    {
+      "id": "iss072e001649",
+      "title": "Hurricane Helene",
+      "caption": "Hurricane Helene is pictured from the International Space Station as it orbited 257 above the Gulf of Mexico off the coast of Mississippi.",
+      "taken": "Sept. 25, 2024",
+      "centre": "JSC",
+      "file": "nasa/earth/iss072e001649.jpg",
+      "page": "https://images.nasa.gov/details/iss072e001649",
+      "credit": "NASA"
+    },
+    {
+      "id": "iss069e003192",
+      "title": "The Himalayas and Mount Everest",
+      "caption": "Clouds gather on Nepal's sub-tropical side of the Himalayas with Mount Everest at the center of this photograph taken by an external high definition camera on the International Space Station as it orbited 263 miles above the Indian subcontinent.",
+      "taken": "April 13, 2023",
+      "centre": "JSC",
+      "file": "nasa/earth/iss069e003192.jpg",
+      "page": "https://images.nasa.gov/details/iss069e003192",
+      "credit": "NASA"
+    },
+    {
+      "id": "iss071e449837",
+      "title": "The Bahamas",
+      "caption": "The clear blue waters surrounding The Bahamas in the Atlantic Ocean are pictured from the International Space Station as it soared 258 miles above.",
+      "taken": "July 24, 2024",
+      "centre": "JSC",
+      "file": "nasa/earth/iss071e449837.jpg",
+      "page": "https://images.nasa.gov/details/iss071e449837",
+      "credit": "NASA"
+    },
+    {
+      "id": "iss061e123823",
+      "title": "Orbital sunrise",
+      "caption": "The first rays of an orbital sunrise illuminates the Earth's limb and highlights the atmosphere as the International Space Station orbits 260 miles above the Atlantic Ocean.",
+      "taken": "Jan. 12, 2020",
+      "centre": "JSC",
+      "file": "nasa/earth/iss061e123823.jpg",
+      "page": "https://images.nasa.gov/details/iss061e123823",
+      "credit": "NASA"
+    },
+    {
+      "id": "iss069e005526",
+      "title": "The Eye of the Sahara",
+      "caption": "The Richat Structure, also known as the \"Eye of the Sahara,\" an eroded geological dome in the nation of Mauritania, is pictured from the International Space Station as it orbited 259 miles above the African continent.",
+      "taken": "April 26, 2023",
+      "centre": "JSC",
+      "file": "nasa/earth/iss069e005526.jpg",
+      "page": "https://images.nasa.gov/details/iss069e005526",
+      "credit": "NASA"
+    },
+    {
+      "id": "iss068e021122",
+      "title": "Tokyo, Nagoya and Osaka at night",
+      "caption": "The night lights of the Japanese cities of Tokyo, Nagoya, and Osaka, are pictured from the International Space Station as it orbited 258 miles above the Sea of Japan.",
+      "taken": "Nov. 8, 2022",
+      "centre": "JSC",
+      "file": "nasa/earth/iss068e021122.jpg",
+      "page": "https://images.nasa.gov/details/iss068e021122",
+      "credit": "NASA"
+    }
+  ]
+}

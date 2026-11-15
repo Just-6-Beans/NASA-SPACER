@@ -80,6 +80,8 @@ add('hab', 92, 918, 230, 72)
 add('ops', 1150, 768, 136, 52)
 add('calibration', 982, 918, 230, 72)
 add('payload', 1300, 930, 212, 70)
+add('crew', 1880, 930, 100, 50)
+add('cupola', 296, 296, 76, 40)
 add('comms', 1810, 1342, 180, 56)
 add('gh-prep', 540, 1352, 104, 56)
 add('gh-control', 575, 1560, 120, 50)
@@ -117,6 +119,8 @@ const T = (id, name, x, y, callout, reach) => ({ id, name, at: [x, y], callout, 
 const terminals = [
   T('ops', 'Mission Ops', 1218, 840, 668),
   T('payload', 'Payload', 1406, 1024, 844),
+  T('crew', 'Crew Quarters', 1930, 1004, 846),
+  T('cupola', 'Earth Observation', 334, 364, 208),
   T('power', 'Power Grid', 700, 782, 602),
   T('comms', 'Rover Comms', 1900, 1422, 1242),
   T('calibration', 'Calibration', 1097, 1018, 842),
@@ -131,6 +135,8 @@ const terminals = [
 const props = [
   { id: 'ops', at: [1134, 748], size: [168, 84], depth: 820 },
   { id: 'payload', at: [1288, 860], size: [236, 150], depth: 1000 },
+  { id: 'crew', at: [1866, 858], size: [128, 128], depth: 980 },
+  { id: 'cupola', at: [266, 226], size: [122, 114], depth: 336 },
   { id: 'hab', at: [92, 838], size: [240, 162], depth: 990 },
   { id: 'lab', at: [972, 838], size: [240, 162], depth: 990 },
   { id: 'gh-control', at: [565, 1496], size: [140, 120], depth: 1610 },
@@ -172,7 +178,10 @@ const live = {
   beacon: [1996, 1268],
   holo: [1218, 714, 27],
   emitter: [1218, 778],
-  rover: [1330, 863],
+  // where the chosen instrument stands on the payload bench, and the Crew Quarters screen
+  instIr: [1372, 958],
+  instGpr: [1440, 960],
+  crewScreen: [1888, 872, 84, 42],
   battScreen: [1310, 982, 46, 14],
   habWater: [122, 966],
   habMed: [302, 966],

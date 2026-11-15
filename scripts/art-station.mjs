@@ -5,7 +5,7 @@
 //
 // The layout borrows the plan of the ISS (a backbone of nodes and a lab, with modules berthed
 // above and below). It is a game set, not a drawing of the real station.
-import { commonDefs, roverSvg } from './art-hq.mjs'
+import { commonDefs } from './art-hq.mjs'
 
 const r1 = n => Math.round(n * 10) / 10
 const r2 = n => Math.round(n * 100) / 100
@@ -85,6 +85,8 @@ const ICON = {
   leaf: (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})"><path d="M-8 8 C-8 -4 -1 -9 9 -9 C9 2 3 8 -8 8 Z" fill="#fff3e6"/><path d="M-7 7 L4 -4" stroke="#c8461a" stroke-width="1.6" stroke-linecap="round"/></g>`,
   gear: (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})" fill="none" stroke="#fff3e6" stroke-width="2.2"><circle r="5"/><path d="M0 -10 V-7 M0 7 V10 M-10 0 H-7 M7 0 H10 M-7 -7 L-5 -5 M5 5 L7 7 M-7 7 L-5 5 M5 -5 L7 -7"/></g>`,
   seed: (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})" fill="none" stroke="#fff3e6" stroke-width="2" stroke-linecap="round"><path d="M0 9 V-1 M0 -1 C-7 -1 -8 -8 -8 -8 C-2 -9 0 -5 0 -1 M0 2 C6 2 8 -4 8 -4 C3 -5 0 -2 0 2"/></g>`,
+  crew: (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})" fill="#fff3e6"><circle cy="-5" r="4"/><path d="M-7 9 Q-7 0 0 0 Q7 0 7 9 Z"/></g>`,
+  camera: (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})" fill="none" stroke="#fff3e6" stroke-width="2"><rect x="-9" y="-5" width="18" height="12" rx="2"/><circle cy="1" r="3.4"/><path d="M-4 -5 l2 -3 h4 l2 3"/></g>`,
   ship: (x, y, s = 1) => `<path transform="translate(${x} ${y}) scale(${s})" d="M-10 3 L-2 -4 L8 -4 L11 0 L8 4 L-2 4 Z M-4 -4 L-7 -9 L-1 -4 M-4 4 L-7 9 L-1 4" fill="#fff3e6"/>`,
 }
 
@@ -282,7 +284,7 @@ function dressLab(D, m) {
   const [px, py, pw, ph] = R('payload')
   const zone = { x: px - 26, y: py - 14, w: pw + 52, h: ph + 50 }
   const floor = `<rect x="${zone.x}" y="${zone.y}" width="${zone.w}" height="${zone.h}" fill="none" stroke="${ORANGE}" stroke-width="5" stroke-dasharray="17 9" opacity=".7"/>
-    ${text(px + pw / 2, zone.y + zone.h + 16, 'ROVER BAY', 13, ORANGE, 'text-anchor="middle" letter-spacing="6" opacity=".7"')}`
+    ${text(px + pw / 2, zone.y + zone.h + 16, 'PAYLOAD BAY', 13, ORANGE, 'text-anchor="middle" letter-spacing="6" opacity=".7"')}`
   return { wall, floor }
 }
 
@@ -539,18 +541,28 @@ function furniture(D) {
     ${[...Array(8)].map((_, i) => { const a = (i / 8) * Math.PI * 2 + .39; return bolt(ex + Math.cos(a) * 63, ey + Math.sin(a) * 17.5, 1.4) }).join('')}
     ${sign(ex, ey + 23, 128, 'MISSION OPS', 'orbit', 18, 12)}`)
 
-  // Rover bay: the rover itself on a lift platform, between two marker posts
+  // Payload bay: an instrument bench under a small gantry, between two marker posts. The instrument
+  // chosen at the Payload terminal appears on one of its two pads (src/game/stationFx.ts). The rover
+  // itself is not here: it flies to Mars on its own rocket.
   const [px, py, pw, ph] = R('payload')
   const top = py + 48
   const [bsx, bsy, bsw, bsh] = live.battScreen
-  const [rvx, rvy] = live.rover
   const post = x => `<rect x="${x}" y="${py - 20}" width="8" height="34" fill="url(#yel)" ${stroke}/><rect x="${x - 2}" y="${py - 9}" width="12" height="5" fill="#101820"/><rect x="${x - 2}" y="${py - 24}" width="12" height="7" rx="2" fill="url(#dark)" ${stroke}/><circle cx="${x + 4}" cy="${py - 27}" r="3.4" fill="#ff8f45" ${stroke}/>`
+  const pad = (cx, label) => `<ellipse cx="${cx}" cy="${py + 27}" rx="30" ry="9" fill="#03070c" opacity=".35"/><ellipse cx="${cx}" cy="${py + 27}" rx="30" ry="9" fill="none" stroke="${CYAN_L}" stroke-opacity=".6" stroke-width="1.4" stroke-dasharray="5 4"/>${mono(cx, py + 43, label, 6.5, DIM, 'text-anchor="middle" letter-spacing="1"')}`
+  const gx0 = px + 40, gx1 = px + pw - 40, gy = py - 54
   const payload = frame('payload', `
     <ellipse cx="${px + pw / 2 + 4}" cy="${py + ph + 1}" rx="112" ry="12" fill="url(#ao)"/>
     ${post(px + 14)}${post(px + pw - 22)}
+    <rect x="${gx0}" y="${gy}" width="7" height="${py + 8 - gy}" fill="url(#steel)" ${stroke}/><rect x="${gx1 - 7}" y="${gy}" width="7" height="${py + 8 - gy}" fill="url(#steel)" ${stroke}/>
+    <rect x="${gx0 - 6}" y="${gy - 8}" width="${gx1 - gx0 + 12}" height="10" rx="2" fill="url(#cabTop)" ${stroke}/>
+    <path d="M${gx0 - 4.5} ${gy - 6.5} H${gx1 + 4.5}" stroke="${CYAN}" stroke-opacity=".7" stroke-width="1.2"/>
+    <rect x="${gx0 + 14}" y="${gy + 3}" width="34" height="4" rx="2" fill="#dff7ff" opacity=".85"/><rect x="${gx1 - 48}" y="${gy + 3}" width="34" height="4" rx="2" fill="#dff7ff" opacity=".85"/>
+    <rect x="${px + pw / 2 - 9}" y="${gy + 2}" width="18" height="9" rx="2" fill="url(#acc)" ${stroke}/>
+    <path d="M${px + pw / 2} ${gy + 11} V${gy + 28}" stroke="#9fc0de" stroke-width="1.6"/><path d="M${px + pw / 2 - 5} ${gy + 28} q5 8 10 0" fill="none" stroke="#9fc0de" stroke-width="2.2" stroke-linecap="round"/>
     <path d="M${px} ${top} L${px + 10} ${py + 6} H${px + pw - 10} L${px + pw} ${top} Z" fill="url(#steelTop)" ${stroke}/>
-    <ellipse cx="${px + pw / 2}" cy="${py + 27}" rx="88" ry="15" fill="#03070c" opacity=".3"/><ellipse cx="${px + pw / 2}" cy="${py + 27}" rx="88" ry="15" fill="none" stroke="${CYAN_L}" stroke-opacity=".5" stroke-width="1.5" stroke-dasharray="6 5"/>
-    <g transform="translate(${rvx} ${rvy})">${roverSvg().body}</g>
+    ${pad(px + 72, 'PAD 1')}${pad(px + 140, 'PAD 2')}
+    <rect x="${px + pw - 46}" y="${py + 12}" width="30" height="20" rx="3" fill="url(#bag)" ${stroke}/><path d="M${px + pw - 46} ${py + 12} l4 -9 h22 l4 9 Z" fill="#3d5f84" ${stroke}/><rect x="${px + pw - 35}" y="${py + 19}" width="8" height="3" rx="1" fill="#101820"/>
+    <rect x="${px + 14}" y="${py + 14}" width="22" height="16" rx="2" fill="url(#cab)" ${stroke}/><path d="M${px + 17} ${py + 19} h16 M${px + 17} ${py + 24} h16" stroke="${CYAN}" stroke-opacity=".6" stroke-width="1"/>
     <path d="M${px} ${top} L${px + 1.6} ${top - 6} H${px + pw - 1.6} L${px + pw} ${top} Z" fill="url(#haz)" ${stroke}/>
     <rect x="${px}" y="${top}" width="${pw}" height="${py + ph - top}" fill="url(#dark)" ${stroke}/>
     <rect x="${px}" y="${py + ph - 5}" width="${pw}" height="5" fill="#000" opacity=".3"/>
@@ -618,7 +630,39 @@ function furniture(D) {
     <circle cx="${tx + 22}" cy="${ty + th - 11}" r="6" fill="#070d15" ${stroke}/><circle cx="${tx + 22}" cy="${ty + th - 11}" r="2.6" fill="#2c343d"/><circle cx="${tx + 44}" cy="${ty + th - 11}" r="6" fill="#070d15" ${stroke}/><circle cx="${tx + 44}" cy="${ty + th - 11}" r="2.6" fill="#2c343d"/>
     ${mono(tx + 56, ty + th - 8, 'PUMPS A·B', 7.5, DIM, 'letter-spacing="1"')}`)
 
-  // instruments that appear on the rover once chosen at the Payload terminal
+  // Crew Quarters: a standing console whose screen shows a day in twelve blocks
+  const [cqx, cqy, cqw, cqh] = R('crew'), [csx, csy, csw, csh] = live.crewScreen
+  const dayColors = ['#7a8cff', '#7a8cff', '#7a8cff', '#ff8f45', '#ff8f45', '#5ff2c5', '#ffd23f', '#ff8f45', '#ff8f45', '#ffd23f', '#7a8cff', '#7a8cff']
+  const crew = frame('crew', `
+    <ellipse cx="${cqx + cqw / 2 + 4}" cy="${cqy + cqh + 1}" rx="${cqw * .62}" ry="10" fill="url(#ao)"/>
+    <rect x="${cqx + cqw / 2 - 9}" y="${csy + csh}" width="18" height="${cqy - csy - csh + 14}" fill="url(#steel)" ${stroke}/>
+    <path d="M${csx - 8} ${csy - 8} H${csx + csw + 8} L${csx + csw + 12} ${csy + csh + 8} H${csx - 12} Z" fill="url(#cab)" ${stroke}/>
+    <rect x="${csx}" y="${csy}" width="${csw}" height="${csh}" rx="3" fill="url(#screenC)" ${stroke}/>
+    ${mono(csx + 4, csy + 10, 'CREW DAY', 6.5, IVORY, 'letter-spacing="1"')}
+    ${dayColors.map((c, i) => `<rect x="${r1(csx + 4 + i * ((csw - 8) / 12))}" y="${csy + 15}" width="${r1((csw - 8) / 12 - 1.4)}" height="${csh - 21}" rx="1" fill="${c}"/>`).join('')}
+    ${box(cqx, cqy + 12, cqw, cqh - 12, 12, { stripe: [18, 5], shadow: false, edge: AMBER })}
+    ${buttons(cqx + 10, cqy + 2, 4, 20, ['#101c2b', AMBER, '#101c2b', CYAN])}
+    ${sign(cqx + cqw / 2, cqy + 30, 88, 'CREW', 'crew', 18, 12)}`)
+
+  // Cupola: a camera with a long lens on a pedestal, aimed up at the window
+  const [ux, uy, uw, uh] = R('cupola')
+  const cam = [ux + uw / 2 + 6, uy - 30]
+  const cupola = frame('cupola', `
+    <ellipse cx="${ux + uw / 2 + 3}" cy="${uy + uh + 1}" rx="${uw * .6}" ry="8" fill="url(#ao)"/>
+    <rect x="${cam[0] - 5}" y="${cam[1] + 6}" width="10" height="${uy - cam[1] + 4}" fill="url(#steel)" ${stroke}/>
+    <g transform="rotate(-20 ${cam[0]} ${cam[1]})">
+      <rect x="${cam[0] - 46}" y="${cam[1] - 9}" width="36" height="17" rx="3" fill="url(#dark)" ${stroke}/>
+      <rect x="${cam[0] - 53}" y="${cam[1] - 12}" width="9" height="23" rx="2" fill="url(#steelTop)" ${stroke}/>
+      <ellipse cx="${cam[0] - 53}" cy="${cam[1] - .5}" rx="3" ry="9" fill="#1f5e78" ${stroke}/>
+      <rect x="${cam[0] - 13}" y="${cam[1] - 14}" width="36" height="26" rx="4" fill="url(#cab)" ${stroke}/>
+      <rect x="${cam[0] + 3}" y="${cam[1] - 9}" width="16" height="12" rx="1.5" fill="url(#screen)" ${stroke}/>
+      <rect x="${cam[0] - 7}" y="${cam[1] - 19}" width="12" height="6" rx="2" fill="url(#acc)" ${stroke}/>
+      <circle cx="${cam[0] + 16}" cy="${cam[1] + 7}" r="2" fill="${MINT}"/>
+    </g>
+    ${box(ux, uy + 10, uw, uh - 10, 10, { stripe: [13, 4], shadow: false })}
+    ${sign(ux + uw / 2, uy + 20, 70, 'EARTH', 'camera', 16, 10)}`)
+
+  // the instrument that stands on the payload bench once it is chosen at the Payload terminal
   const instIr = { name: 'prop-inst-ir.svg', w: 44, h: 32, ox: 0, oy: 0, body: `
     <rect x="1" y="15" width="16" height="5" rx="2" fill="#8f836a" stroke="#2a2620" stroke-width="1.6"/>
     <rect x="12" y="5" width="28" height="22" rx="5" fill="url(#cream)" stroke="#2a2620" stroke-width="1.6"/><rect x="12" y="13" width="28" height="4" fill="url(#red)"/>
@@ -629,7 +673,7 @@ function furniture(D) {
     <circle cx="5" cy="6" r="3.6" fill="url(#steel)" stroke="#2a2620" stroke-width="1.6"/>
     <path d="M18 23 H52 L57 33 H13 Z" fill="url(#char)" stroke="#2a2620" stroke-width="1.6"/><rect x="13" y="33" width="44" height="5" fill="#15191e" stroke="#2a2620" stroke-width="1.6"/>
     <path d="M25 25 L23 31 M35 25 V31 M45 25 L47 31" stroke="${MINT}" stroke-width="2"/>` }
-  return [ops, payload, hab, lab, kiosk, tanks, instIr, instGpr]
+  return [ops, payload, hab, lab, kiosk, tanks, crew, cupola, instIr, instGpr]
 }
 
 // ------------------------------------------------------------------ outside the hull

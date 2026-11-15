@@ -28,6 +28,8 @@ import { pin, toPx } from './mapView'
 import { rocketPick } from './rocketPick'
 import { applyView, captureFrame, flash, newViewer, renderViewer, showActionParts } from './roverPanels'
 import { RESCUE_INTRO, SAMPLE_INTRO, rescueOverlay, sampleOverlay, taskIntro } from './roverTasks'
+import { stationIntro } from './stationTasks'
+import { DUST_SPEED } from '../core/mission'
 
 export interface RoverCtx {
   m: Mission
@@ -277,6 +279,7 @@ export function roverScreen(ctx: RoverCtx) {
       risk && !m.rescue ? `<span class="chip risk-${risk.level}" title="${esc(risk.why)}. Our model on real terrain: MOLA slopes and where the real rover parked.">Stuck risk · ${RISK_WORD[risk.level]}</span>` : '',
       f?.photos.length ? `<span class="chip photo" title="Real photo spots this drive passes">${f.photos.length} photo${f.photos.length > 1 ? 's' : ''}${gain(f.photos.length) ? ` · +${gain(f.photos.length)}` : ''}</span>` : '',
       endSite && !f!.safeMode ? `<span class="chip site">Ends at sample ${endSite.name.toLowerCase()}</span>` : '',
+      m.dustActive ? `<span class="chip dust" title="Our model: in the storm the rover drives at ${Math.round(DUST_SPEED * 100)}% of its speed, so each metre costs more battery.">Dust storm · ${m.dustSolsLeft} d left</span>` : '',
     ].filter(Boolean).join('')
     // Why the button is greyed out, in plain words, right above it.
     const why = !n && m.canDrive ? null : block
@@ -287,6 +290,7 @@ export function roverScreen(ctx: RoverCtx) {
         ${n ? `<div class="legs">${rows}</div>` : `<p class="hint">Tap the map. The last point <b>⚑</b> is where the rover stops.${m.tubesLeft > 0 ? ` <b class="sitekey">◆</b> marks the ${m.sampleSites.length} sample sites.` : ''}</p>`}
         ${chips ? `<div class="chips">${chips}</div>` : ''}
         ${risk && !m.rescue && risk.level !== 'low' ? `<p class="hint small">${esc(risk.why)}.</p>` : ''}
+        ${m.dustActive ? `<p class="hint small dusthint">Dust storm: the rover sees less and drives slower, so each metre costs about ${Math.round((1 / DUST_SPEED - 1) * 100)}% more battery. It clears in about ${m.dustSolsLeft} Mars days. Recharging lets it pass.</p>` : ''}
         ${f?.safeMode ? `<div class="reason bad">Too far: the battery runs out ${f.distM} m along.</div>` : f && spendPct(rv, f.endWh) < 9 ? '<div class="reason">Almost nothing would be left for tests.</div>' : ''}
         ${n ? `<div class="row2"><button class="btn small" id="undo">Undo point</button><button class="btn small ghost" id="clear">Clear</button></div>` : ''}
       </div>
@@ -300,7 +304,7 @@ export function roverScreen(ctx: RoverCtx) {
         <p>0% on the gauge is NASA's safety line: ${esc(rv.name)}'s battery stays above ${Math.round(RESERVE_FRACTION * 100)}% full (${floor} of ${rv.batteryWh} Wh).</p>
         <p>Driving needs about ${rv.driveW - (m.balanced ? 30 : 0) + BASE_LOAD_W} W. The nuclear power source (MMRTG) makes ${mmrtgNowW(rv)} W; the battery supplies the rest. Climbing costs ${f1(climbWhPerM(rv))} Wh a metre.</p>
         <p>Parked, the MMRTG puts about ${rechargeW(rv)} W into the battery: a full recharge takes ${span((rv.batteryWh - floor) / rechargeW(rv))}.</p>
-        <p class="cam-credit">Real: battery size, the 40% rule, MMRTG power, driving under 200 W, top speed ${rv.topSpeedMh} m/h${m.wheelsWorn ? ' (slowed by worn wheels, our model)' : ''}, rover mass, map heights. Our model: the 30 W base load, test costs, stuck risk and the ${m.missionSols}-day limit.</p></details>`
+        <p class="cam-credit">Real: battery size, the 40% rule, MMRTG power, driving under 200 W, top speed ${rv.topSpeedMh} m/h${m.dustActive ? ' (slowed by the dust storm, our model)' : m.wheelsWorn ? ' (slowed by worn wheels, our model)' : ''}, rover mass, map heights. Our model: the 30 W base load, test costs, stuck risk and the ${m.missionSols}-day limit.</p></details>`
   }
 
   // ---------------------------------------------------------------- While the rover drives
@@ -486,7 +490,15 @@ export function roverScreen(ctx: RoverCtx) {
     if (m.timeUp) toast(`The ${m.missionSols} Mars days are over. Choose your base.`, 'warn', 5000)
     render()
     // Arriving at a sample site with coring still to do opens the sample selection.
-    if (!d.safeMode && m.siteOpen && !m.timeUp) openSamples(true)
+    const samples = () => { if (!d.safeMode && m.siteOpen && !m.timeUp) openSamples(true) }
+    // A dust storm that began on this drive is announced first.
+    if (m.dustActive && !m.drafts.dustSeen) {
+      m.drafts.dustSeen = true
+      sound.play('alert')
+      closeTask()
+      task = stationIntro('dust', m, () => { closeTask(); render(); samples() })
+      s.append(task)
+    } else samples()
   }
 
   // ---------------------------------------------------------------- Recharging

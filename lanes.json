@@ -9,7 +9,8 @@
       "scripts/fetch-launch-vehicles.mjs",
       "notes/data.md",
       "scripts/fetch-rover-data.mjs",
-      "scripts/fetch-rover-tasks.mjs"
+      "scripts/fetch-rover-tasks.mjs",
+      "scripts/fetch-station-tasks.mjs"
     ],
     "rules": [
       "src/core/",

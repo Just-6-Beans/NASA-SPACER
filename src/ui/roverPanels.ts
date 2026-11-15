@@ -339,7 +339,7 @@ function mapHtml(m: Mission, rv: RoverSpec, v: ViewerState, h: ViewerHooks) {
           <p>The white dots are the ${rv.area.stops.length} places the real rover parked. Within ${STOP_RANGE_M} m of one, a spot uses the tilt NASA measured there. The camera marks are ${photoPlaces(rv).length} places where it took the photos saved in this game.</p>
           <p class="cam-credit">${esc(sat.provider)}, saved ${esc(sat.retrieved)} · <a href="${esc(sat.page)}" target="_blank" rel="noopener">NASA's map</a><br/>${esc(rv.area.mola.provider)}<br/>${esc(rv.area.provider)}, saved ${esc(rv.area.retrieved)}.</p></details>
       </div>
-      <div id="feed" class="cam">
+      <div id="feed" class="cam ${m.dustActive ? 'dusty' : ''}">
         <div class="cam-h"><b>Rover camera</b><span id="feed-tag">${tagHtml(m, rv, v, h.pos, h.driving)}</span></div>
         <div class="cam-screen" id="feed-screen" data-key="${feedKey(m, rv, v, h.pos, h.driving)}">${screenHtml(m, rv, v, h.pos, h.driving)}</div>
         <div id="feed-cap">${capHtml(m, rv, v, h.pos, h.driving)}</div>
@@ -484,6 +484,8 @@ export function renderViewer(root: HTMLElement, m: Mission, v: ViewerState, rere
       startFilm(screen, v)
     }
     $('#feed-album', root).innerHTML = albumStripHtml(m, rv, h)
+    // a dust storm hazes the camera for as long as it lasts (our model)
+    $('#feed', root)?.classList.toggle('dusty', m.dustActive)
   }
   // One delegated handler: the map is redrawn often, so per-element listeners would be lost.
   const onPick = (t: Element, e: { clientX: number; clientY: number }) => {

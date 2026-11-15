@@ -81,6 +81,7 @@ Other commands:
 | `npm run data:ops` | Rebuild `data/nasa/ops-dates.json` from the committed snapshots (offline) |
 | `npm run data:rovers` | Download the rover expedition's NASA snapshots, map tiles, pictures and films again (needs a network connection). Add `-- --only=satellite,pictures` to run just some steps |
 | `npm run data:rovertasks` | Rebuild `data/nasa/rover-tasks.json`: the rover's rockets, five of Perseverance's rock samples and the real events behind the rover tasks. It downloads each source and stops if a quoted sentence is no longer there (needs a network connection) |
+| `npm run data:station` | Rebuild `data/nasa/station-tasks.json`: the real events behind the station tasks and the dust storm, each fact beside the exact sentence it rests on, and eight photographs of Earth taken from the space station (saved to `public/nasa/earth/`). It downloads each source and stops if a quote is no longer there. Needs a network connection. |
 
 On Windows you can double-click `play.bat`. It installs dependencies if needed, starts the co-op service and the game, and opens the browser.
 
@@ -102,15 +103,15 @@ On the rover screen, tap the map to place points for the rover to drive to. Use 
 ## Five-minute walkthrough
 
 1. **Solo mission** → choose a spacecraft → enter a call sign and pick a suit → **Launch** (or **Skip animation**). For two players, choose **Co-op mission** instead (see below).
-2. You dock at the station. Walk up to **Payload**, just ahead of you. Pick an instrument and **Activate payload**. The relay faults.
-3. Go to **Rover Comms** (rear right) and rotate the receiver segments to match the reference. **Confirm match**.
-4. At **Power Grid** (rear left), raise Communications to at least 4. At 5 the link is direct and skips the relay hand-off, so the signal delay is shorter. Research at 3 or more makes coring rock samples use 30 % less battery.
-5. Optional: at **Calibration** (front right), tune gain and offset until both standards turn green, so the rover can read what its rocks are made of. Optional routine tasks: battery balancing (driving draws 30 W less), cargo, water (+5 to the base score), medical.
+2. You dock at the station. Read the short brief at **Mission Ops**, then plan the crew's day at **Crew Quarters** in Node 2, just below the docking port: keep crew performance above 75%. During the station part one or two **alerts** will interrupt you (CO₂ rising, power down, or a cabin alarm). Each takes the screen until it is dealt with.
+3. At **Payload** in the US Lab, pick an instrument and **Activate payload**. The relay faults. Go to **Rover Comms** and turn the tuning dial until the signal is clean, then hold it there. The carrier drifts two to four times, by a different amount each time, before it holds.
+4. At **Power Grid**, share out the station's power in steps of 10%. Life support needs 30% and Communications 40% to send the rover out. Communications at 50% is a direct link that skips the relay hand-off, Research at 30% makes coring rock samples use 30% less battery, and Life support at 40% runs the water loop's brine processor.
+5. At **Hab Systems** in Node 3, connect the **water recycling loop** and run it. A fresh filter bed costs 3 cr. The rover unlocks once the crew's day, the payload, the relay, the power and the water loop are done. Optional, and each adds to your score: calibration (the rover reads what its rocks are made of), battery balancing (driving draws 30 W less), the cargo check, the crew medical check, the greenhouse, and the camera in the **Cupola**, which shows real photographs of Earth taken from the space station.
 6. Back at **Rover Comms**, open the rover screen. First you **choose your rover**: Perseverance in Jezero Crater or Curiosity in Gale Crater. Then you **choose its rocket** on the launch pad: the Atlas V 541 that really flew both rovers, or a cheaper Falcon 9 with no mass to spare (Perseverance only). The Saturn V is there to look at. Press **Launch** and watch it go; if the launch fails, a backup flies and three Mars days are lost.
 7. **Rover navigation.** **Tap the map** to place points. The rover drives them in order and the last point ⚑ is where it stops. The plan shows the battery, the Mars days and the **stuck risk** of the path, then **Start deployment**. When the rover drives into the ring around a camera mark, it saves that real NASA photo to your album by itself.
-8. **Stuck rover rescue.** Once a mission the rover stops with wheel trouble. Read the telemetry (six wheel currents, tilt, motor temperature), say what the problem is, and choose a fix. Every fix costs Mars days, and a wrong one wears the wheels.
+8. **Stuck rover rescue.** Once a mission the rover stops with wheel trouble. Read the telemetry (six wheel currents, tilt, motor temperature), say what the problem is, and choose a fix. Every fix costs Mars days, and a wrong one wears the wheels. A **dust storm** may also reach the rover after its first drive: its camera goes hazy and it drives slower, so each metre costs more battery until the dust settles.
 9. **Sample selection.** Drive to a **◆ sample site**: there are three, with five rocks between them and the rarest farthest out. Scan the rocks at a site, compare their clues, and decide which to seal: the rover has three tubes for the whole mission. What the tubes are worth fills the Rock samples check for the whole crater.
-10. At a spot, **run tests** (Photograph, Weather, Radiation). The big answer at the top says whether it is a good place, a risky place or a bad place. Then **Build the base**, good or bad, or **Explore on**. When the battery gets low, **Recharge**: it runs on a timer, and you can go back to the station while it charges. Read the report and commission the habitat if your crew passed the medical check. Then **Replay with this crew** or **Return to title**.
+10. At a spot, **run tests** (Photograph, Weather, Radiation). The big answer at the top says whether it is a good place, a risky place or a bad place. Then **Build the base**, good or bad, or **Explore on**. When the battery gets low, **Recharge**: it runs on a timer, and you can go back to the station while it charges. Read the report: it opens with your **Mission Score** and lists the tasks you completed and the ones you missed, each with its points. Commission the habitat there if your crew passed the medical check. Then **Replay with this crew** or **Return to title**.
 
 ## The station
 
@@ -119,21 +120,34 @@ Eight pressurised modules laid out like the ISS seen in plan: a backbone of Node
 | Module | What is there |
 | --- | --- |
 | **Docking Port** | Where you arrive. Your ship is docked behind the window. |
-| **Node 2** | Crew quarters, and the way down to the Comms module. |
-| **US Lab** | The Mission Ops holo-table, the rover bay (Payload) and the Calibration bench. |
+| **Node 2** | Crew quarters, with the **Crew Quarters** console where the crew's day is planned, and the way down to the Comms module. |
+| **US Lab** | The Mission Ops holo-table, the payload bay (an instrument bench under a gantry, with the Payload terminal) and the Calibration bench. |
 | **Node 1** | Power Grid, beside the power core, and the way down to the Greenhouse. |
-| **Node 3** | Hab Systems: water and medical. The way up to the Cupola. |
-| **Cupola** | The seven-pane window over the Earth. |
+| **Node 3** | Hab Systems: the water recycling loop and the crew medical check. The way up to the Cupola. |
+| **Cupola** | The seven-pane window over the Earth, and a camera (**Earth Observation**) that shows eight real NASA photographs of Earth taken from the International Space Station. |
 | **Comms** | Rover Comms. The relay dish is outside the window. |
 | **Greenhouse** | Eight crop bays in two rack bands, the control kiosk where the two greenhouse missions are played, and status screens at the seed bank and galley and at the service bay. |
 
 The deck shows mission state, so you can read your choices off the room:
 
-- **Power buses** in the floor run from the Power Grid to Hab Systems (life support), Rover Comms (communications) and the Calibration bench (research). Each glows with the units routed to it, and turns amber while it is below what sending the rover out needs.
-- **Consoles** show live values: the allocation on the Power Grid, the one-way signal delay on Rover Comms (split into the JPL Horizons light time and the relay hand-off), the rover's battery in the bay (the charge it arrives with, then its gauge once you have chosen a rover), and lamps for calibration, water and medical.
-- **The rover** carries the instrument you chose at Payload.
+- **Power buses** in the floor run from the Power Grid to Hab Systems (life support), Rover Comms (communications) and the Calibration bench (research). Each glows with the share of power routed to it, and turns amber while it is below what sending the rover out needs.
+- **Consoles** show live values: the allocation on the Power Grid, the one-way signal delay on Rover Comms (split into the JPL Horizons light time and the relay hand-off), the rover's battery on the payload bay screen (the charge it arrives with, then its gauge once you have chosen a rover), and lamps for calibration, water and medical. The HUD shows crew health, crew performance and the water recovered.
+- **The payload bench** holds the instrument you chose at Payload. The rover itself is not on the station: it flies to Mars on its own rocket.
 - **Relay fault**: the beacon flashes, the dish hunts for the carrier, and the link display reads NO LINK until you repair it.
-- **Mission Ops** has three tabs: the mission brief; a live mission status (budget, mass, power, rover battery and Mars days, and one row for each choice saying what it is causing); and the data sources, which name each NASA dataset with its place, date and limits. The same rules drive the rover screen and the report.
+- **Mission Ops** has three short tabs: the mission brief (what to do and your limits), the status (the next step, six bars and where the mission stands) and the data sources, folded so that each opens on a tap.
+
+### Station tasks and alerts
+
+From the team's mission spec (`TasksList.pdf`, section 2). Each opens with a pop-up that gives three steps, a target and a card about the real event behind it. Every rule is our model; the cards and the two water figures are NASA's.
+
+- **Crew schedule** (S5, required, Crew Quarters). Plan one day in twelve two-hour blocks: sleep, work, exercise, meals and rest. Performance starts at 100% and falls for too little sleep (8 h needed), no exercise (2 h, the figure NASA reports), too little rest (4 h) and more than 8 h of work. The target is 75%. A crew at 90% or more gets 15% more time in every alert; under 75% it gets 25% less. More work is worth more points, so a rested crew and a busy crew are a real choice.
+- **Water recycling loop** (S2, required, Hab Systems). Connect the urine distiller, the filter beds, the catalytic reactor and the tank in order. Then decide: a fresh filter bed costs 3 cr and gives safe water; the old one is free, clogs, loses 8% and is not safe. The brine processor runs while Life support has 40% of the station's power: 98% of the water comes back with it, 93% without. Meeting the 90% target adds +5 to the base score, 98% adds +8.
+- **Alerts.** A run has one or two of the three, chosen at random. The first goes off after the first main mission is done, the second after all four.
+  - **CO₂ rising** (S1). Build an adapter from eight cargo parts so a square canister feeds a round socket: two parts look right for each of the four jobs and one works. 90 seconds; a failed fitting costs 8.
+  - **Power down** (S3). A solar array fails for four hours (five with navigation off). Choose what stays on so at least 5% of the battery is left, then restart what you switched off in the right order; a wrong step costs 3%.
+  - **Cabin alarm** (S4). A fire or an air leak in one module. Find the worst reading on the station plan, close that module's hatches, shut down the system that feeds it, and move the crew to the ship home. 30 seconds; a wrong move costs 3 to 5.
+  - An alert that is not dealt with scores nothing and costs 20 to 25% of crew health.
+- **Relay repair.** The receiver has drifted off the carrier from Mars. Turn the dial until the noise is gone and hold it for a second. The carrier drifts again two to four times, by a different amount each time.
 
 ## The station greenhouse (optional)
 
@@ -210,20 +224,26 @@ If the service is offline, the crew link says so and offers **Retry** or **Fly s
 | Atlas V N22 + Starliner | 36 cr | 124 cr | 100% | 3 min |
 
 - **Instruments:** IR-S1 costs 42 cr; coring three sample tubes uses 300 Wh with it. GPR-2 costs 68 cr; coring uses 380 Wh.
-- **Power:** Life support 3 and Communications 4 are needed to send the rover out. Communications 5 is a direct link with no relay hand-off. Research 3 or more makes coring use 30 % less battery.
-- **Tasks:** battery balancing makes driving draw 30 W less; cargo adds 5 cr; water adds +5 to the base score; calibration lets the rover read what its rocks are made of; the medical check clears the habitat.
+- **Power:** shown everywhere as a share of the station's power, in steps of 10%. Life support at 30% and Communications at 40% are needed to send the rover out. Communications at 50% is a direct link with no relay hand-off. Research at 30% or more makes coring use 30% less battery. Life support at 40% runs the water loop's brine processor.
+- **Tasks:** battery balancing makes driving draw 30 W less; cargo adds 5 cr; the water loop adds +5 or +8 to the base score; calibration lets the rover read what its rocks are made of; the medical check clears the habitat; the crew's day sets the time each alert allows.
+- **Mission score:** every task adds points, and the report lists the tasks completed and the tasks missed. Crew launch 40, crew schedule up to 60, instrument 20, relay 40, power 20, water loop up to 60, each alert up to 80, calibration 40, battery 30, cargo 30, medical 30, greenhouse up to 100, Earth observation 10, rover's rocket 40, rover navigation up to 40, stuck rover rescue up to 60, sample selection up to 100, base site up to 100, habitat 50, crew health up to 50. An alert or a rescue that never came up is not counted.
+- **Dust storm:** after any drive but the first there is a 40% chance, once a mission, of a storm that lasts two to three Mars days. The rover drives at 70% of its speed, so each metre costs about 43% more battery, and its camera is hazy. Waiting or recharging lets it pass.
 - **Budget:** 160 cr pays for the crew launch, the station cargo, the rover's instrument (42 or 68 cr) and the rover's rocket (11 or 24 cr). A design has to leave at least 53 cr for the last two.
 
 ## Puzzle spoilers (optional)
 
 <details><summary>Show solutions</summary>
 
-- Battery: move units until every cell holds 3, for example 1→4, 1→4, 2→3.
+- Battery: move 10% at a time until every cell reads 50%, for example 1→4, 1→4, 2→3.
 - Cargo: water pump + antenna mast (11 kg).
-- Water: screen → carbon → UV.
+- Water loop: urine distiller → filter beds → catalytic reactor → water tank, then fit the fresh filter bed. Life support at 40% runs the brine processor.
+- Crew day: 8 h sleep, 2 h exercise, 4 h or more of meals and rest, 6 to 8 h of work.
+- CO₂ adapter: plastic bag, cardboard cover, suit hose, duct tape.
+- Power down: switch off the lights, the research racks, the greenhouse lamps and communications (36% left). Restart communications or the lights first, the racks after the lights, the greenhouse lamps last.
+- Cabin alarm: the worst reading, every hatch of that module, then power and fans for a fire or the air supply valve for a leak, then the Docking Port.
 - Medical: resting baseline → exertion scan → recovery verification.
 - Calibration: IR gain 125, offset +2. Radar gain 150, offset −2.
-- Relay: tap each receiver segment twice.
+- Relay: turn the dial until the noise is gone and hold it for a second. Do it again each time the carrier drifts.
 - Habitat: anchor foundation → seal pressure shell → energize life support.
 </details>
 
@@ -233,7 +253,7 @@ If the service is offline, the crew link says so and offers **Retry** or **Fly s
 2. At a flat real stop, the three tests and three tubes sealed at the sample sites give a good place.
 3. A steep real stop is a bad place, and the base can still be built there for one star.
 4. A drive longer than the battery ends in safe mode partway. Recharging ends safe mode, refills the battery and uses up Mars days (about 2.5 for Curiosity, about 1.1 for Perseverance). It runs on a countdown of one Mars hour each second, and can be left, stopped early or skipped.
-5. Station choices change the rover: ship charge, battery balancing, research power, the water purifier, and Communications ≥ 4 to deploy.
+5. Station choices change the rover: ship charge, battery balancing, research power, the water loop, and Communications at 40% to deploy.
 6. Curiosity at Gale plays the same way.
 7. One rover for the whole mission: a second choice is refused, and each rover's pros and cons match the numbers.
 8. Ten Mars days: driving and recharging use them up, a drive must fit in the time left, and when they run out the base can still be built on a visited spot.
@@ -242,11 +262,17 @@ If the service is offline, the crew link says so and offers **Retry** or **Fly s
 11. The rover's rocket: nothing works until one is chosen; its price is NASA's cost figure in credits and comes out of the budget; the Falcon 9 is refused for Curiosity and the Saturn V for both; a failed launch costs 3 Mars days and the mission carries on.
 12. Stuck rover rescue: wheel trouble ends a drive early, once a mission and never on a short hop; each cause shows in the telemetry in its own way and has one fix that frees the rover at once; wrong fixes wear the wheels, and past the limit the rover drives slower; it is held for at most 5 Mars days.
 13. Sample selection: the three sample sites are real rover stops, each one leg farther out; five rocks lie between them and three tubes are shared across the sites; their value fills the Rock samples check for every spot; the debrief names what was left behind and any tube never filled.
+14. The rover unlocks only after the station's main missions: the payload, the relay, the crew's day and the water loop, and any alert that is due.
+15. Station tasks: a crew day scores by its performance and sets the time every alert allows; the water loop needs the right order, and a fresh filter bed and the brine processor decide the recovery; each of the three alerts has one way through and scores by what was left.
+16. The relay is tuned two to four times, never by the same amount twice.
+17. A dust storm slows the rover and raises the battery cost of a drive until it passes, once a mission and never on the first drive.
+18. Every task adds to the mission score, and the report lists what was done and what was missed.
 
 ## Project layout
 
 - `data/nasa/`: NASA snapshots. `earth-mars-geometry.json` (JPL Horizons) and `curiosity-weather.json` (Curiosity REMS) are the trimmed downloads; `ops-dates.json` is the small extract the game reads. Each file records its source, provider and retrieval date. The rover expedition adds `<rover>-area.json` (real stops, photos, MOLA heights), `<rover>-satellite.json` (orbital map tiles), `gale-rems-recent.json`, `mola-roughness-regions.json` and `site-references.json` (radiation, films, pictures); their image and video files are in `public/nasa/`.
   - `rover-tasks.json` holds what NASA says about the rover's rockets, five of Perseverance's rock samples and the real events behind the rover tasks, each fact beside the exact sentence it rests on.
+  - `station-tasks.json` holds what NASA says about the real events behind the station tasks and the dust storm, each fact beside the exact sentence it rests on, and the record of eight photographs of Earth taken from the space station.
 - `src/data/`: typed access to that extract, plus the source lines the game shows (`roverTasks.ts` for the rover's rocket and the two tasks).
 - `src/core/`: pure TypeScript rules (data, power, tasks, mission, co-op protocol validation, `survey.ts` for the map, driving, tests, photos, recharging and site scores, `rovers.ts` for rover facts and parts, `delivery.ts` for the rover's rocket, `rescue.ts` for the stuck-rover rescue and route risk, `samples.ts` for the sample selection). This code is shared with the server and tests.
 - `src/art/geo.json`: station and Mars geometry, read by both the art generator and the game.
@@ -254,7 +280,7 @@ If the service is offline, the crew link says so and offers **Retry** or **Fly s
 - `src/game/`: Phaser scenes (station and Mars) and input.
 - `src/ui/`: title (with its WebGL2 backdrop in `titleScene.ts`), fleet, crew, launch, task panels, rover operations (`roverView.ts`, `roverPanels.ts`, `mapView.ts`), the rover's rocket on the launch pad (`rocketPick.ts`), the two rover tasks and their pop-up (`roverTasks.ts`, styled by `src/tasks.css`), and the report.
 - `server/`: the Colyseus `spacer_power` room.
-- `scripts/`: the art generator, the NASA downloads (`fetch-nasa-data.mjs` for the operations dates, `fetch-rover-data.mjs` for the rover expedition, `fetch-rover-tasks.mjs` for the rover's rocket and the two tasks) and the operations-date builder (`build-ops-dates.mjs`). `test/` holds the tests.
+- `scripts/`: the art generator, the NASA downloads (`fetch-nasa-data.mjs` for the operations dates, `fetch-rover-data.mjs` for the rover expedition, `fetch-rover-tasks.mjs` for the rover's rocket and the two tasks, `fetch-station-tasks.mjs` for the station tasks and the photographs of Earth) and the operations-date builder (`build-ops-dates.mjs`). `test/` holds the tests.
 
 ## Current local review build
 

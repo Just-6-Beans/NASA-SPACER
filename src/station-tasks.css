@@ -1,0 +1,213 @@
+/* The station tasks: the crew's day, the water loop, the relay's signal tuning and the Earth
+   observation screen (src/ui/stationTasks.ts), and the three alerts (src/ui/stationAlerts.ts).
+   The panels use the station's own look (style.css, holo.css); the alerts use the glass of the
+   rover tasks (tasks.css). This file adds only what those screens need on top.
+   Classes are prefixed st- (panel tabs), sig- (the signal), eo- (Earth), sa- (alerts). */
+
+/* ---------- Shared by the panel tabs ---------- */
+.st-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin-top: 12px; align-items: start; }
+.st-note { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: var(--ivory-dim); }
+.st-note.good { color: var(--mint); }
+.st-note.bad { color: #ffb4a8; }
+.st-real { margin: 12px 0 0; font-size: 12px; line-height: 1.45; color: var(--ivory-dim); }
+.ledger small { display: block; font-size: 10.5px; font-weight: 400; color: var(--ivory-dim); }
+
+/* ---------- S5 Crew schedule: four activities, twelve blocks ---------- */
+.st-brush { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.st-act { display: grid; gap: 2px; padding: 8px 10px; text-align: left; color: var(--ivory); background: rgba(4,18,32,.85); border: 1px solid rgba(63,208,255,.3); border-left: 6px solid var(--act); border-radius: 3px; }
+.st-act b { font-family: var(--display); font-size: 18px; letter-spacing: .05em; text-transform: uppercase; line-height: 1.05; }
+.st-act small { font-size: 11.5px; line-height: 1.25; color: var(--ivory-dim); }
+.st-act[aria-checked=true] { border-color: var(--act); background: rgba(10,40,60,.9); box-shadow: 0 0 14px color-mix(in srgb, var(--act) 45%, transparent); }
+.st-act.sleep, .st-block.sleep { --act: #7a8cff; }
+.st-act.work, .st-block.work { --act: #ff8f45; }
+.st-act.exercise, .st-block.exercise { --act: #5ff2c5; }
+.st-act.rest, .st-block.rest { --act: #ffd23f; }
+.st-day { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; margin-top: 12px; }
+.st-block { display: grid; gap: 4px; justify-items: center; padding: 8px 2px 9px; color: #04101c; background: var(--act); border: 0; border-radius: 3px; transition: transform .1s; }
+.st-block:hover:not(:disabled) { transform: translateY(-2px); }
+.st-block:disabled { opacity: .85; cursor: default; }
+.st-block small { font-family: var(--mono); font-size: 9.5px; font-weight: 600; opacity: .75; }
+.st-block b { font-family: var(--display); font-size: 13px; letter-spacing: .03em; text-transform: uppercase; writing-mode: vertical-rl; text-orientation: mixed; min-height: 62px; }
+.st-costs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; color: #c4dcec; }
+.st-costs b { display: inline-block; min-width: 46px; font-family: var(--mono); color: #ff9c90; }
+.st-hours { margin-top: 0; }
+
+/* ---------- S2 Water loop: the two decisions ---------- */
+.st-choice { padding: 10px 12px; background: rgba(4,18,32,.75); border: 1px solid rgba(63,208,255,.3); border-radius: 3px; }
+.st-choice h4 { margin: 0 0 6px; font-family: var(--display); font-size: 18px; letter-spacing: .05em; text-transform: uppercase; color: var(--cyan); }
+.st-choice p { margin: 0; font-size: 13.5px; line-height: 1.4; }
+.st-choice p.on { color: var(--mint); }
+.st-choice p.off { color: var(--warn); }
+.st-choice .seg-ctl button:disabled { opacity: .45; }
+
+/* ---------- Relay repair: the received signal ---------- */
+.sig { position: relative; margin: 4px 0 10px; background: #020b14; border: 1px solid rgba(63,208,255,.4); border-radius: 3px; overflow: hidden; }
+.sig canvas { display: block; width: 100%; height: auto; }
+.sig.locked { border-color: var(--mint); box-shadow: 0 0 16px rgba(95,242,197,.3); }
+.sig-read { position: absolute; left: 10px; top: 8px; display: grid; gap: 1px; padding: 3px 8px; background: rgba(2,10,20,.75); border-radius: 2px; }
+.sig-read span { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ivory-dim); }
+.sig-read b { font-family: var(--display); font-size: 26px; line-height: 1; }
+.sig-hold { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(18,48,74,.9); }
+.sig-hold i { display: block; height: 100%; width: 0; background: var(--mint); box-shadow: 0 0 8px var(--mint); }
+
+/* ---------- Earth observation: one real photograph at a time ---------- */
+.eo { position: relative; margin: 0; background: #020b14; border: 1px solid rgba(63,208,255,.4); border-radius: 3px; overflow: hidden; }
+.eo img { display: block; width: 100%; max-height: 52vh; object-fit: contain; background: #000; }
+.eo > .tag { position: absolute; left: 8px; top: 8px; margin: 0; background: rgba(2,10,20,.8); }
+.eo figcaption { padding: 10px 12px 12px; }
+.eo h3 { font-size: 22px; }
+.eo p { margin: 4px 0 6px; font-size: 14px; line-height: 1.45; color: #d2e6f3; }
+.eo small { display: block; font-family: var(--mono); font-size: 10.5px; line-height: 1.5; color: var(--ivory-dim); }
+.eo small a { color: var(--cyan); }
+.eo-strip { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.eo-th { aspect-ratio: 3 / 2; padding: 0; border: 2px solid rgba(63,208,255,.3); border-radius: 3px; background: #000 center / cover no-repeat; opacity: .6; }
+.eo-th.seen { opacity: .85; }
+.eo-th[aria-pressed=true] { border-color: var(--mint); opacity: 1; box-shadow: 0 0 12px rgba(95,242,197,.4); }
+.eo-count { align-self: center; margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--ivory-dim); }
+
+/* ---------- Alerts: what every alert screen shares ---------- */
+.sa .tk-head.alert h2 { color: #fff; }
+.sa-out { justify-self: center; width: min(720px, 100%); }
+.sa-out .lf-lift p { font-size: 14.5px; }
+.sa-out .lf-verdict { font-size: 20px; }
+.sa .risk { font-family: var(--mono); font-style: normal; font-size: 10.5px; letter-spacing: .04em; padding: 1px 6px; border-radius: 2px; border: 1px solid rgba(134,170,196,.5); color: var(--ivory-dim); white-space: nowrap; }
+.sa .risk.bad { border-color: rgba(255,90,74,.7); color: #ff9c90; }
+.sa .risk.warn { border-color: rgba(255,179,71,.6); color: var(--warn); }
+.sa .risk.info { border-color: rgba(63,208,255,.6); color: var(--cyan); }
+
+/* ---------- S1 CO2: the cargo and the adapter ---------- */
+.sa-parts .tk-opt b { font-size: 18px; }
+.sa-parts .tk-opt[aria-pressed=true] { opacity: .6; }
+.sa-adapter { display: block; width: 100%; max-height: 130px; margin-bottom: 8px; }
+.sa-can { fill: #24384a; stroke: var(--ivory-dim); stroke-width: 1.6; }
+.sa-socket { fill: #0c2236; stroke: var(--ivory-dim); stroke-width: 3; }
+.sa-t { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; fill: var(--ivory-dim); text-anchor: middle; }
+.sa-wrap, .sa-brace, .sa-hose, .sa-tape { fill: none; stroke: rgba(134,170,196,.5); stroke-width: 2.4; stroke-dasharray: 6 6; stroke-linecap: round; }
+.sa-hose { stroke-width: 9; }
+.sa-tape { stroke-width: 7; }
+:is(.sa-wrap, .sa-brace, .sa-hose, .sa-tape).on { stroke: var(--mint); stroke-dasharray: none; }
+:is(.sa-wrap, .sa-brace, .sa-hose, .sa-tape).bad { stroke: var(--danger); stroke-dasharray: 3 5; }
+.sa-jobs { display: grid; gap: 6px; }
+.sa-job { display: grid; grid-template-columns: 1fr auto; gap: 1px 12px; align-items: center; padding: 7px 10px; text-align: left; color: var(--ivory); background: rgba(2,10,20,.5); border: 1px solid rgba(63,208,255,.25); border-radius: 2px; }
+.sa-job b { font-family: var(--display); font-size: 17px; letter-spacing: .05em; text-transform: uppercase; line-height: 1.1; }
+.sa-job small { grid-column: 1; font-size: 12px; line-height: 1.3; color: #a9c8dc; }
+.sa-job span { grid-column: 2; grid-row: 1 / span 2; font-family: var(--mono); font-size: 11.5px; padding: 2px 8px; border: 1px dashed rgba(134,170,196,.6); border-radius: 2px; color: var(--ivory-dim); white-space: nowrap; }
+.sa-job.active { border-color: var(--cyan); box-shadow: inset 3px 0 0 var(--cyan), 0 0 12px rgba(63,208,255,.3); }
+.sa-job.on span { border-style: solid; border-color: var(--mint); color: var(--mint); }
+.sa-job.bad { border-color: var(--danger); }
+.sa-job.bad small { color: #ffb4a8; }
+.sa-job.bad span { border-style: solid; border-color: var(--danger); color: #ff9c90; }
+
+/* ---------- S3 Power down: the systems ---------- */
+.sa-ration { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+.sa-systems { display: grid; gap: 5px; }
+.sa-sys { display: grid; grid-template-columns: 1fr 78px 86px 82px; gap: 10px; align-items: center; padding: 6px 10px; background: rgba(2,10,20,.5); border: 1px solid rgba(63,208,255,.22); border-left: 3px solid var(--mint); border-radius: 2px; }
+.sa-sys.off { border-left-color: rgba(134,170,196,.4); opacity: .62; }
+.sa-sys b { display: block; font-family: var(--display); font-size: 17px; letter-spacing: .05em; text-transform: uppercase; line-height: 1.1; }
+.sa-sys small { font-size: 12px; color: #a9c8dc; }
+.sa-sys > span { font-family: var(--mono); font-size: 12px; text-align: right; }
+.sa-sys .risk { justify-self: start; }
+.sa-sys .btn { min-width: 0; padding-inline: 6px; }
+.sa-up { display: flex; flex-wrap: wrap; gap: 6px; }
+.sa-up span { font-family: var(--mono); font-size: 11.5px; padding: 3px 8px; border: 1px solid rgba(95,242,197,.55); border-radius: 2px; color: var(--mint); }
+
+/* ---------- S4 Cabin alarm: the station plan ---------- */
+.sa-cabin { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); }
+.sa-plan { display: block; width: 100%; }
+.sa-mod rect { fill: #0f2a42; stroke: rgba(63,208,255,.55); stroke-width: 1.6; }
+.sa-mn { font-family: var(--display); font-size: 15px; letter-spacing: .06em; text-transform: uppercase; fill: var(--ivory); text-anchor: middle; }
+.sa-mr { font-family: var(--mono); font-size: 13px; fill: #c4dcec; text-anchor: middle; }
+.sa-mod.tap, .sa-hatch.tap { cursor: pointer; }
+.sa-mod.tap:hover rect, .sa-mod.tap:focus-visible rect { stroke: #fff; fill: #17405f; }
+.sa-mod.source rect { fill: #5a1c14; stroke: var(--danger); stroke-width: 2.4; }
+.sa-mod.safe rect { fill: #0a3a30; stroke: var(--mint); stroke-width: 2.4; }
+.sa-mod:focus, .sa-hatch:focus { outline: none; }
+.sa-hatch rect { fill: #0b1826; stroke: rgba(134,170,196,.7); stroke-width: 1.6; }
+.sa-hatch path { stroke: var(--ivory-dim); stroke-width: 2.6; stroke-linecap: round; }
+.sa-hatch.tap rect { stroke: var(--warn); stroke-width: 2.2; }
+.sa-hatch.tap:hover rect, .sa-hatch.tap:focus-visible rect { fill: #3a2a10; }
+.sa-hatch.shut rect { fill: #0a3a30; stroke: var(--mint); }
+.sa-hatch.shut path { stroke: var(--mint); }
+.sa-key { margin: 6px 0 0; font-family: var(--mono); font-size: 11px; color: var(--ivory-dim); }
+.sa-steps { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 5px; }
+.sa-steps li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; padding: 6px 10px; background: rgba(2,10,20,.5); border: 1px solid rgba(63,208,255,.22); border-radius: 2px; opacity: .6; }
+.sa-steps b { font-family: var(--display); font-size: 22px; line-height: 1; color: var(--orange-2); }
+.sa-steps span { font-family: var(--display); font-size: 17px; letter-spacing: .05em; text-transform: uppercase; }
+.sa-steps li.now { opacity: 1; border-color: var(--cyan); box-shadow: inset 3px 0 0 var(--cyan); }
+.sa-steps li.done { opacity: .85; border-color: rgba(95,242,197,.5); }
+.sa-steps li.done b { color: var(--mint); }
+.sa-shut { grid-template-columns: 1fr; margin-top: 10px; }
+
+/* ---------- The station HUD: alert banner and the crew and water chips ---------- */
+.hudchips { display: flex; gap: 8px; align-items: center; }
+.hudchip { font-family: var(--mono); font-size: 12px; letter-spacing: .04em; padding: 4px 9px; border-radius: 3px; background: rgba(4,18,32,.85); border: 1px solid rgba(63,208,255,.35); color: var(--ivory); white-space: nowrap; }
+.hudchip b { color: var(--mint); }
+.hudchip.warn b { color: var(--warn); }
+.hudchip.bad b { color: #ff9c90; }
+
+/* ---------- Narrow windows ---------- */
+@media (max-width: 980px) {
+  .sa-ration, .sa-cabin { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .st-cols { grid-template-columns: 1fr; }
+  .st-brush { grid-template-columns: 1fr 1fr; }
+  .st-day { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .st-block b { writing-mode: horizontal-tb; min-height: 0; font-size: 12px; }
+  .eo-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .sa-sys { grid-template-columns: 1fr auto; }
+  .sa-sys > span, .sa-sys .risk { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .st-block { transition: none; } }
+
+/* ---------- Station panels: percentages need a little more room than single digits ---------- */
+.prow { grid-template-columns: 130px 36px 1fr 36px 56px; }
+.prow .n { font-size: 17px; }
+.cell { width: 76px; }
+.cell i { height: 11px; }
+.hudchips { margin-left: auto; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
+.hudchips .ghchip { margin-left: 0; }
+
+/* ---------- Mission Ops: the short status list and the folded sources ---------- */
+.ops-steps { display: flex; flex-wrap: wrap; gap: 6px; }
+.ops-steps span { font-family: var(--mono); font-size: 12px; padding: 4px 9px; border: 1px solid rgba(134,170,196,.4); border-radius: 3px; color: var(--ivory-dim); }
+.ops-steps span.done { border-color: rgba(95,242,197,.6); color: var(--mint); }
+.srcs details.src { display: block; cursor: pointer; }
+.srcs details.src summary { display: flex; justify-content: space-between; align-items: center; gap: 14px; list-style: none; }
+.srcs details.src summary::-webkit-details-marker { display: none; }
+.srcs details.src[open] summary { margin-bottom: 5px; }
+.srcs details.src > span { display: block; font-size: 13.5px; line-height: 1.45; }
+
+/* ---------- The end report: the score first, in plain words ---------- */
+.score-hero { display: grid; justify-items: center; gap: 2px; margin: 10px 0 8px; padding: 16px 14px 14px; text-align: center; background: rgba(255,179,71,.08); border: 1px solid var(--warn); border-radius: 4px; }
+.score-hero.good { background: rgba(95,242,197,.1); border-color: var(--mint); }
+.score-hero small { font-family: var(--display); font-size: 22px; letter-spacing: .14em; text-transform: uppercase; color: var(--ivory); }
+.score-hero b { font-family: var(--display); font-size: clamp(64px, 12vw, 104px); line-height: .95; color: var(--warn); }
+.score-hero.good b { color: var(--mint); }
+.score-hero span { font-family: var(--mono); font-size: 12.5px; color: var(--ivory-dim); }
+.score-out { margin: 0 0 14px; text-align: center; font-size: 16px; line-height: 1.4; }
+.score-cols { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
+.score-list { list-style: none; margin: 0; padding: 0 !important; display: grid; gap: 4px; }
+.score-list li { display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: start; margin: 0; padding: 6px 8px; background: rgba(4,18,32,.7); border-left: 3px solid var(--mint); border-radius: 2px; }
+.score-list li.failed, .score-list li.missed { border-left-color: var(--warn); }
+.score-list li.none { display: block; border-left-color: rgba(134,170,196,.4); color: var(--ivory-dim); }
+.score-list .mark { font-weight: 700; color: var(--mint); }
+.score-list li:is(.failed, .missed) .mark { color: var(--warn); }
+.score-list b { font-family: var(--display); font-size: 18px; letter-spacing: .04em; text-transform: uppercase; line-height: 1.1; }
+.score-list i { margin-left: 8px; font-family: var(--mono); font-style: normal; font-size: 10.5px; color: var(--cyan); }
+.score-list small { display: block; margin-top: 1px; font-size: 12.5px; line-height: 1.35; color: #b6cfe0; }
+.score-list em { font-family: var(--mono); font-style: normal; font-size: 14px; font-weight: 600; color: var(--mint); white-space: nowrap; }
+.score-list li:is(.failed, .missed) em { color: var(--warn); }
+.score-tip { margin: 10px 0 0; font-size: 13.5px; line-height: 1.4; color: #d2e6f3; }
+.report details.more { margin-top: 10px; }
+.report details.more summary { cursor: pointer; font-family: var(--display); font-size: 18px; letter-spacing: .05em; text-transform: uppercase; color: var(--cyan); }
+.report details.more[open] summary { margin-bottom: 8px; }
+
+/* ---------- S2 Water loop: the four places between the waste line and the tap ---------- */
+.st-flow { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; margin: 4px 0 6px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; color: var(--ivory-dim); }
+.st-flow i { height: 2px; background: linear-gradient(90deg, #b0623f, var(--cyan)); position: relative; }
+.st-flow i::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left-color: var(--cyan); }
+.st-loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.st-loop .slot { min-width: 0; text-align: left; color: var(--ivory); }
+.st-loop div.slot.filled { min-height: 0; padding: 8px 10px; border-color: var(--mint); background: rgba(95,242,197,.1); }
+@media (max-width: 640px) { .st-loop { grid-template-columns: 1fr 1fr; } }
