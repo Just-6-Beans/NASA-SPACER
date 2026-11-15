@@ -2,6 +2,7 @@
 // page (a real selfie of each, pros and cons, and a look at its parts). After that it has three
 // tabs: the map with the rover's camera and photo album, the album, and the "what each part
 // does" picture.
+import { rocketsFor } from '../core/delivery'
 import type { Mission } from '../core/mission'
 import { ROVERS, type Anchor, type Part, type Photo, type RoverId, type RoverSpec } from '../core/rovers'
 import {
@@ -59,32 +60,36 @@ const JOB_NAME: Record<ActionKind, string> = { drive: 'Drive', photo: 'Photograp
 const src = (file: string) => `${import.meta.env.BASE_URL}${file}`
 
 // ---------------------------------------------------------------- Choose your rover
-function rvCardHtml(r: RoverSpec, v: ViewerState) {
+function rvCardHtml(r: RoverSpec, v: ViewerState, m: Mission) {
   const t = roverTraits(r), s = r.selfie
+  // The rover's rocket comes out of the same budget: a rover no rocket can be afforded for cannot be chosen.
+  const block = m.roverBlock(r.id)
+  const cheapest = rocketsFor(r.id)[0]
   const li = (x: { title: string; text: string }) => `<li><b>${esc(x.title)}:</b> ${esc(x.text)}.</li>`
   return `<article class="rvcard ${v.pick === r.id ? 'picking' : ''}">
     <div class="rvpic" style="--fx:${r.selfieFocus[0]}%;--fy:${r.selfieFocus[1]}%"><img src="${src(s.file)}" alt="Real selfie of the ${esc(r.name)} rover on Mars"/><span class="tag">Real selfie · ${esc(s.date.slice(0, 4))}</span></div>
     <div class="rvbody">
       <div class="rvname"><h3>${esc(r.name)}</h3><span class="badge ${t.easier ? 'easy' : 'hard'}">${t.easier ? 'Easier' : 'Harder'}</span></div>
-      <p class="rvsub">${esc(region(r.region).name)} · on Mars since ${esc(r.landed.slice(0, 4))}</p>
+      <p class="rvsub">${esc(region(r.region).name)} · on Mars since ${esc(r.landed.slice(0, 4))} · rocket from ${cheapest.price} cr</p>
       <div class="rvstats">${t.stats.map(x => `<div><small>${esc(x.label)}</small><b>${esc(x.value)}</b></div>`).join('')}</div>
-      <div class="pc pros"><h4>👍 Good</h4><ul>${t.pros.map(li).join('')}</ul></div>
-      <div class="pc cons"><h4>👎 Not so good</h4><ul>${t.cons.map(li).join('')}</ul></div>
+      <div class="tradeoffs">${t.pros.map(x => `<span class="pro" title="${esc(x.text)}">${esc(x.title)}</span>`).join('')}${t.cons.map(x => `<span class="con" title="${esc(x.text)}">${esc(x.title)}</span>`).join('')}</div>
+      <details class="about"><summary>Why</summary><ul class="whylist">${[...t.pros, ...t.cons].map(li).join('')}</ul>
+        <p class="cam-credit">Photo: “${esc(s.title)}”, ${esc(s.credit)} · <a href="${esc(s.page)}" target="_blank" rel="noopener">NASA page ↗</a></p></details>
+      ${block && !m.region ? `<div class="reason bad">${esc(block)}</div>` : ''}
       ${v.pick === r.id
-        ? `<div class="reason"><b>Take ${esc(r.name)}?</b> It is your rover for the whole mission. You cannot switch later.</div>
-           <div class="rvbtns"><button class="btn" data-nopick>No, go back</button><button class="btn primary" data-confirm="${r.id}">Yes, take ${esc(r.name)}</button></div>`
-        : `<div class="rvbtns"><button class="btn" data-peek="${r.id}">🔍 See its parts</button><button class="btn primary" data-pick="${r.id}">Choose ${esc(r.name)}</button></div>`}
-      <p class="cam-credit">Photo: “${esc(s.title)}”, ${esc(s.credit)} · <a href="${esc(s.page)}" target="_blank" rel="noopener">NASA page ↗</a></p>
+        ? `<div class="reason"><b>Take ${esc(r.name)}?</b> One rover for the whole mission.</div>
+           <div class="rvbtns"><button class="btn" data-nopick>Go back</button><button class="btn primary" data-confirm="${r.id}">Take ${esc(r.name)}</button></div>`
+        : `<div class="rvbtns"><button class="btn" data-peek="${r.id}">Its parts</button><button class="btn primary" data-pick="${r.id}" ${block ? 'disabled' : ''}>Choose ${esc(r.name)}</button></div>`}
     </div></article>`
 }
 
-function choiceHtml(v: ViewerState) {
+function choiceHtml(v: ViewerState, m: Mission) {
   return `<div class="choose">
-    <div class="choose-h"><div><h2>Choose your rover</h2><p>You get <b>one rover for the whole mission</b>, so choose with care. Both are real NASA rovers, each in its own crater on Mars.</p></div><button class="btn small" data-back>← Station</button></div>
-    <div class="rvcards">${(['perseverance', 'curiosity'] as const).map(id => rvCardHtml(ROVERS[id], v)).join('')}</div>
-    <details class="about"><summary>ⓘ Where these numbers come from</summary>
+    <div class="choose-h"><div><div class="tk-flag"><i></i>Rover Comms · ${m.credits} cr left</div><h2>Choose your rover</h2><p>One rover for the whole mission. Next you choose the rocket that carries it.</p></div><button class="btn small" data-back>← Station</button></div>
+    <div class="rvcards">${(['perseverance', 'curiosity'] as const).map(id => rvCardHtml(ROVERS[id], v, m)).join('')}</div>
+    <details class="about"><summary>Where these numbers come from</summary>
       <p><b>Real NASA facts:</b> each rover's weight, battery, nuclear power source, where it is parked today and how tilted it is there, the bumps in its crater seen from orbit, and which instruments it carries.</p>
-      <p><b>Worked out by the game from those facts:</b> the power its source makes today, how far it drives on one charge, and how long a recharge takes. The photo spots are places where the real rover took the photos saved in this game.</p></details>
+      <p><b>Worked out by the game from those facts:</b> the power its source makes today, how far it drives on one charge, and how long a recharge takes.</p></details>
   </div>`
 }
 
@@ -170,9 +175,8 @@ function albumStripHtml(m: Mission, rv: RoverSpec, h: ViewerHooks) {
   const places = photoPlaces(rv)
   const found = shownPhotos(m, h).map(id => places.find(p => p.id === id)!)
   const bonus = Math.min(PHOTO_BONUS_MAX, found.length * PHOTO_BONUS_EACH)
-  return `<div class="album-h"><b>📷 My photos</b><span>${found.length} of ${places.length} spots${bonus ? ` · <em>+${bonus} score${bonus >= PHOTO_BONUS_MAX ? ' (max)' : ''}</em>` : ''}</span></div>
-    <div class="album">${found.map(pl => `<button class="thumb" data-album="${pl.id}" aria-label="Open your photo from sol ${pl.sol}" title="Open this photo"><img src="${src(pl.photos[0].file)}" alt=""/></button>`).join('')}${found.length < places.length ? '<span class="thumb empty" title="More photo spots are waiting on the map">?</span>' : ''}</div>
-    <p class="album-tip">The rover saves a real NASA photo by itself when it drives through the ring of a camera mark or parks inside one. Each spot adds +${PHOTO_BONUS_EACH} to your score.</p>`
+  return `<div class="album-h" title="The rover saves a real NASA photo by itself when it drives through the ring of a camera mark. Each spot adds +${PHOTO_BONUS_EACH} to your score."><b>My photos</b><span>${found.length} of ${places.length} spots${bonus ? ` · <em>+${bonus} score${bonus >= PHOTO_BONUS_MAX ? ' (max)' : ''}</em>` : ''}</span></div>
+    <div class="album">${found.map(pl => `<button class="thumb" data-album="${pl.id}" aria-label="Open your photo from sol ${pl.sol}" title="Open this photo"><img src="${src(pl.photos[0].file)}" alt=""/></button>`).join('')}${found.length < places.length ? '<span class="thumb empty" title="More photo spots are waiting on the map">?</span>' : ''}</div>`
 }
 
 /** A white flash on the camera screen when a photo is saved. */
@@ -265,7 +269,7 @@ function startFx(screen: HTMLElement) {
 }
 
 // ---------------------------------------------------------------- Map
-const mapHint = (h: ViewerHooks) => h.driving ? '🚙 The rover is driving. It saves a real photo by itself when it passes a camera mark.' : h.planning ? '👆 Tap the map to place points for the rover' : 'Tap a lettered spot to see its result'
+const mapHint = (h: ViewerHooks) => h.driving ? 'Driving · photos save themselves at camera marks' : h.planning ? 'Tap the map to place points' : 'Tap a lettered spot to open it'
 
 function mapUiHtml(rv: RoverSpec, view: MapView) {
   const sb = scaleBar(rv, view)
@@ -298,7 +302,7 @@ function syncMapUi(root: HTMLElement, rv: RoverSpec, v: ViewerState) {
   const zl = $('#zlabel', root)
   if (zl) zl.textContent = `${v.view.k % 1 ? v.view.k.toFixed(1) : v.view.k}×`
   const mc = $('#mapcredit', root)
-  if (mc) mc.textContent = `${v.view.k > 1 ? '✋ Hold the right mouse button and drag to move the map · ' : ''}${v.view.mode === 'sat' ? `Real photo from orbit · ${rv.satellite.credit}` : 'Heights from the MOLA laser altimeter · NASA'}`
+  if (mc) mc.textContent = `${v.view.k > 1 ? 'Drag to move the map · ' : ''}${v.view.mode === 'sat' ? `Real photo from orbit · ${rv.satellite.credit}` : 'Heights from the MOLA laser altimeter · NASA'}`
   $$('[data-mode]', root).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === v.view.mode)))
   applyView(root, v.view)
 }
@@ -307,8 +311,8 @@ function mapHtml(m: Mission, rv: RoverSpec, v: ViewerState, h: ViewerHooks) {
   const sat = rv.satellite
   return `<div class="maptop"><div class="maphint" id="maphint">${mapHint(h)}</div>
       <div class="mapbar">
-        <div class="modesw" role="group" aria-label="Map picture"><button class="msw" data-mode="sat" aria-pressed="true">🛰 Real photo</button><button class="msw" data-mode="height" aria-pressed="false">⛰ Heights</button></div>
-        <div class="zoomctl"><span>🔍 Zoom</span><button class="zb" data-zoom="-0.5" aria-label="Zoom out">−</button><input type="range" id="zoom" min="1" max="${MAX_ZOOM}" step="0.1" value="${v.view.k}" aria-label="Map zoom"/><button class="zb" data-zoom="0.5" aria-label="Zoom in">+</button><b id="zlabel">1×</b></div>
+        <div class="modesw" role="group" aria-label="Map picture"><button class="msw" data-mode="sat" aria-pressed="true">Real photo</button><button class="msw" data-mode="height" aria-pressed="false">Heights</button></div>
+        <div class="zoomctl"><span>Zoom</span><button class="zb" data-zoom="-0.5" aria-label="Zoom out">−</button><input type="range" id="zoom" min="1" max="${MAX_ZOOM}" step="0.1" value="${v.view.k}" aria-label="Map zoom"/><button class="zb" data-zoom="0.5" aria-label="Zoom in">+</button><b id="zlabel">1×</b></div>
       </div></div>
     <div class="mapgrid">
       <div class="mapbox">
@@ -318,14 +322,16 @@ function mapHtml(m: Mission, rv: RoverSpec, v: ViewerState, h: ViewerHooks) {
           <div class="mapui" id="mapui"></div>
         </div>
         <p class="mapcredit" id="mapcredit"></p>
-        <div class="readout" id="readout">Move the pointer over the map to read the real height and slope.</div>
+        <div class="readout" id="readout">Point at the map for the real height and slope.</div>
         <div class="legend">
-          <span><i class="dot" style="background:#ff6a2b"></i>your rover</span>
-          <span><i class="dot" style="background:#fff"></i>where the real ${esc(rv.name)} parked</span>
-          <span><i class="cam-ic"></i>real photo spot (saved when the rover drives through its ring)</span>
-          <span><i class="dot" style="background:#5ff2c5"></i>good</span><span><i class="dot" style="background:#ffb347"></i>risky</span><span><i class="dot" style="background:#ff5a4a"></i>bad</span><span><i class="dot" style="background:#b8c4cf"></i>not checked</span>
+          <span><i class="dot" style="background:#ff6a2b"></i>rover</span>
+          <span><i class="dot" style="background:#fff"></i>real ${esc(rv.name)} stops</span>
+          <span><i class="cam-ic"></i>real photo spot</span>
+          <span><i class="site-ic"></i>sample site</span>
+          <span><i class="dot" style="background:#5ff2c5"></i>good</span><span><i class="dot" style="background:#ffb347"></i>risky</span><span><i class="dot" style="background:#ff5a4a"></i>bad</span>
         </div>
-        <details class="about"><summary>ⓘ About this map</summary>
+        <details class="about"><summary>About this map</summary>
+          <p><b>Sample site:</b> a place the real ${esc(rv.name)} parked, chosen by the game. Five rocks wait there, modelled on samples Perseverance really sealed elsewhere in Jezero Crater.</p>
           <p>A ${rv.area.sizeM / 1000} km square centred on where ${esc(rv.name)} really was on sol ${rv.area.centre.sol}.</p>
           <p><b>Real photo:</b> pictures of the ground taken from orbit by NASA's Mars Reconnaissance Orbiter, the same ones behind NASA's own “Where is ${esc(rv.name)}?” map. One dot on the screen is about ${sat.metresPerPixel} m of ground at full zoom.</p>
           <p><b>Heights:</b> from NASA's MOLA laser altimeter, in squares about 460 m wide. Lighter is higher and each line is 20 m. It shows the broad shape of the land, not rocks or small slopes. The game uses these heights to work out how much battery a climb costs.</p>
@@ -347,10 +353,10 @@ function photosHtml(m: Mission, rv: RoverSpec, v: ViewerState) {
   const places = photoPlaces(rv)
   const found = m.photos.map(id => places.find(p => p.id === id)!)
   const missing = places.length - found.length
-  return `<div class="vhead"><b>My photo album</b><p>Real photos from the spots your rover passed or parked at. It saves them by itself: <b>${found.length} of ${places.length}</b> found${m.photoBonus ? `, <b>+${m.photoBonus}</b> to your score` : ''}. Each spot adds +${PHOTO_BONUS_EACH}, up to +${PHOTO_BONUS_MAX}. They are raw: not cleaned up or colour-corrected.</p></div>
+  return `<div class="vhead"><b>My photo album</b><p>Real, raw NASA photos from the spots your rover passed: <b>${found.length} of ${places.length}</b> found${m.photoBonus ? `, <b>+${m.photoBonus}</b> score` : ''}. Each spot adds +${PHOTO_BONUS_EACH}, up to +${PHOTO_BONUS_MAX}.</p></div>
     <div class="photo-grid">${found.flatMap(pl => pl.photos.map(p => `<figure class="photo"><button class="pbtn" data-album="${pl.id}" data-photo="${esc(p.imageId)}" aria-label="Open this photo"><img src="${src(p.file)}" alt="${esc(p.cameraName)} raw image, ${esc(rv.name)} sol ${p.sol}" loading="lazy"/></button>
       <figcaption><b>${esc(p.cameraName)}</b> · sol ${p.sol} · ${esc(p.takenUtc.slice(0, 10))}<br/><span>${esc(p.credit)}</span></figcaption></figure>`)).join('')}
-      ${Array.from({ length: Math.min(missing, found.length ? 2 : 4) }, () => '<figure class="photo locked"><div class="lockbox"><span>📷</span><b>Not found yet</b><small>Drive through a camera ring on the map</small></div></figure>').join('')}</div>
+      ${Array.from({ length: Math.min(missing, found.length ? 2 : 4) }, () => '<figure class="photo locked"><div class="lockbox"><b>Not found yet</b><small>Drive through a camera ring on the map</small></div></figure>').join('')}</div>
     ${missing ? `<p class="cam-credit">${missing} photo spot${missing > 1 ? 's are' : ' is'} still waiting on the map.</p>` : '<p class="cam-credit">You found every photo spot on this map!</p>'}
     <p class="cam-credit">${esc(rv.area.provider)}, saved ${esc(rv.area.retrieved)}. <a href="${esc(rv.area.gallery)}" target="_blank" rel="noopener">NASA's raw image gallery ↗</a></p>
     <div class="vhead" style="margin-top:22px"><b>Newest from NASA</b><p>Load the most recent photos straight from NASA (needs internet). They are for looking, not for score. The rest of the game works offline.</p></div>
@@ -509,7 +515,7 @@ export function renderViewer(root: HTMLElement, m: Mission, v: ViewerState, rere
   root.onmousemove = e => {
     const map = (e.target as Element).closest('#mapview')
     const out = $('#readout', root)
-    if (map && out && rv) out.textContent = `📍 ${readout(rv, pointAt(map, e, rv, v.view))}`
+    if (map && out && rv) out.textContent = readout(rv, pointAt(map, e, rv, v.view))
   }
   root.oninput = e => {
     const t = e.target as HTMLInputElement
@@ -520,7 +526,7 @@ export function renderViewer(root: HTMLElement, m: Mission, v: ViewerState, rere
     const view = `choose:${v.peek ?? ''}`
     const keep = root.dataset.view === view ? root.scrollTop : 0
     root.dataset.view = view
-    root.innerHTML = v.peek ? peekHtml(ROVERS[v.peek], v) : choiceHtml(v)
+    root.innerHTML = v.peek ? peekHtml(ROVERS[v.peek], v) : choiceHtml(v, m)
     root.scrollTop = keep
     return
   }

@@ -5,6 +5,7 @@ import './survey.css'
 import { ICONS } from './ui/icons'
 import type Phaser from 'phaser'
 import { SHIPS, SUITS, byId, type ShipId, type SuitId } from './core/data'
+import { deliveryRocket } from './core/delivery'
 import { Mission, TASK_INFO } from './core/mission'
 import { powerBlock, validPower, type Power } from './core/power'
 import { spendPct } from './core/survey'
@@ -437,12 +438,15 @@ function renderDrawer() {
     item(m.payloadActive, 'Select & activate payload', 'Payload', m.payloadActive ? `${m.instrumentInfo!.code} active` : m.instrumentDraft ? 'instrument selected' : 'not started'),
     item(!powerBlock(m.power, m.lifeNeed), 'Route transmission power', 'Power Grid', `life ${m.power.life}/${m.lifeNeed} · comms ${m.power.comms}/4`),
     item(m.completed.has('calibration'), 'Two-point calibration (optional)', 'Calibration', prog('calibration')),
-    item(!!m.rover, 'Choose your rover', 'Rover Comms', m.rover ? `${m.rover.name}, for the whole mission` : 'not chosen'),
-    item(m.spots.some(x => x.tests.includes('photo')), 'Drive the rover and test a spot', 'Rover Comms', m.rover ? `${m.drives.length} deployment${m.drives.length === 1 ? '' : 's'} · ${m.spots.length} spot${m.spots.length === 1 ? '' : 's'} · ${m.photos.length} photo spot${m.photos.length === 1 ? '' : 's'}` : 'choose your rover first'),
+    item(!!m.delivery, 'Choose your rover and its rocket', 'Rover Comms', m.delivery ? `${m.rover!.name} on the ${deliveryRocket(m.delivery.rocket).name}${m.delivery.ok ? '' : ` · backup flew, ${m.delivery.solsLost} days lost`}` : m.rover ? `${m.rover.name} chosen · rocket not chosen` : 'not chosen'),
+    item(m.spots.some(x => x.tests.includes('photo')), 'Rover navigation: drive and test a spot', 'Rover Comms', m.rover ? `${m.drives.length} deployment${m.drives.length === 1 ? '' : 's'} · ${m.spots.length} spot${m.spots.length === 1 ? '' : 's'} · ${m.photos.length} photo spot${m.photos.length === 1 ? '' : 's'}` : 'choose your rover first'),
+    item(!!m.samples, 'Sample selection: fill three tubes', 'Rover Comms', m.samples ? `science value ${m.samples.value} of 100` : m.delivery ? 'drive to the sample site' : 'after the rover lands'),
     item(!!m.base, 'Build the base', 'Rover Comms', m.base ? (m.base.approved ? m.base.name : 'stayed in orbit') : m.rover ? `any spot, good or bad · day ${m.sol} of ${m.missionSols}` : 'after the drive'),
     item(m.completed.has('habitat'), 'Habitat commissioning', 'Mission Report', m.completed.has('habitat') ? 'complete' : m.base?.approved ? (m.completed.has('medical') ? 'available' : 'needs medical clearance') : 'needs a base'),
   ].join('')
-  const emergency = m.payloadActive ? item(m.completed.has('relay'), 'Relay repair', 'Rover Comms', m.relayFault ? 'FAULT ACTIVE' : 'repaired', true) : '<div class="task"><span></span><small>No emergencies.</small></div>'
+  const res = m.rescue
+  const emergency = (m.payloadActive ? item(m.completed.has('relay'), 'Relay repair', 'Rover Comms', m.relayFault ? 'FAULT ACTIVE' : 'repaired', true) : '<div class="task"><span></span><small>No emergencies.</small></div>')
+    + (res ? item(res.result !== null, 'Stuck rover rescue', 'Rover Comms', res.result === null ? `ROVER STUCK · ${res.solsUsed} of 5 days used` : `${res.result === 'held' ? 'held' : 'freed'} after ${res.solsUsed} Mars days · wheels ${m.wheelWear}% worn`, true) : '')
   const dr = el(`<aside class="drawer" id="drawer" aria-label="Tasks"><div class="row" style="justify-content:space-between"><h2 style="font-size:26px">Tasks</h2><button class="btn small" id="dclose">Close</button></div>
     <h3>Emergency</h3>${emergency}<h3>Mission</h3>${missionItems}<h3>Routine (optional)</h3>${routine}
     <p style="font-size:12px;color:#b9ae95">Routine tasks are optional, but each one changes what you can afford or accomplish.</p></aside>`)

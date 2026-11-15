@@ -2,9 +2,11 @@
 // file adds up what the design costs and weighs and says whether it may launch. Plain TypeScript.
 // Every price and mass here is OUR MODEL. Whether the rocket can lift the result is decided by the
 // ascent model (ascent.ts), which the launch field flies for real. The rover goes up on its own
-// rocket; its instrument is chosen aboard, and its price comes out of the same budget.
+// rocket, chosen later at Rover Comms (delivery.ts); its instrument is chosen aboard. Both prices
+// come out of the same budget, so a design has to leave room for them.
 import { liftForecast, liftLimitKg, type AscentResult, type LiftForecast } from './ascent'
 import { CARGO, INSTRUMENTS, MISSION_BUDGET, cargoStep, type CargoId, type Ship } from './data'
+import { ROCKET_ANY, ROCKET_MIN } from './delivery'
 
 /** What is loaded on the rocket besides the crew: kilograms of each station cargo item aboard. */
 export interface Loadout { cargo: Partial<Record<CargoId, number>> }
@@ -34,13 +36,15 @@ export const cargoValue = (l: Loadout | undefined, id: CargoId) => (l ? cargoSte
 
 /** The cheapest rover instrument: the design has to leave at least this much for the one chosen aboard. */
 export const INSTRUMENT_MIN = Math.min(...INSTRUMENTS.map(i => i.cost))
+/** What a design has to leave for the rover: its cheapest instrument and the cheapest rocket that can carry a rover. */
+export const DESIGN_RESERVE = INSTRUMENT_MIN + ROCKET_MIN
 
 export interface DesignCost {
   launch: number
   cargo: number
   /** Everything bought on the ground. */
   spent: number
-  /** What is left for the rover instrument and anything later. Negative when the design is over budget. */
+  /** What is left for the rover instrument and the rover's rocket. Negative when the design is over budget. */
   left: number
 }
 export function designCost(ship: Ship, l: Loadout): DesignCost {
@@ -51,12 +55,13 @@ export function designCost(ship: Ship, l: Loadout): DesignCost {
 
 /**
  * Why this design may not launch, or null. Only the budget stops a launch: it has to leave enough
- * for a rover instrument. Weight never does: an overloaded rocket is free to try, and the ascent decides.
+ * for a rover instrument and a rocket to carry the rover. Weight never does: an overloaded rocket
+ * is free to try, and the ascent decides.
  */
 export function designBlock(ship: Ship, l: Loadout): string | null {
   const c = designCost(ship, l)
   if (c.left < 0) return `Over budget by ${-c.left} cr. Take something off, or choose a cheaper launch.`
-  if (c.left < INSTRUMENT_MIN) return `Leave at least ${INSTRUMENT_MIN} cr for the rover instrument you choose aboard: only ${c.left} cr would be left.`
+  if (c.left < DESIGN_RESERVE) return `Leave at least ${DESIGN_RESERVE} cr for the rover: ${INSTRUMENT_MIN} cr for its instrument and ${ROCKET_MIN} cr for its rocket. Only ${c.left} cr would be left.`
   return null
 }
 
@@ -77,13 +82,17 @@ export function liftLine(ship: Ship, l: Loadout): string {
   }
 }
 
-/** What the rover instruments will cost aboard, given what this design leaves. */
+/** What this design leaves for the rover: which instrument and which rocket still fit. */
 export function instrumentLine(ship: Ship, l: Loadout): string {
   const left = designCost(ship, l).left
-  const can = INSTRUMENTS.filter(i => i.cost <= left)
-  if (!can.length) return `Not enough left for a rover instrument (${INSTRUMENT_MIN} cr or more).`
-  if (can.length === INSTRUMENTS.length) return `${left} cr left: enough for either rover instrument aboard.`
-  return `${left} cr left: enough for the ${can.map(i => i.name.toLowerCase()).join(' or ')} aboard, not the ${INSTRUMENTS.filter(i => !can.includes(i)).map(i => i.name.toLowerCase()).join(' or ')}.`
+  if (left < DESIGN_RESERVE) return `Not enough left for the rover's instrument and its rocket (${DESIGN_RESERVE} cr or more).`
+  const [cheap, dear] = [...INSTRUMENTS].sort((x, y) => x.cost - y.cost)
+  const low = (i: { name: string }) => i.name.toLowerCase()
+  // ROCKET_ANY carries either rover; ROCKET_MIN is the cheaper rocket, which carries only one of them
+  if (dear.cost + ROCKET_ANY <= left) return `${left} cr left: enough for either rover instrument and either rocket for the rover.`
+  if (dear.cost + ROCKET_MIN <= left) return `${left} cr left: the ${low(dear)} fits only with the cheaper rover rocket; the ${low(cheap)} fits with either.`
+  if (cheap.cost + ROCKET_ANY <= left) return `${left} cr left: enough for the ${low(cheap)} and either rover rocket, not the ${low(dear)}.`
+  return `${left} cr left: only the ${low(cheap)} and the cheaper rover rocket fit.`
 }
 
 /** What happened on the way up, kept with the mission for the report. */

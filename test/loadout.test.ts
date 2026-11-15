@@ -4,8 +4,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { flyAscent, liftLimitKg } from '../src/core/ascent'
 import { CARGO, INSTRUMENTS, MISSION_BUDGET, SHIPS, byId, cargoStep, type CargoId, type ShipId } from '../src/core/data'
+import { ROCKET_MIN } from '../src/core/delivery'
 import {
-  INSTRUMENT_MIN, STARTER, aboard, cargoKg, cargoValue, cleanLoadout, designBlock, designCost, designForecast, failureCauses, instrumentLine, launchCauses, liftLine,
+  DESIGN_RESERVE, INSTRUMENT_MIN, STARTER, aboard, cargoKg, cargoValue, cleanLoadout, designBlock, designCost, designForecast, failureCauses, instrumentLine, launchCauses, liftLine,
   type LaunchRecord, type Loadout,
 } from '../src/core/loadout'
 import { Mission } from '../src/core/mission'
@@ -54,17 +55,20 @@ test('cost and weight add up, and one budget pays for the launch, the cargo and 
   assert.equal(INSTRUMENT_MIN, Math.min(...INSTRUMENTS.map(i => i.cost)))
 })
 
-test('the budget stops a launch only when it leaves too little for a rover instrument', () => {
-  const s = ship('shuttle') // 91 cr after the launch
-  const fine = load({ water: 2000, shielding: 1500, oxygen: 400 }) // 33 cr: leaves 58
+test("the budget stops a launch only when it leaves too little for the rover's instrument and its rocket", () => {
+  assert.equal(DESIGN_RESERVE, INSTRUMENT_MIN + ROCKET_MIN, 'the cheapest instrument and the cheapest rocket that can carry a rover')
+  const s = ship('shuttle') // 115 cr after the launch
+  const fine = load({ water: 2000, shielding: 1500, oxygen: 400 }) // 33 cr: leaves 82
   assert.equal(designBlock(s, fine), null)
-  assert.match(instrumentLine(s, fine), /enough for the ir spectrometer aboard, not the ground radar/i)
-  const tight = load({ water: 2000, shielding: 1500, parts: 1000 }) // 43 cr: leaves 48
+  assert.match(instrumentLine(s, fine), /the ground radar fits only with the cheaper rover rocket; the ir spectrometer fits with either/i)
+  const tight = load({ water: 2000, shielding: 1500, parts: 1000 }) // 43 cr: leaves 72
   assert.equal(designBlock(s, tight), null)
-  const greedy = load({ water: 2000, shielding: 1500, parts: 1000, rack: 500 }) // 61 cr: leaves 30
-  assert.match(designBlock(s, greedy)!, /Leave at least 42 cr for the rover instrument/)
-  assert.match(designBlock(s, MOST)!, /Leave at least 42 cr/, 'everything at once leaves only 8 cr')
-  assert.match(instrumentLine(ship('falcon9'), STARTER), /enough for either rover instrument/)
+  assert.match(instrumentLine(s, tight), /enough for the ir spectrometer and either rover rocket, not the ground radar/i)
+  const greedy = load({ water: 2000, shielding: 1500, parts: 1000, rack: 500 }) // 61 cr: leaves 54
+  assert.equal(designBlock(s, greedy), null, 'more cargo is allowed, at a price')
+  assert.match(instrumentLine(s, greedy), /only the ir spectrometer and the cheaper rover rocket fit/i)
+  assert.match(designBlock(s, MOST)!, /Leave at least 53 cr for the rover: 42 cr for its instrument and 11 cr for its rocket/, 'everything at once leaves only 32 cr')
+  assert.match(instrumentLine(ship('falcon9'), STARTER), /enough for either rover instrument and either rocket/)
 })
 
 test('weight is the pilot\'s risk: an overloaded design may launch, and the forecast says what will happen', () => {
@@ -104,7 +108,11 @@ function aboardMission(cargo: Partial<Record<CargoId, number>>, opts: { ship?: S
   assert.equal(m.activatePayload(), null)
   if (m.relayFault) m.complete('relay', 'test')
   m.setPower(opts.power ?? READY)
+  // fixed dice: the rover's rocket succeeds, and no drive ends in wheel trouble
+  m.rng = () => 0
   assert.equal(m.chooseRover('perseverance'), null)
+  assert.equal(m.chooseRocket('atlas541'), null)
+  m.rng = () => 0.999
   return m
 }
 /** The flattest real Perseverance stop 100 to 600 m out: a place where tests can run. */
@@ -117,15 +125,15 @@ function atFlatStop(m: Mission) {
 }
 
 test('the instrument is bought aboard from what the launch left', () => {
-  const m = new Mission({ callSign: 'T', suit: 'ember', ship: 'shuttle', loadout: load({ water: 2000, shielding: 1500, oxygen: 400 }) })
-  assert.equal(m.launchSpent, 33)
-  assert.match(m.selectInstrument('gpr')!, /GPR-2 costs 68 cr; the launch and its cargo left 58 cr/)
+  const m = new Mission({ callSign: 'T', suit: 'ember', ship: 'shuttle', loadout: load({ water: 2000, shielding: 1500, parts: 1000 }) })
+  assert.equal(m.launchSpent, 43)
+  assert.match(m.selectInstrument('gpr')!, /GPR-2 costs 68 cr and the rover's rocket at least 11 cr; the launch and its cargo left 72 cr/)
   assert.equal(m.selectInstrument('ir'), null)
-  assert.equal(m.credits, 91 - 33 - 42)
+  assert.equal(m.credits, 115 - 43 - 42)
   // without a launch design (tests, old saves) main's rules still apply
   const plain = new Mission({ callSign: 'T', suit: 'ember', ship: 'shuttle' })
   assert.equal(plain.selectInstrument('gpr'), null)
-  assert.equal(plain.credits, 91 - 68)
+  assert.equal(plain.credits, 115 - 68)
 })
 
 test('water storage tanks add to the base score, more water more points', () => {
@@ -177,15 +185,20 @@ test('radiation shielding panels raise the base site\'s radiation score', () => 
   assert.match(b.model, /our model/)
 })
 
-test('a scientific experiment rack makes drilling cheaper, and the full rack studies samples without calibration', () => {
+test('a scientific experiment rack makes coring cheaper, and the full rack reads the rocks without calibration', () => {
   const plain = aboardMission({}), small = aboardMission({ rack: 200 }), full = aboardMission({ rack: 500 })
-  assert.equal(plain.testCost('drill'), testWh('drill', 'ir', false))
-  assert.equal(small.testCost('drill'), testWh('drill', 'ir', true), 'the research filter, without 3 research units')
+  assert.equal(plain.sampleCost, testWh('drill', 'ir', false))
+  assert.equal(small.sampleCost, testWh('drill', 'ir', true), 'the research filter, without 3 research units')
   assert.equal(small.samplesStudied, false)
-  assert.equal(full.samplesStudied, true, 'studied even though nobody calibrated the instrument')
-  const spot = atFlatStop(full)
-  assert.equal(full.runTest('drill'), null)
-  assert.equal(full.report(spot).bars.find(b => b.id === 'sample')!.score, 100)
+  assert.equal(full.samplesStudied, true, 'the scans read clearly even though nobody calibrated the instrument')
+  const site = full.sampleSite!
+  assert.equal(full.addWaypoint({ x: site.x, y: site.y }), null)
+  assert.equal(full.deploy(), null)
+  const before = full.batteryWh
+  assert.equal(full.collectSamples(['sapphire', 'hazeltop', 'skyland']), null)
+  assert.equal(before - full.batteryWh, testWh('drill', 'ir', true))
+  assert.equal(full.samples!.clear, true)
+  assert.equal(full.report(full.spotHere!).bars.find(b => b.id === 'sample')!.score, 100)
 })
 
 test('cargo values are zero when an item was not loaded', () => {

@@ -265,10 +265,163 @@ function shuttle(): VehicleModel {
   }
 }
 
-const cache = new Map<ShipId, VehicleModel>()
-export function vehicleModel(id: ShipId): VehicleModel {
+// ------------------------------------------------------------------ The rover's rockets (cargo, no crew)
+// The same artist's impressions, for the rocket that carries the rover (src/ui/rocketPick.ts).
+
+/** A solid booster strapped to a core of radius R at an angle round it, with its exhaust. */
+function strapOn(drop: Mesh, R: number, angleDeg: number): Engine {
+  const r = R + 0.79 + 0.1, ax = Math.cos(rad(angleDeg)), az = Math.sin(rad(angleDeg))
+  drop.xf = translation([ax * r, 0, az * r])
+  drop.shade = tucked([ax, az])
+  drop.lathe([
+    { pts: bell(0.55, 1.5, 0.3, 0.62), m: DARK },
+    { pts: [[0.3, 0.55], [0.79, 0.55]], m: DARK, flat: true },
+    { pts: [[0.79, 0.55], [0.79, 17.6]], m: WHITE, flat: true },
+    { pts: ogive(0.79, 17.6, 20.3, 8), m: tinted(WHITE, 0.94) },
+  ], 20, (_, y, m) => (m === WHITE && (Math.abs(y - 6.4) < 0.16 || Math.abs(y - 12.2) < 0.16 || y > 17.2) ? tinted(GREY, 1.1) : m))
+  drop.shade = () => 1
+  drop.xf = identity()
+  return { at: [ax * r, -0.95, az * r], r: 0.62, kind: 'solid', stages: [1] }
+}
+
+/** Atlas V 541: the bronze booster, four solid boosters, and a five-metre nose cone over the upper stage and the spacecraft. */
+function atlas541(): VehicleModel {
+  const R = 1.905, F = 2.7
+  const drop = new Mesh(), core = new Mesh()
+  drop.lathe([
+    { pts: [[0, 0], [R * 0.98, 0]], m: DARK, flat: true },
+    { pts: [[R * 0.98, 0], [R, 0.15], [R, 1.0]], m: DARK, flat: true },
+    { pts: [[R, 1.0], [R, 16], [R, 21], [R, 32.5]], m: BRONZE, flat: true },
+    { pts: [[R, 32.5], [0, 32.5]], m: DARK, flat: true },
+  ], 36, (_, y, m) => (m === BRONZE ? toward(m, [0.56, 0.5, 0.44], 0.5 * smooth(15, 21, y) * (1 - smooth(30.5, 32.5, y))) : m))
+  for (const x of [-0.74, 0.74]) { drop.xf = translation([x, 0, 0]); drop.lathe([{ pts: bell(0.05, 1.75, 0.3, 0.72), m: DARK }], 16) }
+  drop.xf = around(rad(100))
+  drop.box([R - 0.02, 1.5, -0.2], [R + 0.16, 32, 0.2], toward(BRONZE, [0.5, 0.5, 0.5], 0.35)) // feed line fairing
+  drop.xf = identity()
+  const solids = [32, 148, 212, 328].map(a => strapOn(drop, R, a))
+
+  // upper-stage engine, the boat tail that widens to the nose cone, and the nose cone itself
+  core.lathe([{ pts: bell(32.7, 1.7, 0.2, 0.74), m: DARK }], 16)
+  core.lathe([
+    { pts: [[0.2, 32.7], [R, 32.7]], m: DARK, flat: true },
+    { pts: [[R, 32.7], [R, 33.4]], m: tinted(GREY, 1.2), flat: true },
+    { pts: [[R, 33.4], [F, 36.2]], m: WHITE, flat: true },
+    { pts: [[F, 36.2], [F, 36.6]], m: tinted(GREY, 1.25), flat: true },
+    { pts: [[F, 36.6], [F, 49.8]], m: WHITE, flat: true },
+    { pts: ogive(F, 49.8, 58.2, 14, 0.22), m: WHITE },
+    { pts: [[0.22, 58.2], [0, 58.4]], m: GREY, flat: true },
+  ], 40)
+  return {
+    height: 58.4, centre: 27, girth: 3.7, core, drops: [{ mesh: drop, away: [-0.2, -1, 0] }],
+    engines: [{ at: [0, -1.7, 0], r: 1.1, kind: 'kerosene', stages: [1] }, ...solids, { at: [0, 31.0, 0], r: 0.9, kind: 'hydrogen', stages: [2] }],
+    base: [12, 12], tower: { x: -15, z: -9, arm: 43, reach: 3.2 },
+  }
+}
+
+/** Falcon 9 flown without recovery: no landing legs, no grid fins, and a nose cone in place of the capsule. */
+function falcon9Cargo(): VehicleModel {
+  const R = 1.83, F = 2.6
+  const drop = new Mesh(), core = new Mesh()
+  drop.lathe([
+    { pts: [[0, 0], [R * 0.985, 0]], m: BLACK, flat: true },
+    { pts: [[R * 0.985, 0], [R, 0.2], [R, 1.5]], m: BLACK, flat: true },
+    { pts: [[R, 1.5], [R, 14], [R, 41.2]], m: WHITE, flat: true },
+    { pts: [[R, 41.2], [R, 47.3]], m: BLACK, flat: true },
+    { pts: [[R, 47.3], [0, 47.3]], m: BLACK, flat: true },
+  ], 36, (_, y, m) => (m === WHITE ? tinted(m, mix(0.66, 1, smooth(1.5, 13, y))) : m))
+  drop.xf = around(rad(112))
+  drop.box([R - 0.02, 2, -0.16], [R + 0.13, 46.6, 0.16], tinted(WHITE, 0.9)) // cable raceway
+  for (let k = 0; k < 9; k++) {
+    drop.xf = k === 8 ? identity() : around(rad(k * 45), 1.25)
+    drop.lathe([{ pts: bell(0.05, 1.05, 0.2, 0.47), m: DARK }], 12)
+  }
+  drop.xf = identity()
+  core.lathe([
+    { pts: bell(47.5, 2.0, 0.34, 1.3, 8), m: DARK },
+    { pts: [[0.34, 47.5], [R * 0.98, 47.5]], m: DARK, flat: true },
+    { pts: [[R * 0.98, 47.5], [R, 47.6], [R, 56.6]], m: WHITE, flat: true },
+    { pts: [[R, 56.6], [R, 56.9]], m: GREY, flat: true },
+    { pts: [[R, 56.9], [F, 58.6]], m: WHITE, flat: true },
+    { pts: [[F, 58.6], [F, 64.2]], m: WHITE, flat: true },
+    { pts: ogive(F, 64.2, 69.9, 12, 0.28), m: WHITE },
+    { pts: [[0.28, 69.9], [0, 70.1]], m: GREY, flat: true },
+  ], 36)
+  return {
+    height: 70.1, centre: 32, girth: 2.7, core, drops: [{ mesh: drop, away: [-0.25, -1, 0] }],
+    engines: [{ at: [0, -1, 0], r: 1.55, kind: 'kerosene', stages: [1] }, { at: [0, 45.5, 0], r: 1.3, kind: 'kerosene', stages: [2] }],
+    base: [9, 9], tower: { x: -13, z: -9, arm: 58, reach: 3.0 },
+  }
+}
+
+/** Saturn V: three stages in black and white, five engines, four fins, and an escape tower on top. */
+function saturnV(): VehicleModel {
+  const R = 5.03, R3 = 3.3, RS = 1.95
+  const drop = new Mesh(), core = new Mesh()
+  /** The roll pattern: sections marked ROLL are black and white by turns round the stack; the rest are one colour. */
+  const ROLL: Mat = { ...WHITE }
+  const roll = (a: number, _y: number, m: Mat) => (m !== ROLL ? m : Math.floor((a / (Math.PI * 2)) * 8 + 0.5) % 2 === 0 ? BLACK : WHITE)
+  drop.lathe([
+    { pts: [[0, 0], [R * 0.98, 0]], m: DARK, flat: true },
+    { pts: [[R * 0.98, 0], [R, 0.3]], m: DARK, flat: true },
+    { pts: [[R, 0.3], [R, 13]], m: ROLL, flat: true },
+    { pts: [[R, 13], [R, 25.2]], m: WHITE, flat: true },
+    { pts: [[R, 25.2], [R, 28.4]], m: BLACK, flat: true },
+    { pts: [[R, 28.4], [R, 37.5]], m: WHITE, flat: true },
+    { pts: [[R, 37.5], [R, 42]], m: ROLL, flat: true },
+    { pts: [[R, 42], [0, 42]], m: DARK, flat: true },
+  ], 48, roll)
+  for (let k = 0; k < 4; k++) {
+    // engine fairings low on the first stage, each with a fin
+    drop.xf = around(rad(45 + k * 90))
+    drop.block(
+      [[R - 0.2, 0.2, 1.9], [R + 1.15, 0.2, 1.5], [R + 1.15, 0.2, -1.5], [R - 0.2, 0.2, -1.9]],
+      [[R - 0.2, 8.4, 0.5], [R + 0.05, 8.4, 0.35], [R + 0.05, 8.4, -0.35], [R - 0.2, 8.4, -0.5]], tinted(WHITE, 0.9))
+    drop.block(
+      [[R + 0.9, 0.3, 0.14], [R + 3.5, 0.3, 0.1], [R + 3.5, 0.3, -0.1], [R + 0.9, 0.3, -0.14]],
+      [[R + 0.4, 4.6, 0.14], [R + 1.5, 4.6, 0.1], [R + 1.5, 4.6, -0.1], [R + 0.4, 4.6, -0.14]], BLACK)
+  }
+  for (let k = 0; k < 5; k++) {
+    drop.xf = k === 4 ? identity() : around(rad(45 + k * 90), 3.55)
+    drop.lathe([{ pts: bell(0.1, 4.6, 0.75, 1.82, 8), m: DARK }], 18)
+  }
+  drop.xf = identity()
+
+  // second and third stages, the spacecraft and the escape tower
+  for (let k = 0; k < 5; k++) {
+    core.xf = k === 4 ? identity() : around(rad(k * 90), 2.6)
+    core.lathe([{ pts: bell(42.4, 2.6, 0.4, 1.0), m: DARK }], 14)
+  }
+  core.xf = identity()
+  core.lathe([
+    { pts: [[0.4, 42.4], [R, 42.4]], m: DARK, flat: true },
+    { pts: [[R, 42.4], [R, 47.6]], m: ROLL, flat: true },
+    { pts: [[R, 47.6], [R, 65.6]], m: WHITE, flat: true },
+    { pts: [[R, 65.6], [R, 67.0]], m: BLACK, flat: true },
+    { pts: [[R, 67.0], [R3, 72.7]], m: ROLL, flat: true },
+    { pts: [[R3, 72.7], [R3, 84.7]], m: WHITE, flat: true },
+    { pts: [[R3, 84.7], [R3, 85.6]], m: BLACK, flat: true },
+    { pts: [[R3, 85.6], [RS, 94.1]], m: WHITE, flat: true },
+    { pts: [[RS, 94.1], [RS, 98.0]], m: STEEL, flat: true },
+    { pts: [[RS, 98.0], [0.6, 101.3]], m: PALE, flat: true },
+    { pts: [[0.6, 101.3], [0.16, 101.6]], m: PALE, flat: true },
+    { pts: [[0.16, 101.6], [0.16, 106.4]], m: STRUCT_LIGHT, flat: true },
+    { pts: [[0.16, 106.4], [0.36, 106.9], [0.36, 109.6]], m: WHITE, flat: true },
+    { pts: ogive(0.36, 109.6, 110.6, 6), m: GREY },
+  ], 48, roll)
+  return {
+    height: 110.6, centre: 50, girth: 6.4, core, drops: [{ mesh: drop, away: [-0.2, -1, 0] }],
+    engines: [{ at: [0, -4.6, 0], r: 4.4, kind: 'kerosene', stages: [1] }, { at: [0, 39.6, 0], r: 2.8, kind: 'hydrogen', stages: [2] }],
+    base: [19, 19], tower: { x: -25, z: -12, arm: 97, reach: 3.2 },
+  }
+}
+
+/** Everything that can stand on the pad: the three crew launch systems and the three rockets for the rover. */
+export type StackId = ShipId | 'atlas541' | 'falcon9x' | 'saturnv'
+const BUILD: Record<StackId, () => VehicleModel> = { falcon9, atlasv: atlasV, shuttle, atlas541, falcon9x: falcon9Cargo, saturnv: saturnV }
+const cache = new Map<StackId, VehicleModel>()
+export function vehicleModel(id: StackId): VehicleModel {
   let v = cache.get(id)
-  if (!v) cache.set(id, v = id === 'falcon9' ? falcon9() : id === 'atlasv' ? atlasV() : shuttle())
+  if (!v) cache.set(id, v = BUILD[id]())
   return v
 }
 

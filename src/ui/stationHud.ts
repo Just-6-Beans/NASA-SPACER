@@ -28,10 +28,13 @@ export function objectiveFor(m: Mission, briefed: boolean): Objective {
   const rv = m.rover
   if (!rv) return pb ? at('power', `Route power at the Power Grid (Node 1): ${pb}`) : at('comms', 'Open Rover Comms (Comms module, below Node 2) and choose your rover.')
   if (pb) return at('power', `Route power at the Power Grid (Node 1): ${pb}`)
+  if (!m.delivery) return at('comms', `Choose the rocket that carries ${rv.name} to Mars at Rover Comms.`)
+  if (m.stuck) return at('comms', `ALERT: ${rv.name} is stuck with wheel trouble. Free it at Rover Comms.`, true)
   if (m.charging) return at('comms', `${rv.name} is recharging (${spendPct(rv, m.batteryWh)}%). Do station tasks meanwhile, or watch the timer at Rover Comms.`)
   if (m.timeUp) return at('comms', `The ${m.missionSols} Mars days are over. Choose the base at Rover Comms.`)
   if (m.stranded || !m.canDrive) return at('comms', `${rv.name} is low on battery. Recharge it or choose the base at Rover Comms.`)
-  if (!m.calibrated && !m.drives.length) return at('comms', 'Optional: calibrate at the Calibration bench (US Lab). Then drive your rover at Rover Comms.')
+  if (!m.samplesStudied && !m.samples && !m.drives.length) return at('comms', 'Optional: calibrate at the Calibration bench (US Lab) so the rover can read its rocks. Then drive your rover at Rover Comms.')
+  if (!m.samples) return at('comms', `Drive ${rv.name} to the sample site and fill three tubes at Rover Comms (day ${m.sol} of ${m.missionSols}).`)
   return at('comms', `Plan ${rv.name}'s drive on the map at Rover Comms (day ${m.sol} of ${m.missionSols}).`)
 }
 

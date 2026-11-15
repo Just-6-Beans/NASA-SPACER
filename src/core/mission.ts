@@ -1,11 +1,18 @@
 // Mission state and rules. Plain TypeScript: runs in Node tests, the browser, and shares
 // validation with the co-op server.
 import { OPS_DATES, opsDate, type OpsDate } from '../data/opsDates'
+import { sampleFacts } from '../data/roverTasks'
 import { CARGO_REWARD, INSTRUMENTS, SHIPS, byId, type CargoId, type InstrumentId, type ShipId, type SuitId } from './data'
+import { BACKUP_SOLS, ROCKET_MIN, delivered, deliveryRocket, failureStory, rocketRefusal, rocketsFor, type Delivery, type DeliveryId } from './delivery'
 import { Greenhouse } from './greenhouse'
 import { cargoKg, cargoValue, cleanLoadout, designCost, type LaunchRecord, type Loadout } from './loadout'
 import { DEFAULT_POWER, LIFE_NEED, powerBlock, researchFilter, signalLeg, validPower, type Power } from './power'
-import { ROVERS, type RoverId, type RoverSpec } from './rovers'
+import {
+  CAUSES, FIXES, RESCUE_LIMIT_SOLS, START_WEAR, WEAR_LIMIT, WORN_SPEED, cutPath, fixOutcome, newRescue, rescueLeft, routeRisk, stuckOn,
+  type FixId, type Rescue, type RouteRisk, type StuckCause,
+} from './rescue'
+import { ROVERS, type AreaStop, type RoverId, type RoverSpec } from './rovers'
+import { SAMPLE_RANGE_M, SAMPLE_SNAP_M, cacheRating, picksBlock, rock, sampleSite, sampleValue, shuffleRocks, type RockId, type SampleResult } from './samples'
 import {
   MAX_BASE_TILT, MAX_WAYPOINTS, MISSION_SOLS, REGIONS, SOL_HOURS, TESTS, dist, driveWhPerM, groundAt, inMap, photoBonus, placesInRange,
   rechargeHours, rechargeW, region, reserveWh, simulateDrive, siteScore, spotBars, starsFor, testWh, verdict,
@@ -51,7 +58,7 @@ export const TASK_INFO: Record<TaskId, { name: string; group: 'Routine' | 'Missi
   cargo: { name: 'Cargo reconciliation', group: 'Routine', where: 'Payload', reward: '+5 supply credits' },
   water: { name: 'Water purification', group: 'Routine', where: 'Hab Systems', reward: `+${WATER_BONUS} to the base score` },
   medical: { name: 'Crew medical check', group: 'Routine', where: 'Hab Systems', reward: 'Clearance for habitat commissioning' },
-  calibration: { name: 'Two-point calibration', group: 'Mission', where: 'Calibration', reward: 'Drilled samples are analysed (uncalibrated: flagged)' },
+  calibration: { name: 'Two-point calibration', group: 'Mission', where: 'Calibration', reward: 'Rock scans read clearly at the sample site (uncalibrated: the composition is a guess)' },
   relay: { name: 'Relay repair', group: 'Emergency', where: 'Rover Comms', reward: 'Restores the uplink' },
   habitat: { name: 'Habitat commissioning', group: 'Mission', where: 'Mission Report', reward: 'Crew quarters on Mars' },
   greenhouse: { name: 'Station greenhouse', group: 'Routine', where: 'Greenhouse module', reward: 'A greenhouse score of 0 to 100, counted beside the base score' },
@@ -95,6 +102,19 @@ export class Mission {
   regional: TestId[] = []
   /** The battery hit the 40 % line mid-drive: the rover is in safe mode until it recharges. */
   stranded = false
+  /** The dice: the launch of the rover's rocket, getting stuck, the order the rocks lie in. Tests replace it. */
+  rng: () => number = Math.random
+  /** How the rover got to Mars: the rocket chosen for it, and whether a backup had to fly. Null until it is launched. */
+  delivery: Delivery | null = null
+  /** Wheel wear, per cent (OUR MODEL). At WEAR_LIMIT the rover drives slower for the rest of the mission. */
+  wheelWear = 0
+  /** The stuck-rover rescue: under way while its result is null, kept afterwards for the report. One per mission. */
+  rescue: Rescue | null = null
+  /** The three tubes sealed at the sample site. */
+  samples: SampleResult | null = null
+  /** The five rocks at the sample site, in the order they lie (A to E). */
+  rocks: RockId[] = []
+  private worn: RoverSpec | null = null
   base: BaseOutcome | null = null
   log: LogEntry[] = []
   /** UI drafts for each task panel, kept so closing and reopening a panel preserves work. */
@@ -117,7 +137,7 @@ export class Mission {
   get lifeNeed() { return LIFE_NEED - this.cargo('oxygen') }
   /** OUR MODEL, cargo: a food supply lets the crew wait in orbit longer. */
   get missionSols() { return MISSION_SOLS + this.cargo('food') }
-  /** Drilled samples are studied: the instrument was calibrated, or a full experiment rack came up. */
+  /** Rock scans read clearly: the instrument was calibrated, or a full experiment rack came up. */
   get samplesStudied() { return this.calibrated || this.cargo('rack') >= 2 }
 
   get ship() { return byId(SHIPS, this.profile.ship) }
@@ -133,27 +153,29 @@ export class Mission {
   note(text: string, kind: LogEntry['kind'] = 'mission') { this.log.push({ at: this.stamp(), text, kind }) }
 
   // ---- Budget ------------------------------------------------------------
-  /** Credits left after the launch, its cargo and the rover instrument. */
+  /** Credits left after the launch, its cargo, the rover instrument and the rover's rocket. */
   get credits() {
     let c = this.ship.budget - this.launchSpent
     const inst = this.instrument ?? this.instrumentDraft
     if (inst) c -= byId(INSTRUMENTS, inst).cost
     if (this.completed.has('cargo')) c += CARGO_REWARD
+    if (this.delivery) c -= deliveryRocket(this.delivery.rocket).price ?? 0
     return c
   }
-  /** Supply credits left. Nothing after the instrument is charged for, so this equals the credits. */
+  /** Supply credits left. Nothing after the rover's rocket is charged for, so this equals the credits. */
   get funds() { return this.credits }
 
   // ---- Payload -----------------------------------------------------------
+  /** An instrument has to leave enough for the cheapest rocket that can carry a rover. */
   instrumentBlock(id: InstrumentId): string | null {
     const inst = byId(INSTRUMENTS, id)
-    // with a launch design the rover flew on its own rocket: only the price matters, out of what the launch left
+    // with a launch design the rover flies on its own rocket: only the price matters, out of what the launch left
     if (this.loadout) {
       const left = this.ship.budget - this.launchSpent
-      return inst.cost > left ? `${inst.code} costs ${inst.cost} cr; the launch and its cargo left ${left} cr.` : null
+      return inst.cost + ROCKET_MIN > left ? `${inst.code} costs ${inst.cost} cr and the rover's rocket at least ${ROCKET_MIN} cr; the launch and its cargo left ${left} cr.` : null
     }
     if (inst.massKg > this.ship.payloadKg) return `${inst.code} is ${inst.massKg} kg; ${this.ship.name} carries ${this.ship.payloadKg} kg.`
-    if (inst.cost > this.ship.budget) return `${inst.code} costs ${inst.cost} cr; budget is ${this.ship.budget} cr.`
+    if (inst.cost + ROCKET_MIN > this.ship.budget) return `${inst.code} costs ${inst.cost} cr and the rover's rocket at least ${ROCKET_MIN} cr; budget is ${this.ship.budget} cr.`
     return null
   }
   selectInstrument(id: InstrumentId): string | null {
@@ -221,17 +243,32 @@ export class Mission {
   get signalMin() { return signalLeg(this.ops.lightMin, this.ship.handoffMin, this.power) }
 
   // ---- The rover -----------------------------------------------------------
-  get rover(): RoverSpec | null { return this.region ? ROVERS[region(this.region).rover] : null }
+  /**
+   * The chosen rover. Once its wheels are worn past the limit it is the same rover with a lower
+   * top speed, so every drive after that takes longer and costs more battery per metre.
+   */
+  get rover(): RoverSpec | null {
+    if (!this.region) return null
+    const real = ROVERS[region(this.region).rover]
+    if (!this.wheelsWorn) return real
+    return this.worn ??= { ...real, topSpeedMh: Math.round(real.topSpeedMh * WORN_SPEED) }
+  }
   get balanced() { return this.completed.has('battery') || this.cargo('parts') >= 2 }
   get fastDrill() { return researchFilter(this.power) || this.cargo('rack') >= 1 }
   /** Battery above the 40 % safe-mode line. */
   get spareWh() { return this.rover ? Math.max(0, this.batteryWh - reserveWh(this.rover)) : 0 }
 
-  /** Picks the rover for the whole mission. It starts in its real crater, where the real rover is now. */
-  chooseRover(id: RoverId): string | null {
+  /** Why a rover cannot be chosen, or null: one rover for the whole mission, and the budget must cover a rocket that can carry it. */
+  roverBlock(id: RoverId): string | null {
     if (this.region) return 'You already chose your rover. It stays with you for the whole mission.'
     if (!ROVERS[id]) return 'Unknown rover.'
-    return this.chooseRegion(ROVERS[id].region)
+    const cheapest = rocketsFor(id)[0]
+    if (cheapest.price! > this.credits) return `${ROVERS[id].name} can only reach Mars on the ${cheapest.name} (${cheapest.price} cr), and ${this.credits} cr is left.`
+    return null
+  }
+  /** Picks the rover for the whole mission. It starts in its real crater, where the real rover is now. */
+  chooseRover(id: RoverId): string | null {
+    return this.roverBlock(id) ?? this.chooseRegion(ROVERS[id].region)
   }
   chooseRegion(id: RegionId): string | null {
     if (this.region) return 'You already chose your rover. It stays with you for the whole mission.'
@@ -244,7 +281,48 @@ export class Mission {
     this.spots = [{ id: 0, label: 'A', p: { x: 0, y: 0 }, tests: [], arrivedWh: this.batteryWh, stranded: false }]
     // Parked beside a real photo spot, the rover saves its photo straight away.
     this.photos = placesInRange(rv, this.pos).map(p => p.id)
+    this.wheelWear = START_WEAR[rv.id]
+    this.rocks = shuffleRocks(this.rng)
     this.note(`Rover chosen: ${rv.name}, ${region(id).name}. It starts where the real rover is (sol ${rv.area.centre.sol}) with ${this.batteryWh} Wh.`)
+    return null
+  }
+
+  // ---- The rover's rocket --------------------------------------------------
+  // The rover flies on its own rocket, chosen after the rover. REAL: which rockets flew the rovers
+  // and what NASA paid. OUR MODEL: the price in credits, the success rate, and what a failure costs.
+
+  /** Why a rocket cannot launch this rover, or null. */
+  rocketBlock(id: DeliveryId): string | null {
+    const rv = this.rover
+    if (!rv) return 'Choose a rover first.'
+    if (this.delivery) return 'The rover has already been launched.'
+    const k = deliveryRocket(id)
+    const refusal = rocketRefusal(k, rv.id)
+    if (refusal) return refusal
+    if (k.price! > this.credits) return `${k.name} costs ${k.price} cr, and ${this.credits} cr is left.`
+    return null
+  }
+  /**
+   * Launches the rover. The dice decide whether it reaches Mars; if it does not, a backup rover
+   * flies and the crew loses BACKUP_SOLS Mars days waiting for it. Never a dead end.
+   */
+  chooseRocket(id: DeliveryId): string | null {
+    const block = this.rocketBlock(id)
+    if (block) return block
+    const rv = this.rover!, k = deliveryRocket(id)
+    const ok = delivered(k, this.rng())
+    this.delivery = { rocket: id, ok, solsLost: ok ? 0 : BACKUP_SOLS }
+    if (ok) this.note(`${rv.name} launched on the ${k.name} (${k.price} cr) and reached Mars.`)
+    else {
+      this.hoursUsed += BACKUP_SOLS * SOL_HOURS
+      this.note(`The ${k.name} launch failed. ${failureStory(k)} A backup ${rv.name} flew: ${BACKUP_SOLS} Mars days lost.`, 'alert')
+    }
+    return null
+  }
+  /** Why the rover cannot work right now, or null: it has not been launched, or it is stuck. */
+  private held(): string | null {
+    if (!this.delivery) return 'Choose the rocket that carries your rover first.'
+    if (this.stuck) return 'The rover is stuck. Free it first.'
     return null
   }
 
@@ -252,7 +330,7 @@ export class Mission {
   /** The spot the rover is standing on, if any. */
   get spotHere(): Spot | null { return this.spots.find(s => dist(s.p, this.pos) < 1) ?? null }
   /** The rover can still drive at least 20 m. */
-  get canDrive() { const rv = this.rover; return !!rv && !this.stranded && !this.base && !this.timeUp && !this.charging && this.spareWh >= driveWhPerM(rv, this.balanced) * 20 }
+  get canDrive() { const rv = this.rover; return !!rv && !this.held() && !this.stranded && !this.base && !this.timeUp && !this.charging && this.spareWh >= driveWhPerM(rv, this.balanced) * 20 }
 
   // ---- Mission days --------------------------------------------------------
   get hoursLeft() { return Math.max(0, this.missionSols * SOL_HOURS - this.hoursUsed) }
@@ -279,6 +357,8 @@ export class Mission {
   rechargeBlock(): string | null {
     const rv = this.rover
     if (!rv) return 'Choose a rover first.'
+    const held = this.held()
+    if (held) return held
     if (this.base) return 'The base is already decided.'
     if (this.charging) return 'The rover is already recharging.'
     if (this.batteryWh >= rv.batteryWh - 1) return 'The battery is already full.'
@@ -349,15 +429,19 @@ export class Mission {
   addWaypoint(p: Pt): string | null {
     const rv = this.rover
     if (!rv) return 'Choose a rover first.'
+    const held = this.held()
+    if (held) return held
     if (this.base) return 'The base is already decided.'
     if (this.timeUp) return `The mission's ${this.missionSols} Mars days are used up.`
     if (this.charging) return 'The rover is recharging. Stop the recharge first.'
     if (this.stranded) return 'The rover is in safe mode. Recharge it before driving.'
     if (!inMap(rv, p)) return 'That point is off the map.'
     if (this.waypoints.length >= MAX_WAYPOINTS) return `At most ${MAX_WAYPOINTS} points per deployment.`
-    // A tap on (or right beside) a spot already visited goes back to exactly that spot.
+    // A tap on (or right beside) a spot already visited goes back to exactly that spot, and a tap
+    // on the sample site's marker goes to the site itself.
     const known = this.spots.find(s => dist(s.p, p) < 25)
-    const q = known ? known.p : { x: Math.round(p.x), y: Math.round(p.y) }
+    const site = sampleSite(rv)
+    const q = known ? known.p : dist(site, p) <= SAMPLE_SNAP_M ? { x: site.x, y: site.y } : { x: Math.round(p.x), y: Math.round(p.y) }
     const last = this.waypoints[this.waypoints.length - 1] ?? this.pos
     if (dist(last, q) < 10) return 'Too close to the last point.'
     this.waypoints = [...this.waypoints, q]
@@ -372,10 +456,18 @@ export class Mission {
     return rv && this.waypoints.length ? simulateDrive(rv, this.pos, this.waypoints, this.batteryWh, this.balanced, this.photos) : null
   }
 
+  /** How risky the planned path is: the real slope under it and how far it strays from where the real rover parked. */
+  routeRisk(): RouteRisk | null {
+    const rv = this.rover
+    return rv && this.waypoints.length ? routeRisk(rv, this.pos, this.waypoints) : null
+  }
+
   deployBlock(): string | null {
     const access = this.roverAccess()
     if (access) return access
     if (!this.rover) return 'Choose a rover first.'
+    const held = this.held()
+    if (held) return held
     if (this.base) return 'The base is already decided.'
     if (this.timeUp) return `The mission's ${this.missionSols} Mars days are used up. Choose your base.`
     if (this.charging) return 'The rover is recharging. Stop the recharge first.'
@@ -394,8 +486,11 @@ export class Mission {
     const block = this.deployBlock()
     if (block) return block
     const rv = this.rover!
-    const d = simulateDrive(rv, this.pos, this.waypoints, this.batteryWh, this.balanced, this.photos)
-    this.note(`Deployment ${this.drives.length + 1}: ${this.waypoints.length} point${this.waypoints.length > 1 ? 's' : ''}, ${d.distM} m, ${d.climbM} m of climb.`, 'rover')
+    const plan = simulateDrive(rv, this.pos, this.waypoints, this.batteryWh, this.balanced, this.photos)
+    // Wheel trouble, once a mission: the drive ends where the rover gets stuck, and the rest of the path is lost.
+    const hit = this.rescue ? null : stuckOn(rv, this.pos, this.waypoints, plan, this.drives.length, this.rng)
+    const d = hit ? simulateDrive(rv, this.pos, cutPath(this.pos, this.waypoints, hit.alongM), this.batteryWh, this.balanced, this.photos) : plan
+    this.note(`Deployment ${this.drives.length + 1}: ${this.waypoints.length} point${this.waypoints.length > 1 ? 's' : ''}, ${plan.distM} m, ${plan.climbM} m of climb.`, 'rover')
     this.drives.push(d)
     this.pos = d.end
     this.batteryWh = d.endWh
@@ -408,9 +503,93 @@ export class Mission {
       spot = { id: this.spots.length, label: LABELS[this.spots.length % LABELS.length], p: d.end, tests: [], arrivedWh: d.endWh, stranded: d.safeMode }
       this.spots.push(spot)
     }
-    if (d.safeMode) this.note(`Safe mode: the battery reached ${Math.round((reserveWh(rv) / rv.batteryWh) * 100)} % after ${d.distM} m. The rover stopped at spot ${spot.label}.`, 'alert')
+    if (hit && !d.safeMode) {
+      this.rescue = newRescue(hit.cause, d.end, spot.label, this.wheelWear, this.rng)
+      this.note(`Wheel trouble ${d.distM} m along: the rover is stuck at spot ${spot.label}.`, 'alert')
+    } else if (d.safeMode) this.note(`Safe mode: the battery reached ${Math.round((reserveWh(rv) / rv.batteryWh) * 100)} % after ${d.distM} m. The rover stopped at spot ${spot.label}.`, 'alert')
     else this.note(`Arrived at spot ${spot.label} using ${d.usedWh} Wh over ${d.hours} h of driving.`, 'rover')
     if (d.photos.length) this.note(`${d.photos.length} real photo spot${d.photos.length > 1 ? 's' : ''} passed on the way: saved to the album (${this.photos.length} in all).`, 'rover')
+    return null
+  }
+
+  // ---- Stuck rover rescue ----------------------------------------------------
+  // OUR MODEL throughout (rescue.ts). The pilot reads the telemetry, says what the trouble is,
+  // and tries fixes. Each fix costs Mars days whether it works or not, and a wrong one wears the wheels.
+
+  /** The rover is stuck right now. */
+  get stuck() { return !!this.rescue && this.rescue.result === null }
+  /** The wheels are worn past the limit: top speed is down for the rest of the mission. */
+  get wheelsWorn() { return this.wheelWear >= WEAR_LIMIT }
+  /** Records what the pilot thinks the trouble is. It can be changed until the rover is free. */
+  diagnose(cause: StuckCause): string | null {
+    if (!this.stuck) return 'The rover is not stuck.'
+    if (!CAUSES[cause]) return 'Unknown cause.'
+    this.rescue!.diagnosis = cause
+    return null
+  }
+  fixBlock(fix: FixId): string | null {
+    const r = this.rescue
+    if (!r || r.result !== null) return 'The rover is not stuck.'
+    const info = FIXES[fix]
+    if (!info) return 'Unknown fix.'
+    if (info.sols > rescueLeft(r) + 1e-9) return `${info.name} takes ${info.sols} Mars days, and only ${rescueLeft(r)} are left before the ${RESCUE_LIMIT_SOLS}-day limit.`
+    return null
+  }
+  /** Tries one fix. The Mars days pass whatever happens. */
+  tryFix(fix: FixId): string | null {
+    const block = this.fixBlock(fix)
+    if (block) return block
+    const r = this.rescue!, info = FIXES[fix], o = fixOutcome(r.cause, fix)
+    const wasWorn = this.wheelsWorn
+    this.hoursUsed += Math.min(info.sols * SOL_HOURS, this.hoursLeft)
+    r.solsUsed = Math.round((r.solsUsed + info.sols) * 100) / 100
+    this.wheelWear = Math.min(100, this.wheelWear + o.wear)
+    r.tries.push({ fix, freed: o.freed, sols: info.sols, wear: o.wear, text: o.text })
+    const shortest = Math.min(...Object.values(FIXES).map(f => f.sols))
+    if (o.freed) r.result = r.tries.length === 1 ? 'clean' : 'freed'
+    else if (rescueLeft(r) < shortest - 1e-9 || this.timeUp) r.result = 'held'
+    this.note(`Rescue at spot ${r.spot}: ${info.name.toLowerCase()} (${info.sols} Mars days). ${o.text}${o.wear ? ` Wheel wear +${o.wear} %.` : ''}`, o.freed ? 'rover' : 'alert')
+    if (r.result === 'held') this.note(`The rover was held for ${r.solsUsed} Mars days before the team worked it free.`, 'alert')
+    if (!wasWorn && this.wheelsWorn) {
+      this.worn = null
+      this.note(`Wheel wear reached ${this.wheelWear} %: top speed is down to ${Math.round(WORN_SPEED * 100)} % for the rest of the mission.`, 'alert')
+    }
+    return null
+  }
+
+  // ---- Sample selection ------------------------------------------------------
+  // At the sample site the rover finds five rocks and has three tubes. Scanning is free; coring
+  // the three chosen rocks costs battery. What the tubes are worth fills the Rock samples check
+  // for the whole region.
+
+  /** The sample site on this rover's map: a place the real rover parked (REAL), chosen by the game. */
+  get sampleSite(): AreaStop | null { const rv = this.rover; return rv ? sampleSite(rv) : null }
+  get atSampleSite() { const s = this.sampleSite; return !!s && dist(this.pos, s) <= SAMPLE_RANGE_M }
+  /** Battery that coring three tubes uses, watt-hours. */
+  get sampleCost() { return this.testCost('drill') }
+  sampleBlock(): string | null {
+    if (!this.rover) return 'Choose a rover first.'
+    const held = this.held()
+    if (held) return held
+    if (this.base) return 'The base is already decided.'
+    if (this.samples) return 'The three tubes are already sealed.'
+    if (!this.atSampleSite) return 'Drive to the sample site first.'
+    if (this.timeUp) return `The mission's ${this.missionSols} Mars days are used up.`
+    if (this.charging) return 'The rover is recharging. Stop the recharge first.'
+    if (this.stranded) return 'Safe mode: no power to spare for coring. Recharge first.'
+    if (this.sampleCost > this.spareWh) return `Coring three tubes needs ${this.sampleCost} Wh, but only ${this.spareWh} Wh is left above the safe-mode line.`
+    return null
+  }
+  /** Cores the three chosen rocks and seals the tubes. */
+  collectSamples(picks: RockId[]): string | null {
+    const block = this.sampleBlock() ?? picksBlock(picks)
+    if (block) return block
+    const wh = this.sampleCost
+    this.batteryWh -= wh
+    const value = sampleValue(picks)
+    this.samples = { picks: [...picks], value, clear: this.samplesStudied, organics: picks.filter(id => rock(id).organic).length, wh }
+    this.regional = [...this.regional, 'drill']
+    this.note(`Three tubes sealed at the sample site (${wh} Wh): ${picks.map(id => sampleFacts(id).name).join(', ')}. Science value ${value} of 100.`, 'rover')
     return null
   }
 
@@ -421,6 +600,9 @@ export class Mission {
   testBlock(t: TestId): string | null {
     const spot = this.spotHere
     if (!this.rover || !spot) return 'Drive to a spot first.'
+    if (t === 'drill') return 'Rock cores are taken at the sample site: fill three tubes there.'
+    const held = this.held()
+    if (held) return held
     if (this.base) return 'The base is already decided.'
     if (this.testsFor(spot).includes(t)) return TESTS[t].scope === 'region' ? 'Already measured for this region.' : 'Already done at this spot.'
     if (this.timeUp) return `The mission's ${this.missionSols} Mars days are used up.`
@@ -437,7 +619,7 @@ export class Mission {
     this.batteryWh -= this.testCost(t)
     if (TESTS[t].scope === 'region') this.regional = [...this.regional, t]
     else spot.tests = [...spot.tests, t]
-    this.note(`Spot ${spot.label}: ${TESTS[t].verb.toLowerCase()} (${this.testCost(t)} Wh)${t === 'drill' && !this.calibrated ? ', instrument uncalibrated' : ''}.`, 'rover')
+    this.note(`Spot ${spot.label}: ${TESTS[t].verb.toLowerCase()} (${this.testCost(t)} Wh).`, 'rover')
     return null
   }
 
@@ -455,7 +637,9 @@ export class Mission {
     const ground = groundAt(rv, spot.p)
     // shielding panels carried up on the launch protect the habitat: they add to the radiation score (our model)
     const shield = this.cargo('shielding')
-    const bars = spotBars(rv, spot.p, this.testsFor(spot), this.samplesStudied).map(b => b.id !== 'rad' || b.score === null || !shield ? b
+    const s = this.samples
+    const tubes = s ? { value: s.value, text: `${cacheRating(s.value).word}: ${s.picks.map(id => sampleFacts(id).name).join(', ')}` } : null
+    const bars = spotBars(rv, spot.p, this.testsFor(spot), tubes).map(b => b.id !== 'rad' || b.score === null || !shield ? b
       : { ...b, score: Math.min(100, b.score + shield), value: `${b.value} · +${shield} from the shielding panels`, model: `${b.model} Shielding panels carried up add ${shield} (our model).` })
     const score = siteScore(bars, this.bonus)
     const v = verdict(bars, score, ground)
@@ -466,6 +650,8 @@ export class Mission {
   /** Build the base on any spot the rover has stopped at, good or bad, or stay in orbit. */
   decideBase(id: number | 'defer'): string | null {
     if (!this.rover) return 'Choose a rover first.'
+    const held = this.held()
+    if (held) return held
     if (this.base) return 'Base decision already made.'
     if (this.charging) return 'The rover is recharging. Stop the recharge first.'
     if (id === 'defer') {
@@ -488,6 +674,34 @@ export class Mission {
     const rv = this.rover
     if (!rv) return out
     const driven = this.drives.reduce((a, d) => a + d.distM, 0), climbed = this.drives.reduce((a, d) => a + d.climbM, 0), used = this.drives.reduce((a, d) => a + d.usedWh, 0)
+    // the rocket that carried the rover
+    const del = this.delivery
+    if (del) {
+      const k = deliveryRocket(del.rocket)
+      out.push(del.ok
+        ? { good: true, text: `${k.name} carried ${rv.name} to Mars for ${k.price} cr. Our model gave it a ${k.successPct}% chance.` }
+        : { good: false, text: `The ${k.name} launch failed: our model gave it a ${100 - k.successPct!}% chance of that. A backup rover flew and ${del.solsLost} Mars days were lost.` })
+    }
+    // the stuck rover
+    const res = this.rescue
+    if (res && res.result) {
+      const days = `${res.solsUsed} Mars day${res.solsUsed === 1 ? '' : 's'}`, truth = CAUSES[res.cause]
+      const read = res.diagnosis === res.cause ? `You read the telemetry right (${truth.name.toLowerCase()})` : res.diagnosis ? `The telemetry showed ${truth.name.toLowerCase()}, not ${CAUSES[res.diagnosis].name.toLowerCase()}` : `The telemetry showed ${truth.name.toLowerCase()}`
+      if (res.result === 'clean') out.push({ good: true, text: `Stuck at spot ${res.spot}: ${read}, and ${FIXES[res.tries[0].fix].name.toLowerCase()} freed the rover at the first try, in ${days}.` })
+      else if (res.result === 'freed') out.push({ good: false, text: `Stuck at spot ${res.spot}: it took ${res.tries.length} tries and ${days} to free the rover. ${read}: ${truth.sign.toLowerCase()}.` })
+      else out.push({ good: false, text: `Stuck at spot ${res.spot}: no fix worked, and the rover was held for ${days}. ${read}: ${truth.sign.toLowerCase()}.` })
+      const added = this.wheelWear - res.wearBefore
+      if (this.wheelsWorn) out.push({ good: false, text: `Wheel wear reached ${this.wheelWear}%, past the ${WEAR_LIMIT}% limit, so top speed fell to ${Math.round(WORN_SPEED * 100)}% for the rest of the mission.` })
+      else out.push({ good: true, text: `The rescue added ${added}% wheel wear (now ${this.wheelWear}%), under the ${WEAR_LIMIT}% limit: full speed kept.` })
+    }
+    // the sample tubes
+    const tubes = this.samples
+    if (tubes) {
+      out.push({ good: tubes.value >= 70, text: `Three tubes sealed, science value ${tubes.value} of 100: ${tubes.picks.map(id => sampleFacts(id).name).join(', ')}.` })
+      const left = this.rocks.filter(id => rock(id).organic && !tubes.picks.includes(id)).length
+      if (left) out.push({ good: false, text: `${left === 1 ? 'A rock' : `${left} rocks`} with an organic-like signal stayed behind${tubes.clear ? '' : ': the uncalibrated instrument could not read it'}.` })
+      if (tubes.picks.includes('roubion')) out.push({ good: false, text: 'One tube was spent on a crumbling rock and sealed empty.' })
+    } else if (this.base?.approved && this.drives.length) out.push({ good: false, text: 'No rock samples: the rover never filled its tubes at the sample site, so that check scored 0.' })
     if (this.drives.length) out.push({ good: !this.stranded, text: `${rv.name} drove ${driven} m and climbed ${climbed} m in ${this.drives.length} deployment${this.drives.length > 1 ? 's' : ''}, using ${used} Wh.` })
     if (this.stranded) out.push({ good: false, text: 'A drive was longer than the battery allowed, so the rover ended in safe mode.' })
     if (this.recharges) out.push({ good: !this.timeUp, text: `Recharged ${this.recharges} time${this.recharges > 1 ? 's' : ''}. Driving and recharging used ${Math.round((this.hoursUsed / SOL_HOURS) * 10) / 10} of the ${this.missionSols} Mars days.` })
@@ -502,7 +716,6 @@ export class Mission {
       if (r.verdict.level === 'good') out.push({ good: true, text: `The base stands on level ground (${r.ground.tiltDeg}°)${r.ground.source === 'rover' ? `, measured by the real ${rv.name} on sol ${r.ground.sol}` : ', judged from orbit'}.` })
       if (r.verdict.missing.length) out.push({ good: false, text: `Not measured at the base, so scored 0: ${r.verdict.missing.join(', ').toLowerCase()}.` })
       for (const t of r.verdict.bad) out.push({ good: false, text: `Weak point: ${t}.` })
-      if (spot.tests.includes('drill')) out.push({ good: this.samplesStudied, text: this.samplesStudied ? `The rock sample was analysed${this.calibrated ? '' : ' in the experiment rack'}.` : 'The rock sample could not be analysed: the instrument was never calibrated.' })
     }
     const checked = this.spots.filter(s => s.tests.includes('photo')).length
     if (this.spots.length > 1) out.push({ good: checked > 1, text: `${checked} of ${this.spots.length} spots were photographed, so ${checked} slope${checked === 1 ? ' was' : 's were'} known.` })
@@ -515,7 +728,7 @@ export class Mission {
     if (this.cargo('oxygen')) out.push({ good: true, text: `Oxygen storage tanks (${kgOf('oxygen')} kg): life support needed only ${this.lifeNeed} power unit${this.lifeNeed === 1 ? '' : 's'}.` })
     if (this.cargo('food')) out.push({ good: true, text: `Food supply container (${kgOf('food')} kg): the mission had ${this.missionSols} Mars days instead of ${MISSION_SOLS}.` })
     if (this.cargo('parts')) out.push({ good: true, text: `Spare parts container (${kgOf('parts')} kg): the relay was fixed from spares${this.cargo('parts') >= 2 ? ', and the balanced battery pack cut driving power by 30 W' : ''}.` })
-    if (this.cargo('rack')) out.push({ good: true, text: `Scientific experiment rack (${kgOf('rack')} kg): drilling used 30% less battery${this.cargo('rack') >= 2 ? ', and samples were studied without calibration' : ''}.` })
+    if (this.cargo('rack')) out.push({ good: true, text: `Scientific experiment rack (${kgOf('rack')} kg): coring rock samples used 30% less battery${this.cargo('rack') >= 2 ? ', and rock scans read clearly without calibration' : ''}.` })
     if (this.loadout && !cargoKg(this.loadout)) out.push({ good: false, text: 'The launch carried no station cargo.' })
     return out
   }

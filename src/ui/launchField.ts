@@ -17,7 +17,8 @@ import {
   speed, startAscent, stepAscent, thrustToWeight, type Ascent, type AscentResult, type Controls,
 } from '../core/ascent'
 import { CARGO, MISSION_BUDGET, SHIPS, SUITS, cargoStep, type CargoId, type Ship, type ShipId, type SuitId } from '../core/data'
-import { cargoKg, cleanLoadout, designBlock, designCost, designForecast, failureCauses, instrumentLine, liftLine, type LaunchRecord, type Loadout } from '../core/loadout'
+import { ROCKET_ANY } from '../core/delivery'
+import { INSTRUMENT_MIN, cargoKg, cleanLoadout, designBlock, designCost, designForecast, failureCauses, instrumentLine, liftLine, type LaunchRecord, type Loadout } from '../core/loadout'
 import { cleanCallSign } from '../core/mission'
 import { ROCKET_DATA, USD_MILLIONS_PER_CREDIT, rocket, rocketSources, sourceNumbers } from '../data/launchVehicles'
 import { formatDate } from '../data/opsDates'
@@ -237,7 +238,7 @@ export function launchField(draft: Draft, link: FieldLink, on: FieldHandlers, op
         : `The host has committed to the ${r.name}. Launch when you are ready.`
     return `<div class="lf-k"><span>3 · Launch check</span><em class="lf-twr" title="Thrust at lift-off divided by the weight with this cargo">T÷W ${f.liftoffTwr.toFixed(2)}</em></div>
       <div class="lf-meters">
-        <div class="lf-meter ${c.left < 0 ? 'bad' : c.left < 26 ? 'warn' : ''}"><div class="lf-meter-top"><span>Budget</span><b>${c.spent} / ${MISSION_BUDGET} cr</b></div>
+        <div class="lf-meter ${c.left < 0 ? 'bad' : c.left < INSTRUMENT_MIN + ROCKET_ANY ? 'warn' : ''}"><div class="lf-meter-top"><span>Budget</span><b>${c.spent} / ${MISSION_BUDGET} cr</b></div>
           <div class="lf-bar"><i style="width:${Math.min(100, (c.spent / MISSION_BUDGET) * 100)}%"></i></div>
           <small>${c.left < 0 ? `${-c.left} cr over budget` : esc(instrumentLine(ship, l))}</small></div>
         <div class="lf-meter ${f.verdict === 'short' || f.verdict === 'grounded' ? 'bad' : kg > ship.payloadKg ? 'warn' : ''}"><div class="lf-meter-top"><span>Cargo</span><b>${kgText(kg)} kg</b></div>

@@ -7,11 +7,11 @@
 //
 // One canvas and one GL context live for the whole session and are re-attached each time the
 // launch field is shown. Without WebGL2 the launch field keeps a plain gradient backdrop.
-import { SHIPS, type ShipId } from '../core/data'
+import { SHIPS } from '../core/data'
 import { add, clamp, compose, cross, direction, lookAt, mix, mix3, mul, norm, perspective, point, rad, rotZ, scale, scaling, smooth, sub, translation, type M4, type V3 } from './scene/math'
 import type { Mesh } from './scene/mesh'
 import { FRAG_BACK, FRAG_FX, FRAG_MESH, VERT_FULL, VERT_FX, VERT_MESH } from './scene/shaders'
-import { DECK, padModel, vehicleModel, type PadModel, type VehicleModel } from './scene/vehicles'
+import { DECK, padModel, vehicleModel, type PadModel, type StackId, type VehicleModel } from './scene/vehicles'
 
 /** What the rocket is doing once it has left the pad. Distances are in metres at the scale the eye sees. */
 export interface FlightView {
@@ -33,7 +33,8 @@ export interface FlightView {
 export interface SceneState {
   /** Seconds. */
   time: number
-  ship: ShipId
+  /** What stands on the pad: a crew launch system, or one of the rover's rockets. */
+  ship: StackId
   /** Pad lights down, 0 to 1: used to change rockets in the dark. */
   dim: number
   /** The arrival from orbit: 1 at the top, 0 on the pad. */
@@ -55,7 +56,7 @@ export interface SceneState {
 export interface LaunchScene {
   canvas: HTMLCanvasElement
   /** Builds a ship's meshes ahead of the moment they are first drawn. */
-  prepare(ship: ShipId): void
+  prepare(ship: StackId): void
   draw(s: SceneState): void
   /** Frames a second lately, and pixels drawn per CSS pixel. */
   stats(): { fps: number; scale: number }
@@ -170,8 +171,8 @@ function build(): LaunchScene | null {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, index, gl.STATIC_DRAW)
     return { vao, count, type: index instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT }
   }
-  const builds = new Map<ShipId, Built>()
-  const built = (id: ShipId): Built => {
+  const builds = new Map<StackId, Built>()
+  const built = (id: StackId): Built => {
     let b = builds.get(id)
     if (!b) {
       const model = vehicleModel(id), pad = padModel(model)
