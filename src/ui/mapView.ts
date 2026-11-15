@@ -157,15 +157,15 @@ export function mapSvg(m: Mission, rv: RoverSpec, o: MapOpts): string {
       ${got ? '' : `<circle class="mring" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${ring.toFixed(1)}" stroke-width="${u(1.5)}" stroke-dasharray="${u(5)} ${u(4)}"/>`}
       <g transform="${pin(q, k)}"><rect class="mbody" x="-10" y="-6" width="20" height="14" rx="3.5"/><rect class="mbody" x="-4.5" y="-9.5" width="9" height="5" rx="1.5"/>${got ? '<path class="mtick" d="M-4.5 1 L-1.2 4.3 L5 -3"/>' : '<circle class="mlens" cy="1" r="3.8"/>'}</g></g>`
   }).join('')
-  // The sample site: a diamond over a place the real rover parked, with the ring the rover has to stop inside.
-  const st = m.sampleSite
-  let site = ''
-  if (st) {
-    const q = px(st), r = (SAMPLE_RANGE_M / rv.area.sizeM) * MAP_PX
-    site = `<g class="msite ${m.samples ? 'done' : ''}" pointer-events="none">
-      ${m.samples ? '' : `<circle class="msring" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${r.toFixed(1)}" stroke-width="${u(1.5)}" stroke-dasharray="${u(3)} ${u(4)}"/>`}
-      <g transform="${pin({ x: q.x, y: q.y - 24 / k }, k)}"><rect class="msbody" x="-8" y="-8" width="16" height="16" rx="2" transform="rotate(45)"/>${m.samples ? '<path class="mtick" d="M-4.5 0.5 L-1.2 3.8 L5 -3.5"/>' : '<circle class="mscore" r="3"/>'}</g></g>`
-  }
+  // The sample sites: a numbered diamond over each place the real rover parked, with the ring the
+  // rover has to stop inside. A site is done once its rocks are all in tubes, or the tubes are full.
+  const sr = (SAMPLE_RANGE_M / rv.area.sizeM) * MAP_PX
+  const site = m.sampleSites.map(st => {
+    const q = px(st), done = m.tubesLeft <= 0 || !m.rocksLeft(st).length
+    return `<g class="msite ${done ? 'done' : ''}" pointer-events="none">
+      ${done ? '' : `<circle class="msring" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${sr.toFixed(1)}" stroke-width="${u(1.5)}" stroke-dasharray="${u(3)} ${u(4)}"/>`}
+      <g transform="${pin({ x: q.x, y: q.y - 24 / k }, k)}"><rect class="msbody" x="-8.5" y="-8.5" width="17" height="17" rx="2" transform="rotate(45)"/>${done ? '<path class="mtick" d="M-4.5 0.5 L-1.2 3.8 L5 -3.5"/>' : `<text class="msnum" y="4" text-anchor="middle">${st.id + 1}</text>`}</g></g>`
+  }).join('')
   const history = m.drives.filter(d => d !== o.anim?.drive).map(d => `<polyline points="${pts([d.start, ...d.legs.map(l => l.to)])}" fill="none" stroke="#ff8a4c" stroke-width="${u(3)}" opacity=".85"/>`).join('')
   const hidden = o.anim ? m.spots[m.spots.length - 1]?.id : -1
   const spots = o.reports.filter(r => r.spot.id !== hidden || m.drives.length === 0).map(r => {

@@ -242,7 +242,7 @@ function calibrationTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) 
   const { raw, target } = inst.calibration
   const r = T.calibrationCheck(raw, target, d.gain, d.offset)
   const scale = (v: number) => Math.max(0, Math.min(100, v))
-  body.innerHTML = `<p class="lead">Two reference standards check the <b>${inst.name} (${inst.code})</b>. Tune gain and offset until both adjusted readings land within ±1 of their references. You may skip this, but at the sample site the rover then reads what each rock is made of only <b>faintly</b>.</p>
+  body.innerHTML = `<p class="lead">Two reference standards check the <b>${inst.name} (${inst.code})</b>. Tune gain and offset until both adjusted readings land within ±1 of their references. You may skip this, but at the sample sites the rover then reads what each rock is made of only <b>faintly</b>.</p>
     <div class="formula">adjusted = raw × gain / 100 + offset</div>
     <div class="cal-grid">${[0, 1].map(i => `<div class="std ${r.within[i] ? 'ok' : ''}">
       <div>Standard ${i === 0 ? 'A (low)' : 'B (high)'}</div>
@@ -253,7 +253,7 @@ function calibrationTab(body: HTMLElement, rerender: () => void, ctx: PanelCtx) 
     <div class="row" style="justify-content:flex-end;gap:6px"><button class="btn small" data-f="gain" data-d="-1" ${done ? 'disabled' : ''}>Gain −1</button><button class="btn small" data-f="gain" data-d="1" ${done ? 'disabled' : ''}>Gain +1</button></div>
     <div class="slider"><label for="off">Offset</label><input type="range" id="off" min="${T.OFFSET_RANGE[0]}" max="${T.OFFSET_RANGE[1]}" step="1" value="${d.offset}" ${done ? 'disabled' : ''}/><span><b>${d.offset > 0 ? '+' : ''}${d.offset}</b></span></div>
     <div class="row" style="justify-content:flex-end;gap:6px"><button class="btn small" data-f="offset" data-d="-1" ${done ? 'disabled' : ''}>Offset −1</button><button class="btn small" data-f="offset" data-d="1" ${done ? 'disabled' : ''}>Offset +1</button></div>
-    <div class="feedback ${done ? 'ok' : ''}">${done ? `Calibration locked at gain ${d.gain}, offset ${d.offset >= 0 ? '+' : ''}${d.offset}: rock scans at the sample site will read clearly.` : 'Adjust, then lock calibration.'}</div>
+    <div class="feedback ${done ? 'ok' : ''}">${done ? `Calibration locked at gain ${d.gain}, offset ${d.offset >= 0 ? '+' : ''}${d.offset}: rock scans at the sample sites will read clearly.` : 'Adjust, then lock calibration.'}</div>
     <div class="actions">${done ? '<span class="donebadge">COMPLETE</span>' : '<button class="btn primary" id="ok">Lock calibration</button><button class="btn" id="rs">Reset to defaults</button>'}</div>`
   const set = (f: 'gain' | 'offset', v: number) => {
     const [lo, hi] = f === 'gain' ? T.GAIN_RANGE : T.OFFSET_RANGE

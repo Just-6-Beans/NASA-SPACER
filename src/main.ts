@@ -443,7 +443,7 @@ function renderDrawer() {
     item(m.completed.has('calibration'), 'Two-point calibration (optional)', 'Calibration', prog('calibration')),
     item(!!m.delivery, 'Choose your rover and its rocket', 'Rover Comms', m.delivery ? `${m.rover!.name} on the ${deliveryRocket(m.delivery.rocket).name}${m.delivery.ok ? '' : ` · backup flew, ${m.delivery.solsLost} days lost`}` : m.rover ? `${m.rover.name} chosen · rocket not chosen` : 'not chosen'),
     item(m.spots.some(x => x.tests.includes('photo')), 'Rover navigation: drive and test a spot', 'Rover Comms', m.rover ? `${m.drives.length} deployment${m.drives.length === 1 ? '' : 's'} · ${m.spots.length} spot${m.spots.length === 1 ? '' : 's'} · ${m.photos.length} photo spot${m.photos.length === 1 ? '' : 's'}` : 'choose your rover first'),
-    item(!!m.samples, 'Sample selection: fill three tubes', 'Rover Comms', m.samples ? `science value ${m.samples.value} of 100` : m.delivery ? 'drive to the sample site' : 'after the rover lands'),
+    item(m.tubesLeft <= 0, 'Sample selection: fill three tubes', 'Rover Comms', m.samples ? `${m.samples.picks.length} of 3 tubes · science value ${m.samples.value} of 100` : m.delivery ? 'drive to a sample site (three on the map)' : 'after the rover lands'),
     item(!!m.base, 'Build the base', 'Rover Comms', m.base ? (m.base.approved ? m.base.name : 'stayed in orbit') : m.rover ? `any spot, good or bad · day ${m.sol} of ${m.missionSols}` : 'after the drive'),
     item(m.completed.has('habitat'), 'Habitat commissioning', 'Mission Report', m.completed.has('habitat') ? 'complete' : m.base?.approved ? (m.completed.has('medical') ? 'available' : 'needs medical clearance') : 'needs a base'),
   ].join('')

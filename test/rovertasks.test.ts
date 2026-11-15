@@ -12,7 +12,7 @@ import {
   routeRisk, stuckOn, telemetry, type StuckCause,
 } from '../src/core/rescue'
 import { ROVERS } from '../src/core/rovers'
-import { MAX_SAMPLE_VALUE, ROCKS, ROCK_IDS, SAMPLE_RANGE_M, TUBE_COUNT, cacheRating, picksBlock, sampleSite, sampleValue, shuffleRocks } from '../src/core/samples'
+import { MAX_SAMPLE_VALUE, ROCKS, ROCK_IDS, SAMPLE_RANGE_M, SITE_DISTANCES_M, SITE_GAP_M, SITE_ROCKS, TUBE_COUNT, cacheRating, picksBlock, rock, rockTag, sampleSites, sampleValue } from '../src/core/samples'
 import { SOL_HOURS, driveWhPerM, nearestStop, simulateDrive, slopeAt } from '../src/core/survey'
 import { USD_MILLIONS_PER_CREDIT } from '../src/data/launchVehicles'
 import { FALCON_MARS, ROVER_ROCKET_FACTS, ROVER_TASK_DATA, SAMPLE_FACTS, SPACECRAFT, TASK_CARDS, TUBES, roverRocketFacts, sampleFacts, taskSources } from '../src/data/roverTasks'
@@ -346,24 +346,39 @@ test('the rover is held for at most five Mars days', () => {
 })
 
 // ---------------------------------------------------------------- sample selection
-test('the sample site is a real rover stop about half a kilometre out', () => {
+test('the three sample sites are real rover stops, each one leg farther out', () => {
   for (const rv of Object.values(ROVERS)) {
-    const site = sampleSite(rv)
-    assert.ok(rv.area.stops.includes(site), `${rv.name}: a place the real rover parked`)
-    const d = Math.hypot(site.x, site.y)
-    assert.ok(d >= 350 && d <= 700, `${rv.name}: ${Math.round(d)} m from the start`)
+    const sites = sampleSites(rv)
+    assert.equal(sites.length, 3)
+    assert.deepEqual(sites.map(s => s.rocks), SITE_ROCKS)
+    sites.forEach((site, i) => {
+      assert.ok(rv.area.stops.includes(site.stop), `${rv.name} ${site.name}: a place the real rover parked`)
+      const d = Math.hypot(site.x, site.y)
+      assert.ok(Math.abs(d - SITE_DISTANCES_M[i]) <= 150, `${rv.name} ${site.name}: ${Math.round(d)} m from the start`)
+      for (const other of sites) if (other !== site) assert.ok(Math.hypot(other.x - site.x, other.y - site.y) >= SITE_GAP_M, `${rv.name}: sites stand apart`)
+      if (i) assert.ok(Math.hypot(sites[i - 1].x - site.x, sites[i - 1].y - site.y) <= 600, `${rv.name} ${site.name}: one leg on from the site before`)
+    })
   }
+  // Every rock lies at exactly one site: the common ones near the start, the rarest farthest out.
+  assert.deepEqual([...SITE_ROCKS.flat()].sort(), [...ROCK_IDS].sort())
+  const worth = SITE_ROCKS.map(ids => Math.max(...ids.map(id => rock(id).value)))
+  assert.deepEqual(worth, [...worth].sort((a, b) => a - b), 'the best rock at each site is worth more the farther out it lies')
+  assert.deepEqual(ROCK_IDS.map(rockTag).sort().join(''), 'ABCDE')
+  assert.equal(rockTag('montdenier'), 'A')
+  assert.equal(rockTag('sapphire'), 'E')
   const m = landed()
-  const site = m.sampleSite!
+  const [site] = m.sampleSites
   assert.equal(m.atSampleSite, false)
-  assert.match(m.sampleBlock()!, /Drive to the sample site/)
+  assert.match(m.sampleBlock()!, /Drive to a sample site/)
   // A tap near the marker goes to the site itself.
   assert.equal(m.addWaypoint({ x: site.x + 15, y: site.y - 10 }), null)
   assert.deepEqual(m.waypoints[0], { x: site.x, y: site.y })
   assert.equal(m.deploy(), null)
   assert.ok(m.atSampleSite && Math.hypot(m.pos.x - site.x, m.pos.y - site.y) <= SAMPLE_RANGE_M)
+  assert.equal(m.siteHere!.id, 0)
+  assert.ok(m.siteOpen)
   assert.equal(m.sampleBlock(), null)
-  // Stopping anywhere within range of the site counts as being there.
+  // Stopping anywhere within range of a site counts as being there.
   const near = landed()
   near.addWaypoint({ x: site.x + 40, y: site.y })
   near.deploy()
@@ -371,7 +386,7 @@ test('the sample site is a real rover stop about half a kilometre out', () => {
   assert.notDeepEqual(near.pos, { x: site.x, y: site.y })
 })
 
-test('three tubes, five rocks: the value is in the choice', () => {
+test('three tubes, five rocks, three sites: the value is in the choice', () => {
   assert.equal(TUBE_COUNT, 3)
   assert.equal(ROCKS.length, 5)
   assert.equal(MAX_SAMPLE_VALUE, 100)
@@ -382,42 +397,71 @@ test('three tubes, five rocks: the value is in the choice', () => {
   assert.equal(cacheRating(44).word, 'Common rocks only')
   assert.equal(ROCKS.find(r => r.id === 'roubion')!.value, 0, 'the crumbling rock leaves an empty tube')
   assert.deepEqual(ROCKS.filter(r => r.organic).map(r => r.id).sort(), ['hazeltop', 'sapphire'])
-  assert.match(picksBlock(['sapphire', 'hazeltop'])!, /Fill all 3 tubes/)
-  assert.match(picksBlock(['sapphire', 'sapphire', 'hazeltop'])!, /different rock/)
-  assert.equal(picksBlock(['sapphire', 'hazeltop', 'skyland']), null)
-  // The rocks lie in a different order each mission, and all five are always there.
-  for (const roll of [0, 0.37, 0.99]) assert.deepEqual([...shuffleRocks(() => roll)].sort(), [...ROCK_IDS].sort())
-  assert.notDeepEqual(shuffleRocks(() => 0), shuffleRocks(() => 0.99))
+  const [s1, s2, s3] = sampleSites(ROVERS.perseverance)
+  assert.equal(sampleValue(s1.rocks), 20, 'the nearest site alone is a weak cache')
+  assert.equal(sampleValue([...s2.rocks, ...s3.rocks]), 100, 'the best cache needs the two far sites')
+  assert.match(picksBlock([], s1, [])!, /at least one rock/)
+  assert.match(picksBlock(['skyland', 'skyland'], s2, [])!, /different rock/)
+  assert.match(picksBlock(['sapphire'], s1, [])!, /not at this site/)
+  assert.match(picksBlock(['skyland'], s2, ['skyland'])!, /already in a tube/)
+  assert.match(picksBlock(['skyland', 'hazeltop'], s2, ['montdenier', 'roubion'])!, /Only 1 tube is left/)
+  assert.equal(picksBlock(['skyland', 'hazeltop'], s2, ['montdenier']), null, 'tubes can be spread over sites')
+  assert.equal(picksBlock(['sapphire'], s3, ['skyland', 'hazeltop']), null)
 })
 
-test('sealed tubes fill the rock-samples check for the whole region, and the debrief names what was left', () => {
+test('tubes are shared between the sites, fill the rock-samples check for the whole region, and the debrief names what was left', () => {
   const m = landed('perseverance')
-  const site = m.sampleSite!
-  m.addWaypoint({ x: site.x, y: site.y })
-  m.deploy()
-  assert.equal(m.rocks.length, 5)
-  const start = m.report(m.spots[0]).bars.find(b => b.id === 'sample')!
-  assert.equal(start.score, null)
-  assert.ok(start.shared, 'one cache counts for every spot')
+  const [s1, s2, s3] = m.sampleSites
+  const go = (x: Mission, site: typeof s1) => { assert.equal(x.addWaypoint({ x: site.x, y: site.y }), null); assert.equal(x.deploy(), null); assert.equal(x.siteHere?.id, site.id) }
+  const bar = (x: Mission) => x.report(x.spots[0]).bars.find(b => b.id === 'sample')!
+  go(m, s1)
+  assert.equal(bar(m).score, null)
+  assert.ok(bar(m).shared, 'one cache counts for every spot')
+  assert.equal(m.tubesLeft, 3)
+  assert.deepEqual(m.rocksLeft(s1), s1.rocks)
   const before = m.batteryWh
-  assert.match(m.collectSamples(['montdenier', 'skyland'])!, /Fill all 3 tubes/)
-  assert.equal(m.collectSamples(['montdenier', 'skyland', 'roubion']), null)
-  assert.equal(before - m.batteryWh, 300, 'coring costs battery')
-  assert.deepEqual({ value: m.samples!.value, clear: m.samples!.clear, organics: m.samples!.organics }, { value: 45, clear: false, organics: 0 })
-  assert.match(m.collectSamples(['sapphire', 'hazeltop', 'skyland'])!, /already sealed/)
+  assert.equal(m.tubeCost, 100)
+  assert.match(m.collectSamples(['sapphire'])!, /not at this site/)
+  assert.equal(m.collectSamples(['montdenier', 'roubion']), null)
+  assert.equal(before - m.batteryWh, 200, 'each tube costs battery')
+  assert.equal(m.tubesLeft, 1)
+  assert.equal(m.siteOpen, false, 'nothing left to core at this site')
+  assert.match(m.sampleBlock()!, /Every rock at this site is already in a tube/)
+  assert.equal(bar(m).score, 20, 'the check fills as tubes are sealed')
+  assert.match(bar(m).value, /2 of 3 tubes: Montdenier, Roubion/)
+  // The last tube goes to the second site.
+  go(m, s2)
+  assert.ok(m.siteOpen)
+  assert.match(m.collectSamples(['skyland', 'hazeltop'])!, /Only 1 tube is left/)
+  assert.equal(m.collectSamples(['skyland']), null)
+  assert.deepEqual(m.samples!.picks, ['montdenier', 'roubion', 'skyland'])
+  assert.deepEqual({ value: m.samples!.value, clear: m.samples!.clear, organics: m.samples!.organics, wh: m.samples!.wh }, { value: 45, clear: false, organics: 0, wh: 300 })
+  assert.equal(m.siteOpen, false)
+  assert.match(m.sampleBlock()!, /already sealed/)
+  assert.match(m.collectSamples(['hazeltop'])!, /already sealed/)
   for (const spot of m.spots) assert.equal(m.report(spot).bars.find(b => b.id === 'sample')!.score, 45)
-  assert.match(m.report(m.spots[0]).bars.find(b => b.id === 'sample')!.value, /Fair cache: Montdenier, Skyland, Roubion/)
+  assert.match(bar(m).value, /Fair cache: Montdenier, Roubion, Skyland/)
   const text = m.causes().map(c => c.text).join(' ')
   assert.match(text, /Three tubes sealed, science value 45 of 100/)
   assert.match(text, /2 rocks with an organic-like signal stayed behind: the uncalibrated instrument could not read it/)
   assert.match(text, /sealed empty/)
-  // A calibrated instrument reads the composition, and the best three are worth the most.
+  // A calibrated instrument reads the composition, and the best three lie at the two far sites.
   const best = landed('perseverance', { calibrated: true })
-  best.addWaypoint({ x: site.x, y: site.y })
-  best.deploy()
-  assert.equal(best.collectSamples(['sapphire', 'hazeltop', 'skyland']), null)
+  go(best, s2)
+  assert.equal(best.collectSamples(['skyland', 'hazeltop']), null)
+  go(best, s3)
+  assert.equal(best.collectSamples(['sapphire']), null)
   assert.deepEqual({ value: best.samples!.value, clear: best.samples!.clear, organics: best.samples!.organics }, { value: 100, clear: true, organics: 2 })
-  assert.ok(best.causes().some(c => c.good && /science value 100 of 100: Sapphire Canyon, Hazeltop, Skyland/.test(c.text)))
+  assert.ok(best.causes().some(c => c.good && /science value 100 of 100: Skyland, Hazeltop, Sapphire Canyon/.test(c.text)))
+  // Tubes that were never filled are named in the debrief.
+  const part = landed('perseverance')
+  go(part, s1)
+  assert.equal(part.collectSamples(['montdenier']), null)
+  assert.ok(part.siteOpen, "a rock and two tubes are left")
+  part.decideBase(part.spotHere!.id)
+  const short = part.causes().map(c => c.text).join(' ')
+  assert.match(short, /One tube sealed, science value 20 of 100: Montdenier/)
+  assert.match(short, /2 tubes were never filled/)
   // A base built without any tubes says so.
   const none = landed('perseverance')
   none.addWaypoint({ x: 0, y: 200 })

@@ -45,10 +45,10 @@
 .rover .mcam .mtick, .rover .msite .mtick { fill: none; stroke: var(--mint); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .rover .mcam.got .mbody { stroke: var(--mint); }
 .rover .mcam.near .mring { fill: rgba(255,210,63,.3); stroke: #fff; animation: ringpulse .9s ease-in-out infinite; }
-/* the sample site: a mint diamond, and the ring the rover has to stop inside */
+/* the sample sites: a numbered mint diamond, and the ring the rover has to stop inside */
 .rover .msite .msring { fill: rgba(95,242,197,.1); stroke: var(--mint); }
 .rover .msite .msbody { fill: #04101c; stroke: var(--mint); stroke-width: 2; }
-.rover .msite .mscore { fill: var(--mint); }
+.rover .msite .msnum { fill: var(--mint); font-family: var(--display); font-size: 13px; font-weight: 700; }
 .rover .msite.done .msbody { fill: #0a3a30; }
 .rover .mstuck { fill: rgba(255,90,74,.22); stroke: var(--danger); stroke-width: 3; animation: ringpulse .8s ease-in-out infinite; }
 @keyframes ringpulse { 50% { opacity: .45; } }

@@ -39,7 +39,7 @@ function briefTab(body: HTMLElement, ctx: PanelCtx) {
       <p>You are docked 408 km above Earth, commanding a real NASA rover on Mars. Drive it across its real surroundings, test the ground, and decide <b>where the crew's base goes</b> before the mission's ${m.missionSols} Mars days run out.</p></div>
     <div class="brief-cols">
       <div class="brief-box"><h3>You decide</h3><ol>
-        <li><b>Payload.</b> Which instrument scans the rocks at the sample site.</li>
+        <li><b>Payload.</b> Which instrument scans the rocks at the sample sites.</li>
         <li><b>Power.</b> How the station's ${POWER_TOTAL} units are split.</li>
         <li><b>Rover and rocket.</b> Perseverance or Curiosity, and the rocket that carries it to Mars.</li>
         <li><b>Drives.</b> Where it goes, how risky the path is, and when it recharges.</li>
@@ -54,7 +54,7 @@ function briefTab(body: HTMLElement, ctx: PanelCtx) {
         <span>Time</span><b>${m.missionSols} Mars days</b></div></div>
     </div>
     <div class="brief-box"><h3>What counts as success</h3>
-      <p>A <b>base built on a good place</b> with the <b>habitat commissioned</b>. A good place is level ground (${MAX_BASE_TILT}° or less) with a site score of ${GOOD_SCORE} or more out of 100. The score is the average of six checks: level ground, smooth terrain, sunlight, warmth, low radiation and rock samples (three tubes filled at the sample site). A check nobody measured counts as 0. Real photo spots the rover passes add up to +${PHOTO_BONUS_MAX}. The habitat also needs a crew medical clearance from Hab Systems.</p>
+      <p>A <b>base built on a good place</b> with the <b>habitat commissioned</b>. A good place is level ground (${MAX_BASE_TILT}° or less) with a site score of ${GOOD_SCORE} or more out of 100. The score is the average of six checks: level ground, smooth terrain, sunlight, warmth, low radiation and rock samples (three tubes filled at the sample sites). A check nobody measured counts as 0. Real photo spots the rover passes add up to +${PHOTO_BONUS_MAX}. The habitat also needs a crew medical clearance from Hab Systems.</p>
       <p>You can build on any spot the rover stopped at, good or bad, and the report says why it scored as it did. Staying in orbit keeps the crew safe. It is a valid call, but the mission is not complete.</p></div>
     <div class="prov">
       <div>${REAL}<b>The rover and its ground.</b> Where each rover is parked, the tilt it measured at every stop, its photos, its battery and power source, and the picture of the ground from orbit. NASA/JPL-Caltech.</div>
@@ -106,7 +106,7 @@ function statusTab(body: HTMLElement, ctx: PanelCtx) {
   if (!inst) rows.push(why('bad', 'Payload', 'No instrument chosen', 'Without one the rover cannot be sent out.'))
   else if (!m.payloadActive) rows.push(why('info', 'Payload', `${inst.name} selected, not activated`, `${inst.cost} cr and ${inst.massKg} kg. ${drill(inst.id, rv ?? ROVERS.perseverance)} The choice locks when you activate the payload.`))
   else rows.push(why('good', 'Payload', `${inst.name} active`, drill(inst.id, rv ?? ROVERS.perseverance)))
-  rows.push(why(m.samplesStudied ? 'good' : 'warn', 'Calibration', m.calibrated ? 'Instrument calibrated' : m.samplesStudied ? 'Experiment rack aboard' : 'Instrument not calibrated', m.samplesStudied ? 'At the sample site the rover reads what each rock is made of.' : 'At the sample site the rover reads what each rock is made of only faintly: an organic-like signal stays hidden.'))
+  rows.push(why(m.samplesStudied ? 'good' : 'warn', 'Calibration', m.calibrated ? 'Instrument calibrated' : m.samplesStudied ? 'Experiment rack aboard' : 'Instrument not calibrated', m.samplesStudied ? 'At the sample sites the rover reads what each rock is made of.' : 'At the sample sites the rover reads what each rock is made of only faintly: an organic-like signal stays hidden.'))
   rows.push(why(m.balanced ? 'good' : 'info', 'Power Grid', m.balanced ? 'Battery pack balanced' : 'Battery pack not balanced', m.balanced ? 'Rover driving draws 30 W less.' : 'Balancing it would make every drive cheaper.'))
   rows.push(why(m.completed.has('water') ? 'good' : 'info', 'Hab Systems', m.completed.has('water') ? 'Water purifier running' : 'Water purifier not running', m.completed.has('water') ? `+${WATER_BONUS} on the base score.` : `Running it adds +${WATER_BONUS} to the base score.`))
   // the rover expedition: what the mission's own rules report
@@ -115,7 +115,7 @@ function statusTab(body: HTMLElement, ctx: PanelCtx) {
     rows.push(why('info', 'Rover Comms', `${esc(rv.name)}, ${esc(region(m.region!).name)}`, `About ${tens(rangeM(rv))} m on one charge (${f1(driveWhPerM(rv, m.balanced))} Wh for each metre now). A full recharge takes about ${f1(fullRechargeSols(rv))} Mars days.`))
     if (!m.delivery) rows.push(why('warn', 'Rover Comms', 'No rocket chosen yet', `${esc(rv.name)} needs a rocket to reach Mars: ${m.credits} cr is left for it.`))
     else if (m.stuck) rows.push(why('bad', 'Rover', 'Stuck: wheel trouble', 'Read the telemetry at Rover Comms and choose a fix. Every fix costs Mars days.'))
-    else if (!m.samples && !B) rows.push(why('info', 'Rover', 'Sample tubes empty', 'Five rocks wait at the sample site. Three sealed tubes fill the Rock samples check for every spot.'))
+    else if (m.tubesLeft > 0 && !B) rows.push(why('info', 'Rover', `${m.tubesLeft} sample tube${m.tubesLeft === 1 ? '' : 's'} empty`, 'Five rocks wait at three sample sites, the rarest farthest away. Sealed tubes fill the Rock samples check for every spot.'))
     if (m.charging) rows.push(why('info', 'Rover', 'Recharging', `The battery is at ${pct}% and filling. The rover cannot drive or test until the recharge ends.`))
     else if (m.stranded) rows.push(why('bad', 'Rover', 'Safe mode', 'A drive was longer than the battery allowed. Recharge the rover to carry on.'))
     if (m.timeUp && !B) rows.push(why('bad', 'Rover', `The ${m.missionSols} Mars days are over`, 'Build on a spot already visited, or stay in orbit.'))
@@ -180,16 +180,16 @@ function sourceRows(m: Mission): Row[] {
       note: `Which rocket really launched each rover (the Atlas V 541, both times), what NASA paid to launch Mars 2020 ($${roverRocketFacts('atlas-v-541').cost!.usdMillions} million) and a Falcon 9 mission ($${roverRocketFacts('falcon-9-expendable').cost!.usdMillions} million), and the launch mass of Curiosity's spacecraft (${SPACECRAFT.curiosity.launchMassKg.toLocaleString('en-US')} kg).`,
       origin: `NASA and JPL pages and press kits · retrieved ${formatDate(ROVER_TASK_DATA.retrieved)}`,
       limit: 'The Falcon 9 cost is for a different mission and stands in for a launch NASA never bought. What a Falcon 9 can send to Mars is SpaceX\'s figure, not NASA\'s. The mass of the Mars 2020 spacecraft is our sum of two NASA numbers. That the Falcon 9 of 2011 was too small for Curiosity is the team\'s own research.' },
-    { kind: 'real', what: 'The five rocks at the sample site',
+    { kind: 'real', what: 'The five rocks at the sample sites',
       note: `Each is modelled on a sample Perseverance really sealed (${SAMPLE_FACTS.map(s => s.name).join(', ')}): its name, rock, type, sol and core length come from NASA's catalog, and its story from NASA releases.`,
       origin: `NASA Science, Mars Rock Samples catalog · retrieved ${formatDate(ROVER_TASK_DATA.retrieved)}`,
-      limit: 'The catalog does not describe colour or layering: those read-outs are our simulation. The samples were cut elsewhere in Jezero Crater, not at the game\'s sample site.' },
+      limit: 'The catalog does not describe colour or layering: those read-outs are our simulation. The samples were cut elsewhere in Jezero Crater, not at the game\'s sample sites.' },
     { kind: 'real', what: 'The real events behind the rescue',
       note: 'Curiosity\'s worn wheels, the rock that stuck to its drill for six days in 2026, and Opportunity\'s five weeks in a sand trap in 2005.',
       origin: `NASA/JPL-Caltech · retrieved ${formatDate(ROVER_TASK_DATA.retrieved)}`, limit: 'The Atacama rock stuck to Curiosity\'s drill, not to a wheel. The game\'s telemetry is not rover data.' },
     { kind: 'model', what: 'Rocket success, and the backup', note: `${SUCCESS_WITH_MARGIN}% for the rocket with mass to spare, ${SUCCESS_NO_MARGIN}% for the one with none. A failed launch costs ${BACKUP_SOLS} Mars days while a backup rover flies. Prices are one credit for each $10 million of NASA's cost figure.`, origin: 'Built on the NASA cost figures and the spacecraft mass' },
     { kind: 'model', what: 'Getting stuck, the telemetry and the fixes', note: `The risk follows the real slope under the path and how far it strays from where the real rover parked. The readings, the four causes, the fixes, the ${RESCUE_LIMIT_SOLS}-day limit, wheel wear and its effect on speed are game rules.`, origin: 'Built on MOLA heights and the real rover stops' },
-    { kind: 'model', what: 'Science value of each rock', note: 'What each of the five rocks is worth to a mission looking for signs of ancient life, the three-tube limit at one site, and where the sample site is.', origin: 'Built on what NASA has said about each sample' },
+    { kind: 'model', what: 'Science value of each rock', note: 'What each of the five rocks is worth to a mission looking for signs of ancient life, the three-tube limit, which stops are sample sites, and which rocks lie at each.', origin: 'Built on what NASA has said about each sample' },
     { kind: 'model', what: 'Recharge time', note: `The power source's output today minus ${BASE_LOAD_W} W the rover always uses. The game plays one Mars hour each second.`, origin: 'Built on the NASA power figures' },
     { kind: 'model', what: 'Weather and radiation at Jezero', note: 'Perseverance has no radiation detector and its weather feed is patchy, so Jezero borrows Curiosity\'s readings from Gale.', origin: 'Built on Curiosity REMS and RAD' },
     { kind: 'model', what: 'Relay hand-off', note: 'Two or three minutes added to the signal delay by the station relay, and skipped by a direct link.', origin: 'Added to JPL Horizons light time' },

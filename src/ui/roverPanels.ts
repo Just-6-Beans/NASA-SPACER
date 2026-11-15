@@ -328,11 +328,11 @@ function mapHtml(m: Mission, rv: RoverSpec, v: ViewerState, h: ViewerHooks) {
           <span><i class="dot" style="background:#ff6a2b"></i>rover</span>
           <span><i class="dot" style="background:#fff"></i>real ${esc(rv.name)} stops</span>
           <span><i class="cam-ic"></i>real photo spot</span>
-          <span><i class="site-ic"></i>sample site</span>
+          <span><i class="site-ic"></i>sample sites</span>
           <span><i class="dot" style="background:#5ff2c5"></i>good</span><span><i class="dot" style="background:#ffb347"></i>risky</span><span><i class="dot" style="background:#ff5a4a"></i>bad</span>
         </div>
         <details class="about"><summary>About this map</summary>
-          <p><b>Sample site:</b> a place the real ${esc(rv.name)} parked, chosen by the game. Five rocks wait there, modelled on samples Perseverance really sealed elsewhere in Jezero Crater.</p>
+          <p><b>Sample sites:</b> three places the real ${esc(rv.name)} parked, chosen by the game. Five rocks lie between them, the rarest farthest away, modelled on samples Perseverance really sealed elsewhere in Jezero Crater.</p>
           <p>A ${rv.area.sizeM / 1000} km square centred on where ${esc(rv.name)} really was on sol ${rv.area.centre.sol}.</p>
           <p><b>Real photo:</b> pictures of the ground taken from orbit by NASA's Mars Reconnaissance Orbiter, the same ones behind NASA's own “Where is ${esc(rv.name)}?” map. One dot on the screen is about ${sat.metresPerPixel} m of ground at full zoom.</p>
           <p><b>Heights:</b> from NASA's MOLA laser altimeter, in squares about 460 m wide. Lighter is higher and each line is 20 m. It shows the broad shape of the land, not rocks or small slopes. The game uses these heights to work out how much battery a climb costs.</p>

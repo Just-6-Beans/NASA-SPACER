@@ -175,10 +175,10 @@ export const TESTS: Record<TestId, TestInfo> = {
   photo: { id: 'photo', name: 'Photograph', verb: 'Photograph the ground', fills: 'Level ground', scope: 'spot' },
   weather: { id: 'weather', name: 'Weather', verb: 'Take a weather reading', fills: 'Sunlight and warmth', scope: 'region' },
   radiation: { id: 'radiation', name: 'Radiation', verb: 'Take a radiation reading', fills: 'Radiation', scope: 'region' },
-  // Coring is not a button at a spot: it is the sample selection at the sample site (samples.ts), and it counts for the whole region.
+  // Coring is not a button at a spot: it is the sample selection at the sample sites (samples.ts), and it counts for the whole region.
   drill: { id: 'drill', name: 'Rock samples', verb: 'Core three rock samples', fills: 'Rock samples', scope: 'region' },
 }
-/** The tests a pilot can run at any spot. Rock samples are taken at the sample site instead. */
+/** The tests a pilot can run at any spot. Rock samples are taken at the sample sites instead. */
 export const TEST_ORDER: TestId[] = ['photo', 'weather', 'radiation']
 /** What a test does, in the words shown to the player. */
 export function testNote(r: RoverSpec, t: TestId): string {
@@ -187,7 +187,7 @@ export function testNote(r: RoverSpec, t: TestId): string {
   if (t === 'radiation') return r.id === 'perseverance'
     ? 'Perseverance has no radiation detector, so this relays Curiosity\'s RAD reading. One reading covers the whole region.'
     : 'RAD counts the radiation reaching the ground. One reading covers the whole region.'
-  return 'The arm cores three rocks at the sample site and seals each core in a tube.'
+  return 'The arm cores a rock at a sample site and seals the core in a tube. There are three tubes.'
 }
 /** MODEL: battery each test uses (NASA publishes no per-activity figures). For 'drill': coring all three tubes. */
 export function testWh(t: TestId, inst: InstrumentId, fastDrill: boolean): number {
@@ -215,7 +215,7 @@ export function orbitBars(reg: Region): Bar[] {
 
 /**
  * All six bars for a spot. A bar stays empty until its test has been run. `sample` is what the
- * three tubes sealed at the sample site are worth (0 to 100), or null while none are sealed.
+ * tubes sealed at the sample sites are worth (0 to 100), or null while none are sealed.
  */
 export function spotBars(r: RoverSpec, p: Pt, done: TestId[], sample: { value: number; text: string } | null): Bar[] {
   const reg = region(r.region)
@@ -237,7 +237,7 @@ export function spotBars(r: RoverSpec, p: Pt, done: TestId[], sample: { value: n
     { id: 'sun', name: 'Sunlight', score: has('weather') ? pct((day / 14) * 100) : null, value: has('weather') ? `${Math.round(day * 10) / 10} hours of daylight for solar panels` : 'Take a weather reading', source: gale, real: `Sunrise and sunset. ${standIn}`, model: 'Score: 14 h of daylight is 100.', shared: true, needs: 'weather' },
     { id: 'warm', name: 'Warmth', score: has('weather') ? pct(tmin + 100) : null, value: has('weather') ? `Nights ${tmin} °C, days ${tmax} °C: hard for a greenhouse` : 'Take a weather reading', source: gale, real: `Air temperature. ${standIn}`, model: 'Score: a −100 °C night is 0, a 0 °C night is 100.', shared: true, needs: 'weather' },
     { id: 'rad', name: 'Low radiation', score: has('radiation') ? pct(100 * (1 - RADIATION.mGyPerSol / 0.5)) : null, value: has('radiation') ? `${RADIATION.mGyPerSol} mGy each Mars day, measured at Gale` : 'Take a radiation reading', source: RADIATION.label, real: RADIATION.note, model: 'Score: 0 mGy per sol is 100, 0.5 or more is 0.', shared: true, needs: 'radiation' },
-    { id: 'sample', name: 'Rock samples', score: sample ? sample.value : null, value: sample ? sample.text : 'Fill three tubes at the sample site', source: "Game rule, modelled on Perseverance's sample tubes", real: 'The five rocks at the sample site are modelled on samples Perseverance really sealed. What each is worth is our model, not a NASA figure.', model: 'Score: the science value of your three tubes, out of 100. No tubes: 0.', shared: true, needs: 'drill' },
+    { id: 'sample', name: 'Rock samples', score: sample ? sample.value : null, value: sample ? sample.text : 'Fill three tubes at the sample sites', source: "Game rule, modelled on Perseverance's sample tubes", real: 'The five rocks at the sample sites are modelled on samples Perseverance really sealed. What each is worth, and which site it lies at, is our model, not a NASA figure.', model: 'Score: the science value of the tubes you sealed, out of 100. No tubes: 0.', shared: true, needs: 'drill' },
   ]
 }
 

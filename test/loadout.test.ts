@@ -191,12 +191,17 @@ test('a scientific experiment rack makes coring cheaper, and the full rack reads
   assert.equal(small.sampleCost, testWh('drill', 'ir', true), 'the research filter, without 3 research units')
   assert.equal(small.samplesStudied, false)
   assert.equal(full.samplesStudied, true, 'the scans read clearly even though nobody calibrated the instrument')
-  const site = full.sampleSite!
-  assert.equal(full.addWaypoint({ x: site.x, y: site.y }), null)
-  assert.equal(full.deploy(), null)
-  const before = full.batteryWh
-  assert.equal(full.collectSamples(['sapphire', 'hazeltop', 'skyland']), null)
-  assert.equal(before - full.batteryWh, testWh('drill', 'ir', true))
+  assert.equal(full.tubeCost, Math.round(testWh('drill', 'ir', true) / 3), 'each tube costs a third')
+  // the three best rocks lie at the second and third sample sites
+  for (const [at, picks] of [[1, ['skyland', 'hazeltop']], [2, ['sapphire']]] as const) {
+    const site = full.sampleSites[at]
+    assert.equal(full.addWaypoint({ x: site.x, y: site.y }), null)
+    assert.equal(full.deploy(), null)
+    const before = full.batteryWh
+    assert.equal(full.collectSamples([...picks]), null)
+    assert.equal(before - full.batteryWh, full.tubeCost * picks.length)
+  }
+  assert.equal(full.samples!.wh, testWh('drill', 'ir', true))
   assert.equal(full.samples!.clear, true)
   assert.equal(full.report(full.spotHere!).bars.find(b => b.id === 'sample')!.score, 100)
 })

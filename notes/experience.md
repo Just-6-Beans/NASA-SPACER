@@ -7,6 +7,18 @@ Only the experience lane edits this file. Everyone reads it.
 
 ## Done
 
+### Three sample sites, and the rescue gauges (15 Nov, LOCAL ONLY, not committed or pushed)
+
+Asked for by a human on this device (aizux7): "add more rock sample sites instead of there being only one", and fix the rescue screen where the temperature read-out sat on top of the other information. Branch `lane/experience-rover-tasks`, on top of `main` at 91aeaaf.
+
+- **Three sample sites on each map** instead of one (rules in `src/core/samples.ts`). Each is a real rover stop about 400, 700 and 1,000 m from the start, at least 350 m from the others and one short leg on from the site before. Site 1 holds Montdenier and Roubion, site 2 Skyland and Hazeltop, site 3 Sapphire Canyon alone (the human chose "different rocks per site, the most valuable farthest out"). Which stops are sites and which rocks lie where is our model, and the "?" card says so.
+- **Three tubes for the whole mission**, to fill at one site or spread over several. A tube costs a third of what three cost before (100 Wh, 127 Wh with GPR-2). The best cache (100) needs both far sites: Perseverance can just do it on one charge with nothing left for spot tests, Curiosity has to recharge on the way (about 2.5 Mars days). The Rock samples check fills as tubes are sealed.
+- **Screens.** The map shows numbered ◆ marks that turn to a tick when a site is emptied or the tubes are full. The sample screen shows only the rocks at the site the rover is at, the three tubes, how far the other sites are and how many rocks each still has, and "Save the tubes for another site". What a rock left behind was is shown only after the last tube is sealed. The plan chip, the station objective, the task list, Mission Ops and the report ("Tubes filled N of 3") follow. The debrief names tubes that were never filled.
+- **Rescue gauges fixed.** The tilt and motor-temperature boxes used the class `hot` when over their limit, and the rover parts guide styles `.rover .hot` as an absolutely placed dot, so an over-limit gauge jumped out of its box onto the telemetry. The class is now `over`. (The same clash as the photo mark fixed earlier: do not use `.hot` inside `.rover`.)
+- **Checked** in headless Edge on the dev server, no console errors: all four rescue causes at five window sizes; the map with three sites; site 1 (scan, pick one, seal, result), site 2 (two more tubes, full cache), the map afterwards; 420 px wide; the same two sites with Curiosity. `npm run check` passes (126 tests).
+- **Not checked:** a person playing it, site 3 on screen (its rules are tested), `npm run build`, a real phone.
+- **Crosses lanes** (rules lane): `src/core/samples.ts`, `mission.ts`, `survey.ts` (wording), and the three test files. Exports that changed: `Mission.sampleSite` and `Mission.rocks` are gone; new `Mission.sampleSites`, `siteHere`, `siteOpen`, `tubesLeft`, `rocksLeft(site)`, `tubeCost`; `collectSamples(picks)` now takes one to three rocks from the site the rover is at and adds to `Mission.samples`; in `samples.ts`, `sampleSite` and `shuffleRocks` are gone, `sampleSites`, `siteAt`, `SITE_ROCKS`, `SITE_DISTANCES_M`, `SITE_GAP_M`, `rockTag` are new, and `picksBlock(picks, site, sealed)` takes the site and the tubes already sealed.
+
 ### Rover part: the rover's rocket, two new tasks, and the launch-field look (15 Nov, LOCAL ONLY, not committed or pushed)
 
 Asked for by a human on this device (aizux7), who said to keep it local until told otherwise. Branch `lane/experience-rover-tasks` in the clone at `GameTest\NASA-SPACER-Claude-latest`, on top of `main` at b600167. It crosses all three lanes; the last bullet lists what.

@@ -36,13 +36,25 @@ function ready(region: RegionId, opts: { power?: Power; water?: boolean; balance
   m.rng = () => 0.999
   return m
 }
-/** Drives to the sample site and seals the three best rocks: the sixth check, for the whole region. */
+/**
+ * Drives to the two far sample sites and seals the three best rocks: the sixth check, for the
+ * whole region. A rover that cannot get there on the charge it has recharges on the way.
+ */
 function sealBest(m: Mission) {
-  const site = m.sampleSite!
-  assert.equal(m.addWaypoint({ x: site.x, y: site.y }), null)
-  assert.equal(m.deploy(), null)
-  assert.ok(m.atSampleSite)
-  assert.equal(m.collectSamples(['sapphire', 'hazeltop', 'skyland']), null)
+  const go = (at: number, picks: ('skyland' | 'hazeltop' | 'sapphire')[]) => {
+    const site = m.sampleSites[at]
+    for (let tries = 0; m.siteHere?.id !== at; tries++) {
+      assert.ok(tries < 3, `sample site ${at + 1} is within reach`)
+      if (tries || !m.canDrive) assert.equal(m.recharge(), null)
+      assert.equal(m.addWaypoint({ x: site.x, y: site.y }), null)
+      assert.equal(m.deploy(), null)
+    }
+    if (m.tubeCost * picks.length > m.spareWh) assert.equal(m.recharge(), null)
+    assert.equal(m.collectSamples(picks), null)
+  }
+  go(1, ['skyland', 'hazeltop'])
+  go(2, ['sapphire'])
+  assert.equal(m.tubesLeft, 0)
 }
 
 /** Real stops between `min` and `max` metres from the start: the flattest and the steepest. */
@@ -166,9 +178,10 @@ test('tests fill in the bars: a flat real stop becomes a good place', () => {
   const flat = m.spotHere!
   r = m.report(flat)
   assert.deepEqual(r.bars.filter(b => b.score === null).map(b => b.id), ['sample'], 'the sixth check waits for the sample site')
-  // Three tubes sealed at the sample site fill it, for this spot and every other.
+  // Three tubes sealed at the sample sites fill it, for this spot and every other.
+  assert.equal(before - m.batteryWh, 80 + 40 + 40)
   sealBest(m)
-  assert.equal(before - m.batteryWh - m.drives[1].usedWh, 80 + 40 + 40 + 300, 'coring three tubes costs what a drill did')
+  assert.equal(m.samples!.wh, 300, 'coring three tubes costs what a drill did')
   r = m.report(flat)
   assert.equal(r.ground.source, 'rover')
   assert.equal(r.ground.tiltDeg, s.tiltDeg)
@@ -409,23 +422,27 @@ test('photos save themselves: real photo spots the rover parks at or drives past
 test('battery limits how many spots can be checked', () => {
   const m = ready('gale')
   m.runTest('photo'); m.runTest('weather'); m.runTest('radiation')
-  // The trip to the sample site and the coring there take most of one charge.
-  const site = m.sampleSite!
-  m.addWaypoint({ x: site.x, y: site.y })
+  // The trip to the second sample site and the coring there take most of one charge.
+  const [first, second] = m.sampleSites
+  m.addWaypoint({ x: second.x, y: second.y })
   m.deploy()
   m.runTest('photo')
   assert.equal(m.sampleCost, testWh('drill', 'ir', false))
-  assert.equal(m.collectSamples(['montdenier', 'skyland', 'roubion']), null)
+  assert.equal(m.tubeCost, 100, 'a third of that for each tube')
+  assert.equal(m.collectSamples(['skyland', 'hazeltop']), null)
   assert.ok(m.spareWh < 400, `little left: ${m.spareWh} Wh`)
   const d = simulateDrive(ROVERS.curiosity, m.pos, [{ x: 1400, y: -1400 }], m.batteryWh, false)
   assert.ok(d.safeMode, 'not enough for another long drive')
-  assert.match(m.sampleBlock()!, /already sealed/, 'and there are only three tubes')
-  // With too little battery left, the tubes cannot be filled at all.
+  assert.equal(m.tubesLeft, 1)
+  assert.match(m.sampleBlock()!, /Every rock at this site is already in a tube/, 'the last tube needs another site')
+  // With too little battery left, not even one tube can be filled.
   const low = ready('gale')
-  low.addWaypoint({ x: site.x, y: site.y })
+  low.addWaypoint({ x: first.x, y: first.y })
   low.deploy()
-  low.batteryWh = reserveWh(ROVERS.curiosity) + 100
-  assert.match(low.sampleBlock()!, /needs 300 Wh/)
+  low.batteryWh = reserveWh(ROVERS.curiosity) + 150
+  assert.match(low.collectSamples(['montdenier', 'roubion'])!, /Coring 2 tubes needs 200 Wh/)
+  low.batteryWh = reserveWh(ROVERS.curiosity) + 50
+  assert.match(low.sampleBlock()!, /Coring a tube needs 100 Wh/)
 })
 
 test('station choices change the rover: ship charge, balancing, research, water, comms', () => {
@@ -447,15 +464,16 @@ test('Curiosity at Gale works the same way and has level real stops nearby', () 
   assert.equal(m.rover!.id, 'curiosity')
   const s = flatStop('curiosity')
   assert.ok(s.tiltDeg <= MAX_BASE_TILT)
-  // Curiosity has a sample site too. The trip and the coring empty much of its smaller charge, so it recharges.
-  sealBest(m)
-  assert.equal(m.recharge(), null)
   m.addWaypoint({ x: s.x, y: s.y })
   m.deploy()
   for (const t of ['photo', 'weather', 'radiation'] as const) assert.equal(m.runTest(t), null)
-  const r = m.report(m.spotHere!)
+  const spot = m.spotHere!
+  // Curiosity has sample sites too. Its smaller charge does not reach the far ones and core there in one go, so it recharges.
+  sealBest(m)
+  assert.ok(m.recharges >= 1)
+  const r = m.report(spot)
   assert.notEqual(r.verdict.level, 'bad')
-  assert.equal(m.decideBase(m.spotHere!.id), null)
+  assert.equal(m.decideBase(spot.id), null)
   assert.ok(m.base!.stars >= 2)
 })
 

@@ -11,8 +11,8 @@ import {
   CAUSES, FIXES, RESCUE_LIMIT_SOLS, START_WEAR, WEAR_LIMIT, WORN_SPEED, cutPath, fixOutcome, newRescue, rescueLeft, routeRisk, stuckOn,
   type FixId, type Rescue, type RouteRisk, type StuckCause,
 } from './rescue'
-import { ROVERS, type AreaStop, type RoverId, type RoverSpec } from './rovers'
-import { SAMPLE_RANGE_M, SAMPLE_SNAP_M, cacheRating, picksBlock, rock, sampleSite, sampleValue, shuffleRocks, type RockId, type SampleResult } from './samples'
+import { ROVERS, type RoverId, type RoverSpec } from './rovers'
+import { ROCK_IDS, SAMPLE_SNAP_M, TUBE_COUNT, cacheRating, picksBlock, rock, sampleSites, sampleValue, siteAt, type RockId, type SampleResult, type SampleSite } from './samples'
 import {
   MAX_BASE_TILT, MAX_WAYPOINTS, MISSION_SOLS, REGIONS, SOL_HOURS, TESTS, dist, driveWhPerM, groundAt, inMap, photoBonus, placesInRange,
   rechargeHours, rechargeW, region, reserveWh, simulateDrive, siteScore, spotBars, starsFor, testWh, verdict,
@@ -58,7 +58,7 @@ export const TASK_INFO: Record<TaskId, { name: string; group: 'Routine' | 'Missi
   cargo: { name: 'Cargo reconciliation', group: 'Routine', where: 'Payload', reward: '+5 supply credits' },
   water: { name: 'Water purification', group: 'Routine', where: 'Hab Systems', reward: `+${WATER_BONUS} to the base score` },
   medical: { name: 'Crew medical check', group: 'Routine', where: 'Hab Systems', reward: 'Clearance for habitat commissioning' },
-  calibration: { name: 'Two-point calibration', group: 'Mission', where: 'Calibration', reward: 'Rock scans read clearly at the sample site (uncalibrated: the composition is a guess)' },
+  calibration: { name: 'Two-point calibration', group: 'Mission', where: 'Calibration', reward: 'Rock scans read clearly at the sample sites (uncalibrated: the composition is a guess)' },
   relay: { name: 'Relay repair', group: 'Emergency', where: 'Rover Comms', reward: 'Restores the uplink' },
   habitat: { name: 'Habitat commissioning', group: 'Mission', where: 'Mission Report', reward: 'Crew quarters on Mars' },
   greenhouse: { name: 'Station greenhouse', group: 'Routine', where: 'Greenhouse module', reward: 'A greenhouse score of 0 to 100, counted beside the base score' },
@@ -110,10 +110,8 @@ export class Mission {
   wheelWear = 0
   /** The stuck-rover rescue: under way while its result is null, kept afterwards for the report. One per mission. */
   rescue: Rescue | null = null
-  /** The three tubes sealed at the sample site. */
+  /** The tubes sealed so far, at one sample site or several. Null until the first is sealed. */
   samples: SampleResult | null = null
-  /** The five rocks at the sample site, in the order they lie (A to E). */
-  rocks: RockId[] = []
   private worn: RoverSpec | null = null
   base: BaseOutcome | null = null
   log: LogEntry[] = []
@@ -282,7 +280,6 @@ export class Mission {
     // Parked beside a real photo spot, the rover saves its photo straight away.
     this.photos = placesInRange(rv, this.pos).map(p => p.id)
     this.wheelWear = START_WEAR[rv.id]
-    this.rocks = shuffleRocks(this.rng)
     this.note(`Rover chosen: ${rv.name}, ${region(id).name}. It starts where the real rover is (sol ${rv.area.centre.sol}) with ${this.batteryWh} Wh.`)
     return null
   }
@@ -438,10 +435,10 @@ export class Mission {
     if (!inMap(rv, p)) return 'That point is off the map.'
     if (this.waypoints.length >= MAX_WAYPOINTS) return `At most ${MAX_WAYPOINTS} points per deployment.`
     // A tap on (or right beside) a spot already visited goes back to exactly that spot, and a tap
-    // on the sample site's marker goes to the site itself.
+    // on a sample site's marker goes to the site itself.
     const known = this.spots.find(s => dist(s.p, p) < 25)
-    const site = sampleSite(rv)
-    const q = known ? known.p : dist(site, p) <= SAMPLE_SNAP_M ? { x: site.x, y: site.y } : { x: Math.round(p.x), y: Math.round(p.y) }
+    const site = sampleSites(rv).find(x => dist(x, p) <= SAMPLE_SNAP_M)
+    const q = known ? known.p : site ? { x: site.x, y: site.y } : { x: Math.round(p.x), y: Math.round(p.y) }
     const last = this.waypoints[this.waypoints.length - 1] ?? this.pos
     if (dist(last, q) < 10) return 'Too close to the last point.'
     this.waypoints = [...this.waypoints, q]
@@ -558,38 +555,55 @@ export class Mission {
   }
 
   // ---- Sample selection ------------------------------------------------------
-  // At the sample site the rover finds five rocks and has three tubes. Scanning is free; coring
-  // the three chosen rocks costs battery. What the tubes are worth fills the Rock samples check
-  // for the whole region.
+  // Three sample sites hold five rocks between them, and the rover has three tubes for the whole
+  // mission. Scanning is free; coring costs battery for each tube. The tubes can be filled at one
+  // site or spread over several, and what they are worth fills the Rock samples check for the
+  // whole region.
 
-  /** The sample site on this rover's map: a place the real rover parked (REAL), chosen by the game. */
-  get sampleSite(): AreaStop | null { const rv = this.rover; return rv ? sampleSite(rv) : null }
-  get atSampleSite() { const s = this.sampleSite; return !!s && dist(this.pos, s) <= SAMPLE_RANGE_M }
-  /** Battery that coring three tubes uses, watt-hours. */
+  /** The sample sites on this rover's map: places the real rover parked (REAL), chosen by the game. Nearest first. */
+  get sampleSites(): SampleSite[] { const rv = this.rover; return rv ? sampleSites(rv) : [] }
+  /** The sample site the rover is standing at, if any. */
+  get siteHere(): SampleSite | null { const rv = this.rover; return rv ? siteAt(rv, this.pos) : null }
+  get atSampleSite() { return !!this.siteHere }
+  /** Tubes still empty. */
+  get tubesLeft() { return TUBE_COUNT - (this.samples?.picks.length ?? 0) }
+  /** The rocks at a site that are not in a tube yet. */
+  rocksLeft(site: SampleSite): RockId[] { return site.rocks.filter(id => !this.samples?.picks.includes(id)) }
+  /** There is still coring to do where the rover stands: an empty tube and a rock not yet taken. */
+  get siteOpen() { const site = this.siteHere; return !!site && this.tubesLeft > 0 && this.rocksLeft(site).length > 0 }
+  /** Battery that coring one tube uses, watt-hours: a third of what three tubes cost. */
+  get tubeCost() { return Math.round(this.testCost('drill') / TUBE_COUNT) }
+  /** Battery that coring all three tubes uses, watt-hours. */
   get sampleCost() { return this.testCost('drill') }
   sampleBlock(): string | null {
     if (!this.rover) return 'Choose a rover first.'
     const held = this.held()
     if (held) return held
     if (this.base) return 'The base is already decided.'
-    if (this.samples) return 'The three tubes are already sealed.'
-    if (!this.atSampleSite) return 'Drive to the sample site first.'
+    if (this.tubesLeft <= 0) return 'All three tubes are already sealed.'
+    const site = this.siteHere
+    if (!site) return 'Drive to a sample site first.'
+    if (!this.rocksLeft(site).length) return 'Every rock at this site is already in a tube.'
     if (this.timeUp) return `The mission's ${this.missionSols} Mars days are used up.`
     if (this.charging) return 'The rover is recharging. Stop the recharge first.'
     if (this.stranded) return 'Safe mode: no power to spare for coring. Recharge first.'
-    if (this.sampleCost > this.spareWh) return `Coring three tubes needs ${this.sampleCost} Wh, but only ${this.spareWh} Wh is left above the safe-mode line.`
+    if (this.tubeCost > this.spareWh) return `Coring a tube needs ${this.tubeCost} Wh, but only ${this.spareWh} Wh is left above the safe-mode line.`
     return null
   }
-  /** Cores the three chosen rocks and seals the tubes. */
+  /** Cores the chosen rocks at this site and seals one tube for each. */
   collectSamples(picks: RockId[]): string | null {
-    const block = this.sampleBlock() ?? picksBlock(picks)
+    const before = this.samples
+    const block = this.sampleBlock() ?? picksBlock(picks, this.siteHere!, before?.picks ?? [])
     if (block) return block
-    const wh = this.sampleCost
+    const wh = this.tubeCost * picks.length
+    if (wh > this.spareWh) return `Coring ${picks.length} tubes needs ${wh} Wh, but only ${this.spareWh} Wh is left above the safe-mode line.`
+    const site = this.siteHere!
     this.batteryWh -= wh
-    const value = sampleValue(picks)
-    this.samples = { picks: [...picks], value, clear: this.samplesStudied, organics: picks.filter(id => rock(id).organic).length, wh }
-    this.regional = [...this.regional, 'drill']
-    this.note(`Three tubes sealed at the sample site (${wh} Wh): ${picks.map(id => sampleFacts(id).name).join(', ')}. Science value ${value} of 100.`, 'rover')
+    const all = [...(before?.picks ?? []), ...picks]
+    const value = sampleValue(all)
+    this.samples = { picks: all, value, clear: this.samplesStudied && (before?.clear ?? true), organics: all.filter(id => rock(id).organic).length, wh: (before?.wh ?? 0) + wh }
+    if (!this.regional.includes('drill')) this.regional = [...this.regional, 'drill']
+    this.note(`${picks.length} tube${picks.length === 1 ? '' : 's'} sealed at sample ${site.name.toLowerCase()} (${wh} Wh): ${picks.map(id => sampleFacts(id).name).join(', ')}. ${all.length} of ${TUBE_COUNT} tubes full, science value ${value} of 100.`, 'rover')
     return null
   }
 
@@ -600,7 +614,7 @@ export class Mission {
   testBlock(t: TestId): string | null {
     const spot = this.spotHere
     if (!this.rover || !spot) return 'Drive to a spot first.'
-    if (t === 'drill') return 'Rock cores are taken at the sample site: fill three tubes there.'
+    if (t === 'drill') return 'Rock cores are taken at a sample site: the rover has three tubes for all of them.'
     const held = this.held()
     if (held) return held
     if (this.base) return 'The base is already decided.'
@@ -638,7 +652,7 @@ export class Mission {
     // shielding panels carried up on the launch protect the habitat: they add to the radiation score (our model)
     const shield = this.cargo('shielding')
     const s = this.samples
-    const tubes = s ? { value: s.value, text: `${cacheRating(s.value).word}: ${s.picks.map(id => sampleFacts(id).name).join(', ')}` } : null
+    const tubes = s ? { value: s.value, text: `${s.picks.length < TUBE_COUNT ? `${s.picks.length} of ${TUBE_COUNT} tubes` : cacheRating(s.value).word}: ${s.picks.map(id => sampleFacts(id).name).join(', ')}` } : null
     const bars = spotBars(rv, spot.p, this.testsFor(spot), tubes).map(b => b.id !== 'rad' || b.score === null || !shield ? b
       : { ...b, score: Math.min(100, b.score + shield), value: `${b.value} · +${shield} from the shielding panels`, model: `${b.model} Shielding panels carried up add ${shield} (our model).` })
     const score = siteScore(bars, this.bonus)
@@ -697,11 +711,13 @@ export class Mission {
     // the sample tubes
     const tubes = this.samples
     if (tubes) {
-      out.push({ good: tubes.value >= 70, text: `Three tubes sealed, science value ${tubes.value} of 100: ${tubes.picks.map(id => sampleFacts(id).name).join(', ')}.` })
-      const left = this.rocks.filter(id => rock(id).organic && !tubes.picks.includes(id)).length
+      const n = tubes.picks.length
+      out.push({ good: tubes.value >= 70, text: `${n === TUBE_COUNT ? 'Three tubes' : n === 1 ? 'One tube' : 'Two tubes'} sealed, science value ${tubes.value} of 100: ${tubes.picks.map(id => sampleFacts(id).name).join(', ')}.` })
+      if (n < TUBE_COUNT) out.push({ good: false, text: `${TUBE_COUNT - n} tube${TUBE_COUNT - n === 1 ? ' was' : 's were'} never filled: the rover did not reach a site with a rock to put in ${TUBE_COUNT - n === 1 ? 'it' : 'them'}.` })
+      const left = ROCK_IDS.filter(id => rock(id).organic && !tubes.picks.includes(id)).length
       if (left) out.push({ good: false, text: `${left === 1 ? 'A rock' : `${left} rocks`} with an organic-like signal stayed behind${tubes.clear ? '' : ': the uncalibrated instrument could not read it'}.` })
       if (tubes.picks.includes('roubion')) out.push({ good: false, text: 'One tube was spent on a crumbling rock and sealed empty.' })
-    } else if (this.base?.approved && this.drives.length) out.push({ good: false, text: 'No rock samples: the rover never filled its tubes at the sample site, so that check scored 0.' })
+    } else if (this.base?.approved && this.drives.length) out.push({ good: false, text: 'No rock samples: the rover never filled a tube at a sample site, so that check scored 0.' })
     if (this.drives.length) out.push({ good: !this.stranded, text: `${rv.name} drove ${driven} m and climbed ${climbed} m in ${this.drives.length} deployment${this.drives.length > 1 ? 's' : ''}, using ${used} Wh.` })
     if (this.stranded) out.push({ good: false, text: 'A drive was longer than the battery allowed, so the rover ended in safe mode.' })
     if (this.recharges) out.push({ good: !this.timeUp, text: `Recharged ${this.recharges} time${this.recharges > 1 ? 's' : ''}. Driving and recharging used ${Math.round((this.hoursUsed / SOL_HOURS) * 10) / 10} of the ${this.missionSols} Mars days.` })

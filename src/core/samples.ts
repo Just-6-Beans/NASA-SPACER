@@ -1,11 +1,14 @@
-// Sample selection: at the sample site the rover finds five rocks and has three tubes. The pilot
-// scans each rock, compares the clues and decides which three to keep. Plain TypeScript, no DOM
-// and no Phaser.
+// Sample selection: three sample sites on the map hold five rocks between them, and the rover has
+// three tubes for the whole mission. At each site the pilot scans the rocks there, compares the
+// clues and decides which to keep, and whether to save tubes for another site. Plain TypeScript,
+// no DOM and no Phaser.
 //
-// REAL (src/data/roverTasks.ts): each rock is modelled on a sample Perseverance really sealed, and
-// the composition clue follows what NASA has said about that rock.
-// OUR MODEL: the colour and texture read-outs (they describe what NASA's picture of each sample's drill site shows; the catalog itself does not describe them), the science
-// value of each rock, the three-tube limit at one site, and where the sample site is.
+// REAL (src/data/roverTasks.ts): each rock is modelled on a sample Perseverance really sealed, the
+// picture is NASA's own, and the composition clue follows what NASA has said about that rock.
+// Each site is a place the real rover parked.
+// OUR MODEL: the colour and texture read-outs (they describe what NASA's picture shows; the catalog
+// does not describe them), the science value of each rock, the three tubes, which stops are
+// sample sites, and which rocks lie at which site.
 import type { SampleId } from '../data/roverTasks'
 import type { AreaStop, RoverId, RoverSpec } from './rovers'
 
@@ -63,7 +66,7 @@ export const rock = (id: RockId): Rock => {
 }
 export const ROCK_IDS = ROCKS.map(r => r.id)
 
-/** MODEL: tubes the rover may fill at the sample site. */
+/** MODEL: tubes the rover has for the whole mission. */
 export const TUBE_COUNT = 3
 /** The most three tubes can be worth. */
 export const MAX_SAMPLE_VALUE = [...ROCKS].sort((a, b) => b.value - a.value).slice(0, TUBE_COUNT).reduce((n, r) => n + r.value, 0)
@@ -80,54 +83,80 @@ export function cacheRating(value: number): { level: CacheLevel; word: string } 
   return { level: 'weak', word: 'Common rocks only' }
 }
 
-/** Why a set of picks cannot be sealed, or null. */
-export function picksBlock(picks: RockId[]): string | null {
-  if (picks.length !== TUBE_COUNT) return `Fill all ${TUBE_COUNT} tubes first.`
-  if (new Set(picks).size !== picks.length) return 'Each tube needs a different rock.'
-  if (picks.some(id => !ROCK_IDS.includes(id))) return 'Unknown rock.'
-  return null
-}
-
-/** What the mission keeps once the tubes are sealed. */
+/** What the mission keeps of its tubes. It grows each time tubes are sealed at a site. */
 export interface SampleResult {
+  /** The rocks sealed so far, in the order they were cored: at most TUBE_COUNT. */
   picks: RockId[]
   value: number
-  /** The composition clues were readable: the instrument was calibrated. */
+  /** The composition clues were readable every time: the instrument was calibrated. */
   clear: boolean
-  /** Organic-like rocks among the picks, and among all five. */
+  /** Organic-like rocks among the picks. */
   organics: number
-  /** Battery the coring used, watt-hours. */
+  /** Battery the coring has used, watt-hours. */
   wh: number
 }
 
-/** The five rocks in the order this mission lays them out (A to E), shuffled once by the mission's dice. */
-export function shuffleRocks(rng: () => number): RockId[] {
-  const ids = [...ROCK_IDS]
-  for (let i = ids.length - 1; i > 0; i--) {
-    const j = Math.min(i, Math.floor(rng() * (i + 1)))
-    ;[ids[i], ids[j]] = [ids[j], ids[i]]
-  }
-  return ids
-}
-export const ROCK_TAGS = 'ABCDE'
-
-// ---------------------------------------------------------------- The sample site
-/** MODEL: how close the rover must stop to the sample site to work there. */
+// ---------------------------------------------------------------- The sample sites
+/** MODEL: how close the rover must stop to a sample site to work there. */
 export const SAMPLE_RANGE_M = 60
-/** MODEL: a tap this close to the site's marker sends the rover to the site itself (the same reach as a tap on a visited spot). */
+/** MODEL: a tap this close to a site's marker sends the rover to the site itself (the same reach as a tap on a visited spot). */
 export const SAMPLE_SNAP_M = 25
-const siteCache = new Map<RoverId, AreaStop>()
 /**
- * The sample site on a rover's map: a place the real rover parked (REAL), about half a kilometre
- * from the start (our choice), so reaching it takes a real drive. The five rocks are our scene:
- * the samples they are modelled on were cut elsewhere in Jezero Crater.
+ * MODEL: which rocks lie at which site, nearest site first. The common rocks are close to the
+ * start and the rarest is farthest, so a better cache costs a longer drive.
  */
-export function sampleSite(r: RoverSpec): AreaStop {
+export const SITE_ROCKS: RockId[][] = [['montdenier', 'roubion'], ['skyland', 'hazeltop'], ['sapphire']]
+/** MODEL: about how far from the start each site lies, metres. */
+export const SITE_DISTANCES_M = [400, 700, 1000]
+/** MODEL: the least distance between two sample sites, metres. */
+export const SITE_GAP_M = 350
+/** The letter each rock carries on its card, A to E, in the order the sites hold them. */
+export const ROCK_TAGS = 'ABCDE'
+export const rockTag = (id: RockId) => ROCK_TAGS[SITE_ROCKS.flat().indexOf(id)]
+
+/** A sample site: a place the real rover parked (REAL), with the rocks the game lays there (MODEL). */
+export interface SampleSite { id: number; name: string; x: number; y: number; stop: AreaStop; rocks: RockId[] }
+const siteCache = new Map<RoverId, SampleSite[]>()
+/**
+ * The three sample sites on a rover's map, nearest first. Each is a real rover stop about the
+ * wanted distance from the start, at least SITE_GAP_M from the other sites and a short leg on from the one before. The
+ * rocks are our scene: the samples they are modelled on were cut elsewhere in Jezero Crater.
+ */
+export function sampleSites(r: RoverSpec): SampleSite[] {
   const hit = siteCache.get(r.id)
   if (hit) return hit
   const far = (s: AreaStop) => Math.hypot(s.x, s.y)
-  const ring = r.area.stops.filter(s => far(s) >= 350 && far(s) <= 700)
-  const site = [...(ring.length ? ring : r.area.stops)].sort((a, b) => Math.abs(far(a) - 500) - Math.abs(far(b) - 500))[0]
-  siteCache.set(r.id, site)
-  return site
+  const half = r.area.sizeM / 2 - 60
+  const inside = r.area.stops.filter(s => Math.abs(s.x) <= half && Math.abs(s.y) <= half)
+  const chosen: AreaStop[] = []
+  for (const want of SITE_DISTANCES_M) {
+    const apart = (s: AreaStop) => Math.min(...chosen.map(c => Math.hypot(c.x - s.x, c.y - s.y)), Infinity)
+    const free = inside.filter(s => !chosen.includes(s) && apart(s) >= SITE_GAP_M)
+    const ring = free.filter(s => Math.abs(far(s) - want) <= 150)
+    const last = chosen[chosen.length - 1]
+    const onward = (s: AreaStop) => (last ? Math.hypot(last.x - s.x, last.y - s.y) : 0)
+    // In the ring: the stop with the shortest drive on from the site before it, so each site is
+    // one more leg out and not across the map. No stop in the ring: the one nearest the wanted distance.
+    const pick = ring.length
+      ? [...ring].sort((a, b) => onward(a) - onward(b) || Math.abs(far(a) - want) - Math.abs(far(b) - want))[0]
+      : [...(free.length ? free : inside)].sort((a, b) => Math.abs(far(a) - want) - Math.abs(far(b) - want))[0]
+    chosen.push(pick)
+  }
+  const sites = chosen.map((stop, id) => ({ id, name: `Site ${id + 1}`, x: stop.x, y: stop.y, stop, rocks: SITE_ROCKS[id] }))
+  siteCache.set(r.id, sites)
+  return sites
+}
+/** The sample site the rover is standing at, if any. */
+export const siteAt = (r: RoverSpec, pos: { x: number; y: number }): SampleSite | null =>
+  sampleSites(r).find(s => Math.hypot(s.x - pos.x, s.y - pos.y) <= SAMPLE_RANGE_M) ?? null
+
+/** Why these rocks cannot be sealed at this site, or null. `sealed` are the tubes already filled. */
+export function picksBlock(picks: RockId[], site: SampleSite, sealed: RockId[]): string | null {
+  const left = TUBE_COUNT - sealed.length
+  if (!picks.length) return 'Choose at least one rock.'
+  if (new Set(picks).size !== picks.length) return 'Each tube needs a different rock.'
+  if (picks.some(id => !site.rocks.includes(id))) return 'That rock is not at this site.'
+  if (picks.some(id => sealed.includes(id))) return 'That rock is already in a tube.'
+  if (picks.length > left) return `Only ${left} tube${left === 1 ? ' is' : 's are'} left.`
+  return null
 }

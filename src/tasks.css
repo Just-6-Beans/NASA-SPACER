@@ -69,7 +69,9 @@
 .tk-task .lf-block.ok { border-left-color: var(--mint); background: rgba(95,242,197,.1); color: #d3ffef; }
 .tk-task .lf-go { margin-top: 12px; }
 
-/* ---------- Rescue: the rover from above, the two gauges ---------- */
+/* ---------- Rescue: the rover from above, the two gauges ----------
+   A gauge past its limit is ".over", never ".hot": the rover parts guide owns .hot (survey.css)
+   and its rule would lift the gauge out of the panel. */
 .tk-rover { display: block; width: 100%; max-height: 300px; }
 .tk-body { fill: #173650; stroke: rgba(63,208,255,.8); stroke-width: 1.6; }
 .tk-deck { fill: #0c2236; stroke: rgba(63,208,255,.35); }
@@ -104,9 +106,9 @@
 .tk-gauge small { display: block; margin-top: 4px; font-family: var(--mono); font-size: 10px; color: var(--ivory-dim); }
 .tk-gauge svg { display: block; width: 100%; max-width: 190px; margin: 2px auto 0; }
 .tk-gauge .lf-bar { margin-top: 12px; height: 8px; }
-.tk-gauge.hot { border-color: var(--danger); }
-.tk-gauge.hot .tk-gauge-h b { color: #ff9c90; }
-.tk-gauge.hot .lf-bar i { background: var(--danger); }
+.tk-gauge.over { border-color: var(--danger); }
+.tk-gauge.over .tk-gauge-h b { color: #ff9c90; }
+.tk-gauge.over .lf-bar i { background: var(--danger); }
 .tk-gauge.gone .tk-gauge-h b { font-size: 17px; color: var(--ivory-dim); }
 .tk-arc { fill: none; stroke-width: 7; stroke-linecap: butt; }
 .tk-arc.calm { stroke: rgba(95,242,197,.75); }
@@ -156,12 +158,31 @@
 .tk-clues dd.faint { color: var(--ivory-dim); }
 .tk-clues em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--warn); }
 .tk-rock .btn { width: 100%; align-self: end; }
+/* One or two rocks at a site: wide cards, the picture beside its clues. */
+.tk-rocks.n1 { grid-template-columns: minmax(0, 620px); justify-content: center; }
+.tk-rocks.n2 { grid-template-columns: repeat(2, minmax(0, 560px)); justify-content: center; }
+.tk-rocks.n1 .tk-rock, .tk-rocks.n2 .tk-rock { grid-template-columns: minmax(0, 46%) minmax(0, 1fr); grid-template-rows: 1fr auto; column-gap: 12px; }
+.tk-rocks.n1 .tk-rockpic, .tk-rocks.n2 .tk-rockpic { grid-row: 1 / span 2; align-self: start; }
+.tk-rocks.n1 .tk-clues, .tk-rocks.n2 .tk-clues { font-size: 14px; gap: 5px 10px; align-content: start; }
+.tk-rocks.n1 .tk-rock > .btn, .tk-rocks.n2 .tk-rock > .btn { grid-column: 2; grid-row: 2; }
+.tk-rocks.n1 .tk-rock:not(.seen):not(.picked) > .btn, .tk-rocks.n2 .tk-rock:not(.seen):not(.picked) > .btn { grid-row: 1 / span 2; align-self: center; }
 .tk-rack { display: grid; grid-template-columns: 1fr minmax(260px, 380px); gap: 14px; align-items: end; }
 .tk-tubes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .tk-tube { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; padding: 10px 12px; background: rgba(2,10,20,.55); border: 1px dashed rgba(134,170,196,.6); border-radius: 2px; font-family: var(--display); font-size: 19px; letter-spacing: .06em; text-transform: uppercase; color: var(--ivory-dim); }
 .tk-tube i { width: 16px; height: 34px; border-radius: 3px 3px 8px 8px; border: 2px solid var(--ivory-dim); background: linear-gradient(180deg, transparent 55%, rgba(134,170,196,.3) 55%); }
 .tk-tube.full { border-style: solid; border-color: var(--mint); color: var(--ivory); background: rgba(95,242,197,.09); }
 .tk-tube.full i { border-color: var(--mint); background: linear-gradient(180deg, transparent 18%, #b0623f 18%); box-shadow: 0 0 10px rgba(95,242,197,.45); }
+.tk-tube.sealed { font-size: 15px; line-height: 1.1; background: rgba(95,242,197,.2); }
+.tk-tube { min-width: 0; overflow-wrap: anywhere; }
+/* The other sample sites: how far, and how many rocks are still there. */
+.tk-sites { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tk-site { display: inline-flex; align-items: center; gap: 7px; padding: 4px 9px; background: rgba(2,10,20,.55); border: 1px solid rgba(95,242,197,.45); border-radius: 2px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: #c4dcec; }
+.tk-site i { width: 8px; height: 8px; transform: rotate(45deg); border: 1.5px solid var(--mint); }
+.tk-site.done { border-color: rgba(134,170,196,.35); color: var(--ivory-dim); }
+.tk-site.done i { background: var(--mint); opacity: .6; }
+.tk-sealed .tk-sites { margin-top: 0; }
+.tk-ends { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; justify-content: flex-end; }
+.tk-ends .lf-go { margin-top: 0; flex: 1 1 240px; max-width: 380px; }
 .tk-rackside { display: grid; gap: 8px; }
 .tk-rackside .tk-hint { margin: 0; border-left-color: var(--warn); }
 .tk-rackside .lf-go { margin-top: 0; }
@@ -188,6 +209,7 @@
   .tk-meters { grid-column: 1 / -1; grid-row: 2; }
   .tk-grid { grid-template-columns: 1fr; }
   .tk-rocks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tk-rocks.n1, .tk-rocks.n2 { grid-template-columns: minmax(0, 620px); }
   .tk-rack { grid-template-columns: 1fr; }
   .tk-rover { max-height: 250px; }
 }

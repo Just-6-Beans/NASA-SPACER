@@ -6,7 +6,7 @@
 // days: it runs on a real countdown that carries on while the player is back at the station.
 //
 // Two tasks interrupt the drive (roverTasks.ts): wheel trouble, which stops the rover until the
-// pilot frees it, and the sample selection, which opens when the rover reaches the sample site.
+// pilot frees it, and the sample selection, which opens when the rover reaches a sample site.
 //
 // The battery is shown as one percentage: 100 % is full and 0 % is NASA's safe-mode line.
 import '../rover.css'
@@ -14,7 +14,7 @@ import '../survey.css'
 import type { Mission, SpotReport } from '../core/mission'
 import { WEAR_LIMIT } from '../core/rescue'
 import { mmrtgNowW, type RoverSpec } from '../core/rovers'
-import { TUBE_COUNT, cacheRating } from '../core/samples'
+import { SAMPLE_RANGE_M, TUBE_COUNT } from '../core/samples'
 import {
   BASE_LOAD_W, MAX_WAYPOINTS, MISSION_SOLS, PHOTO_BONUS_EACH, PHOTO_BONUS_MAX, RESERVE_FRACTION, SOL_HOURS, TESTS, TEST_ORDER, climbWhPerM, costPct, rechargeW, region,
   reserveWh, spendPct,
@@ -267,6 +267,8 @@ export function roverScreen(ctx: RoverCtx) {
     const here = m.spotHere
     const n = m.waypoints.length
     const risk = m.routeRisk()
+    // The sample site this drive ends at, if it still has something for the tubes.
+    const endSite = f && m.tubesLeft > 0 ? m.sampleSites.find(x => Math.hypot(f.end.x - x.x, f.end.y - x.y) <= SAMPLE_RANGE_M && m.rocksLeft(x).length) ?? null : null
     const rows = f ? f.legs.map((l, i) => {
       const last = i === n - 1 && !l.partial
       return `<div class="leg ${l.partial ? 'bad' : ''}"><span class="num">${last ? '⚑' : i + 1}</span><div><b>${l.partial ? `Stops after ${Math.round(l.distM)} m` : `${Math.round(l.distM)} m`}</b><small>${l.partial ? 'battery runs out' : `${l.climbM >= 1 ? `climbs ${Math.round(l.climbM)} m · ` : ''}${f1(l.hours)} h`}</small></div><em>−${costPct(rv, l.wh)}%</em></div>`
@@ -274,7 +276,7 @@ export function roverScreen(ctx: RoverCtx) {
     const chips = [
       risk && !m.rescue ? `<span class="chip risk-${risk.level}" title="${esc(risk.why)}. Our model on real terrain: MOLA slopes and where the real rover parked.">Stuck risk · ${RISK_WORD[risk.level]}</span>` : '',
       f?.photos.length ? `<span class="chip photo" title="Real photo spots this drive passes">${f.photos.length} photo${f.photos.length > 1 ? 's' : ''}${gain(f.photos.length) ? ` · +${gain(f.photos.length)}` : ''}</span>` : '',
-      f && !m.samples && m.sampleSite && Math.hypot(f.end.x - m.sampleSite.x, f.end.y - m.sampleSite.y) <= 60 && !f.safeMode ? '<span class="chip site">Ends at the sample site</span>' : '',
+      endSite && !f!.safeMode ? `<span class="chip site">Ends at sample ${endSite.name.toLowerCase()}</span>` : '',
     ].filter(Boolean).join('')
     // Why the button is greyed out, in plain words, right above it.
     const why = !n && m.canDrive ? null : block
@@ -282,7 +284,7 @@ export function roverScreen(ctx: RoverCtx) {
       ${timeUpHtml()}
       ${statusBlk(rv, f ? f.endWh : null, f ? f.hours : null, !!f?.safeMode)}
       <div class="blk"><div class="blk-h"><span>1 · Route</span><small>${n}/${MAX_WAYPOINTS} points</small></div>
-        ${n ? `<div class="legs">${rows}</div>` : `<p class="hint">Tap the map. The last point <b>⚑</b> is where the rover stops.${m.samples ? '' : ' <b class="sitekey">◆</b> is the sample site.'}</p>`}
+        ${n ? `<div class="legs">${rows}</div>` : `<p class="hint">Tap the map. The last point <b>⚑</b> is where the rover stops.${m.tubesLeft > 0 ? ` <b class="sitekey">◆</b> marks the ${m.sampleSites.length} sample sites.` : ''}</p>`}
         ${chips ? `<div class="chips">${chips}</div>` : ''}
         ${risk && !m.rescue && risk.level !== 'low' ? `<p class="hint small">${esc(risk.why)}.</p>` : ''}
         ${f?.safeMode ? `<div class="reason bad">Too far: the battery runs out ${f.distM} m along.</div>` : f && spendPct(rv, f.endWh) < 9 ? '<div class="reason">Almost nothing would be left for tests.</div>' : ''}
@@ -346,11 +348,12 @@ export function roverScreen(ctx: RoverCtx) {
     const stuck = !m.canDrive
     const canCharge = !m.rechargeBlock()
     const bonus = [m.photoBonus ? `+${m.photoBonus} photos` : '', m.completed.has('water') ? `+${WATER_BONUS} water purifier` : '', m.cargo('water') ? `+${m.cargo('water')} water tanks` : ''].filter(Boolean)
-    // The sample site: the task, or what its three tubes were worth.
-    const atSite = here && m.atSampleSite
-    const site = !atSite ? '' : m.samples
-      ? `<div class="blk siteblk done"><div class="blk-h"><span>Sample site</span><b>${m.samples.value}<small>/100</small></b></div><p class="hint small">${esc(cacheRating(m.samples.value).word)}: ${TUBE_COUNT} tubes sealed.</p><button class="btn small" id="samples">See the tubes</button></div>`
-      : `<div class="blk siteblk"><div class="blk-h"><span>Sample site</span><small>5 rocks · ${TUBE_COUNT} tubes</small></div><button class="btn primary" id="samples">Inspect the rocks</button></div>`
+    // The sample site the rover stands at: the task, or what the tubes are worth so far.
+    const siteHere = here ? m.siteHere : null
+    const filled = TUBE_COUNT - m.tubesLeft
+    const site = !siteHere ? '' : m.siteOpen
+      ? `<div class="blk siteblk"><div class="blk-h"><span>Sample ${esc(siteHere.name.toLowerCase())}</span><small>${m.rocksLeft(siteHere).length} rock${m.rocksLeft(siteHere).length === 1 ? '' : 's'} · ${m.tubesLeft} tube${m.tubesLeft === 1 ? '' : 's'} left</small></div><button class="btn primary" id="samples">Inspect the rocks</button></div>`
+      : `<div class="blk siteblk done"><div class="blk-h"><span>Sample ${esc(siteHere.name.toLowerCase())}</span><b>${m.samples?.value ?? 0}<small>/100</small></b></div><p class="hint small">${filled} of ${TUBE_COUNT} tubes sealed.${m.tubesLeft > 0 ? ' Nothing left to core here.' : ''}</p><button class="btn small" id="samples">See the tubes</button></div>`
     return `${head(`Spot ${spot.label}`)}
       ${timeUpHtml()}
       ${here && m.stranded ? '<div class="reason bad"><b>Safe mode.</b> The battery ran out on the way. Recharge to test or drive.</div>' : ''}
@@ -479,11 +482,11 @@ export function roverScreen(ctx: RoverCtx) {
     }
     sound.play(d.safeMode ? 'alert' : 'telemetry')
     if (d.safeMode) toast(`Safe mode: the battery ran out ${d.distM} m along.`, 'bad', 4500)
-    else if (!(m.atSampleSite && !m.samples)) toast(`Arrived at spot ${spot?.label}. Run tests.`, 'ok', 4000)
+    else if (!m.siteOpen) toast(`Arrived at spot ${spot?.label}. Run tests.`, 'ok', 4000)
     if (m.timeUp) toast(`The ${m.missionSols} Mars days are over. Choose your base.`, 'warn', 5000)
     render()
-    // Arriving at the sample site opens the sample selection.
-    if (!d.safeMode && m.atSampleSite && !m.samples && !m.timeUp) openSamples(true)
+    // Arriving at a sample site with coring still to do opens the sample selection.
+    if (!d.safeMode && m.siteOpen && !m.timeUp) openSamples(true)
   }
 
   // ---------------------------------------------------------------- Recharging

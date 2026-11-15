@@ -34,7 +34,7 @@ export function objectiveFor(m: Mission, briefed: boolean): Objective {
   if (m.timeUp) return at('comms', `The ${m.missionSols} Mars days are over. Choose the base at Rover Comms.`)
   if (m.stranded || !m.canDrive) return at('comms', `${rv.name} is low on battery. Recharge it or choose the base at Rover Comms.`)
   if (!m.samplesStudied && !m.samples && !m.drives.length) return at('comms', 'Optional: calibrate at the Calibration bench (US Lab) so the rover can read its rocks. Then drive your rover at Rover Comms.')
-  if (!m.samples) return at('comms', `Drive ${rv.name} to the sample site and fill three tubes at Rover Comms (day ${m.sol} of ${m.missionSols}).`)
+  if (m.tubesLeft > 0) return at('comms', `Drive ${rv.name} to a sample site and fill its ${m.tubesLeft === 3 ? 'three tubes' : m.tubesLeft === 1 ? 'last tube' : 'last two tubes'} at Rover Comms (day ${m.sol} of ${m.missionSols}).`)
   return at('comms', `Plan ${rv.name}'s drive on the map at Rover Comms (day ${m.sol} of ${m.missionSols}).`)
 }
 
